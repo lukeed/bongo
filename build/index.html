@@ -1,0 +1,15 @@
+<html>
+	<head>
+		<script type="module">
+			import Demo, { metadata } from "./demo.js";
+			console.log(Demo, metadata);
+			new Demo({
+				target: document.body,
+				hydrate: true,
+				props: metadata
+			})
+		</script>
+	</head>
+	<body>
+	</body>
+</html>
