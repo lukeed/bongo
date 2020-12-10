@@ -1,0 +1,13 @@
+---
+title: hello
+color: pink
+count: 42
+---
+
+<script>
+	import Counter from './Counter.svelte';
+</script>
+
+# HELLO { title }
+
+<Counter value={count} />

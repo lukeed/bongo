@@ -1,0 +1,12 @@
+{
+  "name": "ssg",
+  "version": "0.0.0",
+  "license": "MIT",
+  "dependencies": {
+    "astring": "1.4.3",
+    "esbuild": "0.8.21",
+    "magic-string": "0.25.7",
+    "mdsvex": "0.8.9",
+    "svelte": "3.31.0"
+  }
+}

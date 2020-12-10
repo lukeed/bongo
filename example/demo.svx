@@ -1,0 +1,23 @@
+---
+title: demo
+color: cadetblue
+count: 12
+---
+
+<script>
+	import Counter from './Counter.svelte';
+	let number = 45;
+</script>
+
+
+# { title }
+
+## Good stuff in your markdown
+
+Markdown is pretty good but sometimes you just need more.
+
+Sometimes you need a boinger like this:
+
+<ssg:hydrate mode="visible" let:number>
+	<Counter value={number} />
+</ssg:hydrate>
