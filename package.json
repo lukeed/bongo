@@ -8,5 +8,8 @@
     "magic-string": "0.25.7",
     "mdsvex": "0.8.9",
     "svelte": "3.31.0"
+  },
+  "devDependencies": {
+    "sirv": "1.0.10"
   }
 }

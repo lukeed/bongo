@@ -15,14 +15,15 @@ function sha256(filename, contents) {
 
 (async function () {
 	const service = await esbuild.startService();
+	const inputs = [
+		// join(CWD, 'Counter.svelte'),
+		join(CWD, 'hello.svx'),
+		join(CWD, 'demo.svx'),
+	];
 
 	try {
 		await service.build({
-			entryPoints: [
-				// join(CWD, 'Counter.svelte'),
-				join(CWD, 'hello.svx'),
-				join(CWD, 'demo.svx'),
-			],
+			entryPoints: inputs,
 			bundle: true,
 			format: 'esm',
 			splitting: true,
@@ -35,21 +36,14 @@ function sha256(filename, contents) {
 				plugin_svelte({
 					emitCss: true,
 					preprocess: [
-						// {
-						// 	script: (input) => {
-						// 		console.log('I SEE', input);
-						// 		return { code: input.content };
-						// 	},
-						// },
 						mdsvex({
 							extensions: ['.svx'],
 							smartypants: { dashes: true },
 						}),
 					],
 					compilerOptions: {
-						generate: 'ssr',
 						hydratable: true,
-						dev: false,
+						dev: isDev,
 					}
 				}),
 			]
@@ -83,14 +77,16 @@ function sha256(filename, contents) {
 function plugin_svelte(options) {
 	const HYDRATE = /<\/?ssg:hydrate.*(?:>)/g;
 	// const HYDRATOR = join(__dirname, 'hydrator.svelte');
-	const TAGNAME = 'HYDRATOR';
+	const RUNTIME = join(__dirname, 'runtime.js');
+	// const TAGNAME = 'HYDRATOR';
 
 	const { emitCss, preprocess, compilerOptions={} } = options;
 	const customElement = !!compilerOptions.customElement;
-	const isSSR = compilerOptions.generate === 'ssr';
+	// const isSSR = compilerOptions.generate === 'ssr';
 
 	const cache_css = emitCss && new Map;
 	const cache_hydrators = new Map;
+	const cache_contents = new Map;
 	const cache_output = new Map;
 
 	return {
@@ -135,121 +131,168 @@ function plugin_svelte(options) {
 				const file = args.path;
 				// dynamically-created hydrators
 				let entry = cache_hydrators.get(file);
-				const isHydrator = !!entry;
+				entry = entry || cache_contents.get(file);
 
-				console.log('INSIDE SVELTE', file, { isHydrator });
+				const isDOM = !!entry; // TODO
+				// const isDOM = !/\.svx$/.test(args.path); // TODO
+				compilerOptions.generate = isDOM ? 'dom' : 'ssr';
+
+				console.log('INSIDE SVELTE', file, { isDOM });
 				let source = entry || await fs.readFile(file, 'utf8');
 				let filename = relative(CWD, file);
 
-				const hash = sha256(filename, source);
-				entry = cache_output.get(hash);
-				if (entry) return entry;
+				// TODO: but add `generate` mode
+				// const hash = sha256(filename, source);
+				// entry = cache_output.get(hash);
+				// if (entry) return entry;
 
-				let hydrator = false;
 				HYDRATE.lastIndex = 0;
 
-				// has <ssg:hdyrate/>
-				if (!cache_hydrators.has(file) && HYDRATE.test(source)) {
-					hydrator = true;
-
-					let IMPORTS = '';
-					const MS = new MagicString(source, { filename });
+				// has <ssg:hydrate/>
+				if (!isDOM && HYDRATE.test(source)) {
+					let toImport = '';
+					// const IMPORTS = new Map;
+					const DOM = new MagicString(source);
+					const SSR = new MagicString(source, { filename });
 					const AST = svelte.parse(source, { filename, customElement });
 
-					await svelte.walk(AST.html, {
+					svelte.walk(AST.html, {
 						enter(node) {
-							if (node.type !== 'Element' && node.name !== 'ssg:hydrate') return;
-							let { start, end, name, attributes } = node;
-							let nodeName = start + name.length + 1;
+							if (node.type === 'Element' && node.name === 'ssg:hydrate') {
+								// TODO: DOM replace with child
+								let { start, end, name, attributes } = node;
+								let nodeName = start + name.length + 1;
 
-							let hydraname = TAGNAME + (1 + cache_hydrators.size);
-							let hydrafile = file.replace(filename, hydraname + '.svelte');
-							// let hasMode = false;
+								// const hydraname = TAGNAME + (1 + cache_hydrators.size);
+								const hydrahash = sha256(filename, source.substring(start, end));
+								const hydrafile = file.replace(filename, hydrahash + '.hydrate.svelte');
+								const innerfile = file.replace(filename, hydrahash + '.dom.svelte');
 
-							// SSR -> keep everything
-							// DOM -> inspect scopes + purge + virtual file
+								// SSR -> keep everything
+								// DOM -> inspect scopes + purge + virtual file
 
-							if (isSSR) {
-								MS.overwrite(start - 1, nodeName, `<${hydraname}`);
-								MS.overwrite(end - name.length - 3, end, `</${hydraname}>`);
-							}
+								SSR.overwrite(end - name.length - 3, end, `</div>`);
+								SSR.overwrite(start - 1, nodeName, `<div data-hydrate="${hydrahash}"`);
 
-							// if (isSSR) {
-							// 	do {
-							// 		// TODO: something else?
-							// 		//=> <div data-hydrate=[mode]/>
-							// 		//=> save `let:*` ~>
-							// 		ms.remove(match.index, match[0].length);
-							// 	} while (match = Needle.exec(input.content));
-							// } else {
-							// 	do {
-							// 		// TODO: placeholder
-							// 		ms.overwrite(match.index, match.index + match[0].length, '<Hello/>');
-							// 	} while (match = Needle.exec(input.content));
-							// }
+								// TODO: print correct source path
+								SSR.appendRight(end, `{@html '<script defer type="module" src=${JSON.stringify(hydrafile)}></script>'}`);
 
-							// let props = {};
-							// attributes.forEach(attr => {
-							// 	if (attr.type === 'Let') {
-							// 		props[attr.name] = attr.expression ? attr.expression.name : attr.name;
-							// 	} else if (attr.type === 'Attribute' && attr.name === 'mode') {
-							// 		hasMode = true;
-							// 		MS.overwrite(
-							// 			attr.start, attr.end,
-							// 			`data-hydrate=${attr.value[0].raw}`
-							// 		);
-							// 	}
-							// });
+								// TODO: very naiive
+								const references = new Set;
 
-							// hasMode || MS.appendRight(nodeName, ` data-hydrate=idle`)
+								let mode, props=''; //, attrs='';
+								attributes.forEach(attr => {
+									if (attr.type === 'Let') {
+										references.add(attr.name);
+										SSR.remove(attr.start, attr.end);
+									} else if (attr.type === 'Attribute' && attr.name === 'mode') {
+										SSR.remove(attr.start, attr.end);
+										mode = attr.value[0].raw;
+									}
+								});
 
-							let vars = new Set;
-							attributes.forEach(attr => {
-								if (attr.type === 'Let') {
-									vars.add(attr.name);
+								// for (let name of variables) {
+								// 	if (props) props += ',';
+								// 	props += name;
+								// 	// todo: if "name" ...?
+								// 	if (attrs) attrs += ' ';
+								// 	attrs += `{${name}}`;
+								// }
+
+								node.children.forEach(kid => {
+									if (kid.type === 'InlineComponent') {
+										references.add(kid.name);
+									}
+								});
+
+								svelte.walk(AST.html, {
+									enter(node) {
+										if (node.type === 'Element' && node.name === 'ssg:hydrate') {
+											let first = node.children.shift();
+											let last = node.children.pop();
+											if (!first && !last) {
+												DOM.remove(node.start, node.end);
+											} else {
+												let start = first.start;
+												let end = (last || first).end;
+												DOM.overwrite(
+													node.start, node.end,
+													source.substring(start, end)
+												);
+											}
+											this.skip();
+										} else if (node.type !== 'Program' && node.type !== 'Fragment') {
+											DOM.remove(node.start, node.end);
+											this.skip(); // skip inners
+										}
+									}
+								});
+
+								if (AST.instance) {
+									svelte.walk(AST.instance, {
+										enter(node) {
+											// VERY WRONG / NAIIVE
+											if (node.type === 'ImportDeclaration') {
+												let found = node.specifiers.find(x => references.has(x.local.name));
+												found || DOM.remove(node.start, node.remove);
+												this.skip();
+											} else if (node.type === 'VariableDeclarator') {
+												let found = references.has(node.id.name);
+												found || DOM.remove(node.start, node.remove);
+												this.skip();
+											}
+										}
+									});
 								}
-							});
 
-							let props='', attrs='';
-							for (let name of vars) {
-								if (props) props += ',';
-								props += name;
-								// todo: if "name" ...?
-								if (attrs) attrs += ' ';
-								attrs += `{${name}}`;
+								// TODO: mount [data-hydrate] styles once (HTML)
+								// <style>:global([data-hydrate]){display:contents}</style>
+
+								mode = mode || 'idle';
+
+								// TODO: pass in props somehow
+								let hydrasource = `
+									<script>
+										import {onMount} from 'svelte';
+									import {${mode}} from ${JSON.stringify(RUNTIME)};
+									import Contents from ${JSON.stringify(innerfile)};
+										${props && `export let ${props};`}
+										onMount(() => {
+									var ctx, elem = document.querySelector('div[data-hydrate="${hydrahash}"]');
+									if (elem) return (ctx = new Contents({ target: elem, props: {${props}} })).$destroy;
+											// ${mode}('${hydrahash}', {${props}}));
+										});
+									</script>
+								`;
+
+								toImport += `/*#__PURE__*/import(${JSON.stringify(hydrafile)});`;
+								// toImport += `/*#__PURE__*/import(${JSON.stringify(innerfile)});`;
+
+								cache_hydrators.set(hydrafile, hydrasource);
+								cache_contents.set(innerfile, DOM.toString());
+
+								console.log('HYDRATE\n', hydrasource);
+								console.log('---');
+								console.log('DOM\n', DOM.toString());
+								console.log('---');
 							}
-
-							// TODO: hash from somewhere
-							// TODO: mount [data-hydrate] styles once (HTML)
-							// <style>:global([data-hydrate]){display:contents}</style>
-							let hydrasource = `
-								<script>
-									export let mode='idle';
-									export let ${props};
-								</script>
-								<div data-hydrate={mode}>
-									<slot ${attrs}/>
-								</div>
-							`;
-
-							IMPORTS += `import ${hydraname} from ${JSON.stringify(hydrafile)};`;
-							cache_hydrators.set(hydrafile, hydrasource);
 						}
 					});
 
-					// attach `hydrator` component
-					if (hydrator && AST.instance) {
+					// attach `hydrator` component(s)
+					if (AST.instance) {
 						// NOTE: svelte/types/compiler/interfaces
 						//=> Script @ Program needs start|end
-						MS.prependLeft(AST.instance.content.start, IMPORTS);
-					} else if (hydrator) {
-						MS.append(`<script>${IMPORTS}</script>`);
+						SSR.prependLeft(AST.instance.content.start, toImport);
+					} else {
+						SSR.append(`<script>${toImport}</script>`);
 					}
 
-					source = MS.toString();
-					compilerOptions.sourcemap = MS.generateMap();
+					source = SSR.toString();
+					compilerOptions.sourcemap = SSR.generateMap();
+					console.log('SSR\n', source);
+					console.log('---');
 				} //=> </ssg:hydrate>
-
 
 				if (preprocess) {
 					let output = await svelte.preprocess(source, preprocess, { filename });
@@ -261,7 +304,6 @@ function plugin_svelte(options) {
 
 				try {
 					compilerOptions.filename = filename;
-					// svelte.walk()
 					let output = svelte.compile(source, compilerOptions);
 					// console.log('~> output.vars', output.vars);
 					let { js, css, warnings } = output;
@@ -277,10 +319,6 @@ function plugin_svelte(options) {
 					if (js.map) {
 						content += `//# sourceMappingURL=` + js.map.toUrl()
 					}
-
-					// if (/\.svx$/.test(filename)) {
-					// 	console.log('YES', filename);
-					// }
 
 					return {
 						contents: content,
