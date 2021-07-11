@@ -262,6 +262,29 @@ async function collect(dir, callback) {
 		// console.log('~> content', { input, path, output, content });
 		await write(output, content);
 	});
+
+	console.log('~> done~!');
+
+	if ('TODO: --minify') {
+		const exec = require('util').promisify(
+			require('child_process').exec
+		);
+
+		try {
+			let { stdout, stderr } = await exec('minify --version');
+			if (stderr.length || stdout.length < 1) throw 1;
+		} catch (err) {
+			// TODO: formatting
+			console.error('You must have `minify` available in your $PATH for `--minify` to work.');1
+			return process.exitCode = 1;
+		}
+
+		let cwd = process.cwd(); // TODO
+		let input = relative(cwd, outdir);
+		console.log('~> compressing...', input);
+		await exec(`minify -r "${input}" -o .`);
+		console.log('~> DONE~!');
+	}
 })().catch(err => {
 	console.error(err.stack);
 	process.exit(1);
