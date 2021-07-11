@@ -1,0 +1,45 @@
+<html lang={{ $site.lang }}>
+	<head>
+		{{#var title = $site.title }}
+		{{#var descr = $utils.truncate($page.summary || $site.description, 165) }}
+
+		<meta charset="utf-8">
+		<title>{{ title }}</title>
+		<meta name="theme-color" content="#263238">
+		<meta http-equiv="cleartype" content="on"/>
+		<meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+		<meta name="mobile-web-app-capable" content="yes"/>
+
+		<meta name="application-name" content="{{ title }}"/>
+		<meta name="msapplication-tap-highlight" content="no"/>
+		<meta name="apple-mobile-web-app-capable" content="yes"/>
+		<meta name="apple-mobile-web-app-title" content="{{ title }}"/>
+		<meta name="apple-mobile-web-app-status-bar-style" content="black"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1"/>
+
+		<meta name="description" content="{{ descr }}" />
+		<meta name="msapplication-TileColor" content="#FFFFFF"/>
+		<meta name="msapplication-TileImage" content={{ $utils.url.abs("/img/touch/ms-144.png") }}/>
+		<link rel="apple-touch-icon" href={{ $utils.url.abs("/img/touch/ios-144.jpg") }}/>
+		<link rel="shortcut icon" href={{ $utils.url.abs("/img/touch/48.png") }}/>
+		<link rel="manifest" href={{ $utils.url.abs("/manifest.json") }}/>
+
+		{{#style src="root.sass" output="r.css" }}
+		{{ $page.styles || '' }}
+
+		<script>var $$r=document.documentElement;$$r.className='';!function(){var a=localStorage.getItem("dark");(a=a&&+a)||a||window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,$$r.classList.toggle("dark",a=!!a),localStorage.setItem("dark",+a+"")}()</script>
+
+		<!-- <script nomodule defer src="https://cdnjs.cloudflare.com/ajax/libs/promiz/1.0.6/promiz.min.js"></script> -->
+		<!-- <script nomodule defer src="https://cdn.jsdelivr.net/npm/promis@1.1.4/promise.min.js"></script> -->
+		{{#script src="root.ts" defer=true }}
+		{{ $page.scripts || '' }}
+	</head>
+	<body>
+		<main>
+			{{#partial src="datetime" value=Date.now() }}
+			{{#partial src="datetime.hbs" value=Date.now() }}
+			<hr>
+			{{{ $page.content }}}
+		</main>
+	</body>
+</html>

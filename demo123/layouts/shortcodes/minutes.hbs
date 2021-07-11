@@ -1,0 +1,4 @@
+{{#expect text }}
+{{#var speed = 150.0; }}
+{{#var wcount = $utils.countwords(text); }}
+<span class="est">{{{ Math.ceil(wcount / speed) }}} minute read</span>
