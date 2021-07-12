@@ -4,14 +4,13 @@ const exists = require('fs').existsSync;
 const { dirname, join, relative } = require('path');
 const tempura = require('tempura');
 
+const srcdir = join(__dirname, 'demo123');
+// const srcdir = join(__dirname, 'example');
 const outdir = join(__dirname, 'output123');
 
-const src = join(__dirname, 'demo123');
-// const src = join(__dirname, 'example');
-
-const assets = join(src, 'assets');
-const layouts = join(src, 'layouts');
-const content = join(src, 'content');
+const assets = join(srcdir, 'assets');
+const layouts = join(srcdir, 'layouts');
+const content = join(srcdir, 'content');
 
 const partials = join(layouts, 'partials');
 const shortcodes = join(layouts, 'shortcodes');
@@ -19,13 +18,15 @@ const shortcodes = join(layouts, 'shortcodes');
 /**
  * @typedef {tempura.Blocks} Blocks
  * @typedef {Map<string, tempura.Compiler>} Cache
+ * @typedef {Record<string, Promise<string>>} AssetCache
  * @typedef {(abs: string, rel: string, name: string) => any} Callback
  */
 
 // ---
 /** @type {Blocks} */ const Custom = {};
-/** @type {Cache}  */ const Layouts = new Map;
-/** @type {Cache}  */ const Partials = new Map;
+/** @type {Cache} */ const Layouts = new Map;
+/** @type {Cache} */ const Partials = new Map;
+/** @type {AssetCache} */ const Assets = {};
 // ---
 
 /**
@@ -76,10 +77,21 @@ const $utils = {
 	}
 };
 
+/**
+ * @type {import('esbuild').build}
+ */
+let esbuild;
+
 const $assets = {
-	load(filename) {
+	/**
+	 * @param {string} filename
+	 * @param {import('fs').EncodingOption} [encoding]
+	 * @returns {Promise<string|Buffer>}
+	 */
+	load(filename, encoding) {
 		let file = join(assets, filename);
-		console.log('~> asset', file);
+		if (exists(file)) return fs.readFile(file, encoding);
+		throw new Error(`Missing "${filename}" asset!`);
 	}
 };
 
@@ -96,18 +108,114 @@ const options = {
 			return await render(rest);
 		},
 		async style(args) {
+			esbuild = esbuild || require('esbuild').build;
 			return 'TODO: style';
 		},
-		async script(args) {
-			console.log('#SCRIPT', args);
-			return 'TODO: script';
+		async script({ src, target, format, async, defer, inline }) {
+			esbuild = esbuild || require('esbuild').build;
+
+			// TODO: track references
+			// if `inline` 2+ count, hoist to external
+
+			let file = join(assets, src);
+
+			let output = Assets[file] || '';
+			if (output) return await output;
+
+			// TODO: collect all inputs for build for code splitting reuse
+			if (!exists(file)) {
+				throw new Error(`Missing "assets/${src}" file!`);
+			}
+
+			// outbase?
+			// chunkNames
+			// assetNames
+
+			/** @type {import('esbuild').BuildOptions} */
+			let options = {
+				bundle: true,
+				outdir: outdir,
+				splitting: true,
+				entryPoints: [file],
+				// absWorkingDir: srcdir,
+				target: target || 'es2017',
+				format: format || 'esm',
+				resolveExtensions: ['.ts', '.js', '.cjs', '.mjs', '.css', '.json'],
+				mainFields: ['browser', 'module', 'jsnext', 'main'],
+				conditions: ['browser', 'import', 'production'],
+				platform: 'neutral',
+				incremental: false, // TODO
+				sourcemap: false, // TODO
+				minify: true, // TODO
+				publicPath: new URL($site.url).pathname,
+				metafile: true,
+			};
+
+			if (inline) {
+				options.write = false;
+			} else {
+				options.allowOverwrite = options.write = true;
+				options.entryNames = options.chunkNames = '[name].[hash]';
+				// if (output = 'r.js') options.outfile = join(outdir, output);
+			}
+
+			Assets[file] = new Promise((res, rej) => {
+				return esbuild(options).then(result => {
+					// TODO: errors, warnings
+					// TODO: track `result.metafile.inputs[key].imports`
+
+					// esbuild returns all cwd-relative
+					let entry = relative(process.cwd(), file);
+
+					let key, tmp, outfile='';
+					for (key in result.metafile.outputs) {
+						tmp = result.metafile.outputs[key];
+						if (tmp.entryPoint === entry) {
+							outfile = key;
+							break;
+						}
+					}
+
+					if (outfile) {
+						outfile = relative(outdir, outfile);
+						outfile = $utils.url.abs(outfile);
+					} else {
+						return rej(`Missing output for "${src}" entrypoint`);
+					}
+
+					// begin construction
+					output = '<script';
+					if (async) output += ' async';
+					if (!format || format === 'esm') {
+						output += ' type=module';
+					} else if (defer) {
+						output += ' defer';
+					}
+
+					if (inline) {
+						tmp = result.outputFiles.shift();
+						output += '>' + tmp.text + '</script>';
+
+						// all others are chunks, write to disk
+						Promise.all(result.outputFiles.map(obj => {
+							return write(obj.path, obj.contents)
+						})).catch(rej);
+					} else {
+						output += ` src="${outfile}"></script>`;
+					}
+
+					return res(output);
+				}).catch(rej);
+			});
+
+			return await Assets[file];
 		}
 	}
 }
 
 /**
  * @param {string} file
- * @param {string} content
+ * @param {Buffer|Uint8Array|string} content
  */
 async function write(file, content) {
 	let dir = dirname(file);
