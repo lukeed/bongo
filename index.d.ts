@@ -1,6 +1,14 @@
+type Promisable<T> = Promise<T> | T;
+
 export interface Argv {
 	cwd: string;
 }
+
+export type Loader = (file: string, content: Uint8Array | string) => Promisable<{
+	filename: string;
+	content: Uint8Array | string;
+	map?: any | null; // TODO
+}>;
 
 export namespace Variables {
 	interface Menu {
