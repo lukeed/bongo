@@ -1,7 +1,7 @@
 // @ts-check
 const fs = require('fs/promises');
 const exists = require('fs').existsSync;
-const { dirname, join, relative } = require('path');
+const { dirname, extname, join, relative } = require('path');
 const tempura = require('tempura');
 
 const srcdir = join(__dirname, 'demo123');
@@ -213,6 +213,8 @@ const options = {
 	}
 }
 
+// options.blocks.script.setup = (...args) => console.log('SCRIPT.SETUP', args);
+
 /**
  * @param {string} file
  * @param {Buffer|Uint8Array|string} content
@@ -269,10 +271,36 @@ async function ls(dir, callback, prefix='') {
  */
 async function collect(dir, callback) {
 	return ls(dir, (abs, rel, name) => {
-		// console.log('>~ here', dirent);
 		return name.endsWith('.hbs') && callback(abs, rel, name);
 	});
 }
+
+let mdown;
+
+/**
+ * @type {Record<string, import('.').Loader>}
+ */
+const ASSETS = {
+	html(filename, content) {
+		console.log('DONT', { filename, content });
+		return { filename, content };
+	},
+	md(input, content) {
+		mdown = mdown || require('markdown-it')({
+			html: true,
+			linkify: true,
+			typographer: true
+		});
+
+		if (typeof content !== 'string') {
+			content = new TextDecoder().decode(content);
+		}
+
+		let filename = input + '.html';
+		content = mdown.render(content);
+		return { filename, content };
+	}
+};
 
 (async function () {
 	// TODO: grab all first before compiling
@@ -312,49 +340,73 @@ async function collect(dir, callback) {
 	await ls(content, async (input, rel, name) => {
 		let idx = rel.lastIndexOf('.');
 		let path = '/' + rel.substring(0, idx);
+		let output = join(outdir, path.substring(1));
 
 		idx = name.lastIndexOf('.');
-		name = name.substring(0, idx);
-
-		// lookup priority
-		let files = ['index.hbs', 'html.hbs'];
-		if (name !== 'index') files.splice(0, 1, `${name}.hbs`, 'single.hbs');
-		let dirs = rel.split(/[\\\/]+/g).slice(0, -1).concat('defaults');
+		let ext = name.substring(idx + 1);
+		let basename = name.substring(0, idx);
+		let buff = await fs.readFile(input);
 
 		/** @type {tempura.Compiler|void} */
-		let render, layout='', i=0, j=0;
-		outer: for (; i < dirs.length; i++) {
-			for (j=0; j < files.length; j++) {
-				layout = join(dirs[i], files[j]);
-				render = Layouts.get(layout);
-				// TODO: --debug log order
-				if (render) break outer;
+		let render, layout='', content='';
+
+		if (ext !== 'hbs') {
+			let loader, filename = input;
+			let prev, rgx = /(hbs|html?)$/;
+			let data = new Uint8Array(buff);
+
+			while (prev !== ext) {
+				if (rgx.test(ext)) break;
+
+				if (loader = ASSETS[prev = ext]) {
+					let result = await loader(filename, data);
+					filename = result.filename;
+					data = result.content;
+				}
+
+				ext = extname(filename).substring(1);
+			}
+
+			if (rgx.test(ext)) {
+				output = join(output, 'index.html');
+				content = typeof data === 'string' ? data : new TextDecoder().decode(data);
+			} else {
+				return await write(output, data);
 			}
 		}
-
-		// Should always be defined as a fallback
-		if (!render) throw new Error('Missing "defaults/html.hbs" template');
-
-		let content = await fs.readFile(input, 'utf8');
-
-		// TODO: markdown -> html first
-		// TODO: frontmatter (url/pathname change, $page.params)
-		let output = join(outdir, path.substring(1), 'index.html');
 
 		/**
 		 * @type {import('.').Variables.Page}
 		 */
-		let $page = {
+		 let $page = {
 			path: path,
 			url: new URL(path, $site.url).href,
 			content: content,
 			// ...frontmatter
 		};
 
-		content = await render({ $site, $assets, $page, $utils }, Custom);
+		// lookup priority
+		let i=0, dirs = rel.split(/[\\\/]+/g).slice(0, -1).concat('defaults');
+
+		if (ext === 'hbs') {
+			let j=0, files = ['index.hbs', 'html.hbs'];
+			if (basename !== 'index') files.splice(0, 1, `${basename}.hbs`, 'single.hbs');
+
+			outer: for (; i < dirs.length; i++) {
+				for (j=0; j < files.length; j++) {
+					layout = join(dirs[i], files[j]);
+					render = Layouts.get(layout);
+					// TODO: --debug log order
+					if (render) break outer;
+				}
+			}
+
+			// Should always be defined as a fallback
+			if (!render) throw new Error('Missing "defaults/html.hbs" template');
+			content = await render({ $site, $assets, $page, $utils }, Custom);
+		}
 
 		if (!layout.endsWith('html.hbs')) {
-			console.log('AGAIN');
 			$page.content = content;
 			for (i=0; i < dirs.length; i++) {
 				layout = join(dirs[i], 'html.hbs');
@@ -396,4 +448,4 @@ async function collect(dir, callback) {
 })().catch(err => {
 	console.error(err.stack);
 	process.exit(1);
-})
+});
