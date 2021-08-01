@@ -226,6 +226,16 @@ async function write(file, content) {
 }
 
 /**
+ * @param {string} src
+ * @param {string} dest
+ */
+async function copy(src, dest) {
+	let dir = dirname(dest);
+	exists(dir) || await fs.mkdir(dir, { recursive: true });
+	await fs.copyFile(src, dest);
+}
+
+/**
  * @param {string} file
  * @param {Blocks} [blocks]
  */
@@ -388,7 +398,7 @@ const ASSETS = {
 			}
 		} else {
 			// TODO: print "no match" if debug
-			return fs.copyFile(input, output);
+			return copy(input, output);
 		}
 
 		/**
