@@ -2,6 +2,15 @@ type Promisable<T> = Promise<T> | T;
 
 export interface Argv {
 	cwd: string;
+	minify?: boolean;
+	// added via normalize
+	src?: string;
+	dest?: string;
+	assets?: string;
+	content?: string;
+	partials?: string;
+	shortcodes?: string;
+	layouts?: string;
 }
 
 export type Loader = (file: string, content: Uint8Array | string) => Promisable<{
@@ -30,16 +39,16 @@ export namespace Variables {
 	interface Page {
 		url: string;
 		path: string;
-		input: string;
-		output: string;
 		content: string;
-		title?: string;
+		params: Params;
 		summary?: string;
 		scripts?: string;
 		styles?: string;
-		params?: {
-			[name: string]: unknown;
-		};
+		title?: string;
+	}
+
+	interface Params {
+		[name: string]: unknown;
 	}
 
 	interface Utils {

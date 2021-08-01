@@ -215,75 +215,8 @@ const options = {
 
 // options.blocks.script.setup = (...args) => console.log('SCRIPT.SETUP', args);
 
-/**
- * @param {string} file
- * @param {Buffer|Uint8Array|string} content
- */
-async function write(file, content) {
-	let dir = dirname(file);
-	exists(dir) || await fs.mkdir(dir, { recursive: true });
-	await fs.writeFile(file, content);
-}
 
-/**
- * @param {string} src
- * @param {string} dest
- */
-async function copy(src, dest) {
-	let dir = dirname(dest);
-	exists(dir) || await fs.mkdir(dir, { recursive: true });
-	await fs.copyFile(src, dest);
-}
 
-/**
- * @param {string} file
- * @param {Blocks} [blocks]
- */
-async function compile(file, blocks) {
-	try {
-		let config = { ...options };
-		if (blocks) config.blocks = { ...config.blocks, ...blocks };
-		let content = await fs.readFile(file, 'utf8');
-		return tempura.compile(content, config);
-		// TODO: typescript signature
-		// TODO: fix ths return type for Compiler / separate from Block
-		// return input => view({ ...input, $site, $utils, $assets }, Custom);
-	} catch (err) {
-		file = relative(layouts, file);
-		let tmp = new Error(`Error compiling "${file}" template!`);
-		if (!(err instanceof SyntaxError)) tmp.message += '\n\t'+err.message;
-		throw tmp;
-	}
-}
-
-/**
- * @param {string} dir
- * @param {Callback} callback
- */
-async function ls(dir, callback, prefix='') {
-	let files = await fs.readdir(dir, {
-		withFileTypes: true
-	});
-
-	return Promise.all(
-		files.map(dirent => {
-			let item = join(dir, dirent.name);
-			let rel = join(prefix, dirent.name);
-			if (dirent.isFile()) return callback(item, rel, dirent.name);
-			return /^(shortcode|partial)s$/.test(dirent.name) || ls(item, callback, rel);
-		})
-	);
-}
-
-/**
- * @param {string} dir
- * @param {Callback} callback
- */
-async function collect(dir, callback) {
-	return ls(dir, (abs, rel, name) => {
-		return name.endsWith('.hbs') && callback(abs, rel, name);
-	});
-}
 
 let mdown;
 
