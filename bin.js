@@ -2,9 +2,11 @@
 const argv = require('mri')(process.argv.slice(2), {
 	default: {
 		'C': '.',
+		'm': false,
 	},
 	alias: {
 		'C': 'cwd',
+		'm': 'minify',
 		'v': 'version',
 		'h': 'help',
 	}
@@ -26,8 +28,9 @@ if (argv.h) {
 	output += '\n';
 	output += '\n  Options';
 	output += '\n    -C, --cwd        Directory to resolve from  (default .)';
-	output += '\n    -v, --version      Displays current version';
-	output += '\n    -h, --help         Displays this message';
+	output += '\n    -m, --minify     Compress built assets  (default false)';
+	output += '\n    -v, --version    Displays current version';
+	output += '\n    -h, --help       Displays this message';
 	output += '\n';
 
 	process.stdout.write(output + '\n');
