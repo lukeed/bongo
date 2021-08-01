@@ -7,7 +7,8 @@ export interface Argv {
 export type Loader = (file: string, content: Uint8Array | string) => Promisable<{
 	filename: string;
 	content: Uint8Array | string;
-	map?: any | null; // TODO
+	metadata?: Record<string, unknown>;
+	sourcemap?: any | null; // TODO
 }>;
 
 export namespace Variables {

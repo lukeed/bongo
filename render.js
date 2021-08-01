@@ -296,9 +296,20 @@ const ASSETS = {
 			content = new TextDecoder().decode(content);
 		}
 
+		let metadata = {};
 		let filename = input + '.html';
+		let match = /---\r?\n([\s\S]+?)\r?\n---/.exec(content);
+
+		if (match != null) {
+			content = content.substring(match[0].length);
+			match[1].split('\n').forEach(pair => {
+				let [key, ...v] = pair.split(':');
+				metadata[key.trim()] = v.join(':').trim();
+			});
+		}
+
 		content = mdown.render(content);
-		return { filename, content };
+		return { filename, content, metadata };
 	}
 };
 
@@ -331,48 +342,53 @@ const ASSETS = {
 	console.log('~> Custom', Object.keys(Custom));
 	console.log('---');
 
-	// TODO: swap on extension:
-	// 	 md  ~> compile(md) + html
-	// 	 hbs  ~> compile(md) + html
-	//   html  ~> static html
-	//   ...custom?
-	//   others -> copy
 	await ls(content, async (input, rel, name) => {
 		let idx = rel.lastIndexOf('.');
 		let path = '/' + rel.substring(0, idx);
-		let output = join(outdir, path.substring(1));
+		let output = join(outdir, rel);
 
 		idx = name.lastIndexOf('.');
 		let ext = name.substring(idx + 1);
 		let basename = name.substring(0, idx);
-		let buff = await fs.readFile(input);
 
 		/** @type {tempura.Compiler|void} */
-		let render, layout='', content='';
+		let render, layout='';
+		let content='', params={};
 
-		if (ext !== 'hbs') {
+		if (ext === 'hbs') {
+			// do nothing
+		} else if (ASSETS[ext]) {
 			let loader, filename = input;
 			let prev, rgx = /(hbs|html?)$/;
-			let data = new Uint8Array(buff);
+			let data = new Uint8Array(
+				await fs.readFile(input)
+			);
 
 			while (prev !== ext) {
 				if (rgx.test(ext)) break;
 
+				// TODO: loader receives utils
 				if (loader = ASSETS[prev = ext]) {
 					let result = await loader(filename, data);
 					filename = result.filename;
 					data = result.content;
+					if (result.metadata) {
+						Object.assign(params, result.metadata);
+					}
 				}
 
 				ext = extname(filename).substring(1);
 			}
 
 			if (rgx.test(ext)) {
-				output = join(output, 'index.html');
+				output = join(outdir, path.substring(1), 'index.html'); // todo: move down
 				content = typeof data === 'string' ? data : new TextDecoder().decode(data);
 			} else {
-				return await write(output, data);
+				return write(output, data);
 			}
+		} else {
+			// TODO: print "no match" if debug
+			return fs.copyFile(input, output);
 		}
 
 		/**
@@ -382,6 +398,7 @@ const ASSETS = {
 			path: path,
 			url: new URL(path, $site.url).href,
 			content: content,
+			params: params,
 			// ...frontmatter
 		};
 
@@ -418,6 +435,8 @@ const ASSETS = {
 			if (!render) throw new Error('Missing "defaults/html.hbs" template');
 			content = await render({ $site, $assets, $page, $utils }, Custom);
 		}
+
+		console.log('~> output', {output, params});
 
 		// console.log('~> content', { input, path, output, content });
 		await write(output, content);
