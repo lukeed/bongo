@@ -391,7 +391,6 @@ const ASSETS = {
 			}
 
 			if (rgx.test(ext)) {
-				output = join(outdir, path.substring(1), 'index.html'); // todo: move down
 				content = typeof data === 'string' ? data : new TextDecoder().decode(data);
 			} else {
 				return write(output, data);
@@ -401,12 +400,19 @@ const ASSETS = {
 			return copy(input, output);
 		}
 
+		if (typeof params.url === 'string') {
+			path = '/' + params.url.replace(/^.?\/+/, '');
+			if (/^(https?:)?\/\//.test(path)) {
+				throw new Error('Custom `url` must be path only');
+			}
+		}
+
 		/**
 		 * @type {import('.').Variables.Page}
 		 */
 		 let $page = {
 			path: path,
-			url: new URL(path, $site.url).href,
+			url: new URL(path.substring(1), $site.url).href,
 			content: content,
 			params: params,
 			// ...frontmatter
@@ -414,6 +420,7 @@ const ASSETS = {
 
 		// lookup priority
 		let i=0, dirs = rel.split(/[\\\/]+/g).slice(0, -1).concat('defaults');
+		output = join(outdir, path.substring(1), 'index.html');
 
 		if (ext === 'hbs') {
 			let j=0, files = ['index.hbs', 'html.hbs'];
@@ -446,9 +453,7 @@ const ASSETS = {
 			content = await render({ $site, $assets, $page, $utils }, Custom);
 		}
 
-		console.log('~> output', {output, params});
-
-		// console.log('~> content', { input, path, output, content });
+		// console.log('~> output', { output, params });
 		await write(output, content);
 	});
 
