@@ -9,7 +9,7 @@
     "strictNullChecks": true,
     "removeComments": true,
     "sourceMap": false,
-    "allowJs": false,
+    "allowJs": true,
     "strict": true,
     "noEmit": true,
     "baseUrl": ".",

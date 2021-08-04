@@ -1,5 +1,5 @@
+import * as tempura from './tempura/index';
 import { join, relative } from 'path';
-import * as tempura from 'tempura';
 import * as fs from './fs';
 
 import type { Argv } from 'ssg';
