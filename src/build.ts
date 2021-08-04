@@ -1,4 +1,5 @@
 import * as fs from './utils/fs';
+import { load } from './utils/config';
 import * as views from './utils/views';
 import { normalize } from './utils/argv';
 import { extname, join, relative } from 'path';
