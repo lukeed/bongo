@@ -1,25 +1,29 @@
 import * as tempura from './tempura/index';
 import { join, relative } from 'path';
+import * as esbuild from './esbuild';
 import * as fs from './fs';
 
-import type { Argv } from 'ssg';
-import type { BuildOptions } from 'esbuild';
-
-// /** @type {AssetCache} */ const Assets = {};
+import type { Argv, Config } from 'ssg';
+import type { Args } from './tempura/index';
+import { BuildOptions } from 'esbuild';
 
 type Cache = Map<string, tempura.Compiler>;
-// @typedef {Record<string, Promise<string>>} AssetCache
 
 export const Partials: Cache = new Map;
 export const Layouts: Cache = new Map;
 
-let esbuild: typeof import('esbuild').build;
-
-export async function collect(argv: Required<Argv>): Promise<void> {
+export async function collect(argv: Required<Argv>, config: Required<Config>): Promise<void> {
 	let extn = /\.hbs$/i;
 	let { layouts } = argv;
+
+	let opts: BuildOptions = {
+		outdir: argv.dest,
+		publicPath: new URL(config.$site.url).pathname,
+		minify: argv.minify,
+	};
+
 	let blocks: tempura.Blocks = {
-		partial(args) {
+		partial(args: Args) {
 			// NOTE: partials do not have access to `$page` !!
 			let { src, ...rest } = args as Record<string, string>;
 			let render = Partials.get(src) || Partials.get(src + '.hbs');
@@ -27,8 +31,78 @@ export async function collect(argv: Required<Argv>): Promise<void> {
 			if (render) return render(rest);
 			throw new Error(`Unknown "${src}" partial!`);
 		},
-		async script() {
-			//
+		async style(args: Args) {
+			return 'TODO';
+		},
+		async script(args: Args) {
+			let { src, target, format, async, defer, inline } = args;
+
+			let input = join(argv.assets, src);
+			fs.assert(input, `assets/${src}`);
+
+			let options = { ...opts };
+			if (target) options.target = target;
+			if (format) options.format = format;
+
+			if (inline) {
+				options.write = false;
+			} else {
+				options.allowOverwrite = options.write = true;
+				options.entryNames = options.chunkNames = '[name].[hash]';
+				// if (output = 'r.js') options.outfile = join(outdir, output);
+			}
+
+			// TODO: errors, warnings
+			// TODO: track `result.metafile.inputs[key].imports`
+			let result = await esbuild.build(input, options);
+			return '';
+
+			// esbuild returns all cwd-relative
+			let entry = relative(argv.cwd, input);
+
+			let key, tmp, outfile='';
+			console.log('here', input, result);
+
+			for (key in result.metafile!.outputs) {
+				tmp = result.metafile!.outputs[key];
+				if (tmp.entryPoint === entry) {
+					outfile = key;
+					break;
+				}
+			}
+
+			if (outfile) {
+				outfile = relative(argv.dest, outfile);
+				outfile = config.$utils.url.abs(outfile);
+			} else {
+				throw new Error(`Missing output for "${src}" entrypoint`);
+			}
+
+			// begin construction
+			let output = '<script';
+			if (async) output += ' async';
+			if (!format || format === 'esm') {
+				output += ' type=module';
+			} else if (defer) {
+				output += ' defer';
+			}
+
+			if (inline) {
+				tmp = result.outputFiles!.shift()!;
+				output += '>' + tmp.text + '</script>';
+
+				// all others are chunks, write to disk
+				Promise.all(result.outputFiles!.map(obj => {
+					return fs.write(obj.path, obj.contents);
+				})); //.catch(rej);
+			} else {
+				output += ` src="${outfile}"></script>`;
+			}
+
+			return output;
+
+				// 	return res(output);
+				// }).catch(rej);
 		}
 	};
 
@@ -53,7 +127,7 @@ export async function collect(argv: Required<Argv>): Promise<void> {
 		let key = name.replace(extn, '');
 		let render = await compile(absolute);
 		// NOTE: Shortcodes do NOT have access to `$page` var
-		blocks[key] = x => render({ ...x, $site, $utils, $assets }, blocks);
+		blocks[key] = (x: Args) => render({ ...x, ...config }, blocks);
 	});
 
 	console.log('~> collect "partials" views');
@@ -61,7 +135,7 @@ export async function collect(argv: Required<Argv>): Promise<void> {
 		if (!extn.test(rel)) return;
 		let render = await compile(absolute);
 		// NOTE: Partials do NOT have access to `$page` var
-		Partials.set(rel, x => render({ ...x, $site, $utils, $assets }, blocks));
+		Partials.set(rel, (x: Args) => render({ ...x, ...config }, blocks));
 	});
 
 	console.log('~> collect "layouts" views');

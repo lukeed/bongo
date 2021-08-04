@@ -4,15 +4,29 @@ import * as views from './utils/views';
 import { normalize } from './utils/argv';
 import { extname, join, relative } from 'path';
 
-import type { Argv, Variables } from 'ssg';
+import type { Argv, Template } from 'ssg';
 import type { Compiler } from './utils/tempura';
 
 export async function build(argv: Argv) {
 	normalize(argv);
 	console.log(argv);
 
+	const config = await load(argv.cwd);
+	const { $site, $assets:ASSETS } = config;
+
+	await fs.rmdir(argv.dest, { recursive: true });
+
+	config.$assets = {
+		// @ts-ignore -> switcheroo
+		load(filename: string, encoding?: BufferEncoding) {
+			let file = join(argv.assets, filename);
+			fs.assert(file, `Missing "${filename}" asset!`);
+			return fs.read(file, encoding);
+		}
+	};
+
 	// sets `views` caches
-	await views.collect(argv);
+	await views.collect(argv, config);
 
 	const { Layouts } = views;
 	const { dest, content } = argv;
@@ -25,7 +39,7 @@ export async function build(argv: Argv) {
 		idx = name.lastIndexOf('.');
 		let ext = name.substring(idx + 1);
 		let basename = name.substring(0, idx);
-		let params: Variables.Params = {};
+		let params: Template.Params = {};
 
 		let render: Compiler | void;
 		let layout='', content='';
@@ -37,12 +51,12 @@ export async function build(argv: Argv) {
 			let prev, rgx = /(hbs|html?)$/;
 			let data = new Uint8Array(
 				await fs.read(input)
-			);
+			) as Uint8Array | string;
 
 			while (prev !== ext) {
 				if (rgx.test(ext)) break;
 
-				// TODO: assets after config
+				// TODO: ASSETS after config
 				// TODO: loader receives utils
 				if (loader = ASSETS[prev = ext]) {
 					let result = await loader(filename, data);
@@ -73,15 +87,11 @@ export async function build(argv: Argv) {
 			}
 		}
 
-		/**
-		 * @type {import('.').Variables.Page}
-		 */
-		 let $page = {
+		let $page: Template.Page = {
 			path: path,
 			url: new URL(path.substring(1), $site.url).href,
 			content: content,
 			params: params,
-			// ...frontmatter
 		};
 
 		// lookup priority
@@ -103,7 +113,7 @@ export async function build(argv: Argv) {
 
 			// Should always be defined as a fallback
 			if (!render) throw new Error('Missing "defaults/html.hbs" template');
-			content = await render({ $site, $assets, $page, $utils }, Custom);
+			content = await render({ $page, ...config });
 		}
 
 		if (!layout.endsWith('html.hbs')) {
@@ -116,7 +126,7 @@ export async function build(argv: Argv) {
 			}
 			// Should always be defined as a bare minimum
 			if (!render) throw new Error('Missing "defaults/html.hbs" template');
-			content = await render({ $site, $assets, $page, $utils }, Custom);
+			content = await render({ $page, ...config });
 		}
 
 		// console.log('~> output', { output, params });
