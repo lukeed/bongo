@@ -20,7 +20,7 @@ export type Loader = (file: string, content: Uint8Array | string) => Promisable<
 	sourcemap?: any | null; // TODO
 }>;
 
-export namespace Variables {
+export namespace Template {
 	interface Menu {
 		name: string;
 		href: string;
@@ -56,4 +56,23 @@ export namespace Variables {
 		relurl(target: string): string;
 		truncate(input: string, length: number): string;
 	}
+}
+
+interface Helpers {
+  [name: string]: Function | Promise<any> | Helpers;
+}
+
+export interface Config {
+	$site: Template.Site;
+	$utils?: Helpers & {
+		truncate(text: string, length: number): string;
+		countwords(text: string): number;
+		url: {
+			abs(to: string, fro?: string): string;
+		};
+		date: {
+			format(value: string|number|Date, format: string): string;
+		};
+	};
+	$assets?: Record<string, Loader>;
 }
