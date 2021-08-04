@@ -4,7 +4,7 @@ import { normalize } from './utils/argv';
 import { extname, join, relative } from 'path';
 
 import type { Argv, Variables } from 'ssg';
-import type { Compiler } from 'tempura';
+import type { Compiler } from './utils/tempura';
 
 export async function build(argv: Argv) {
 	normalize(argv);
