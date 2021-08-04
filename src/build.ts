@@ -147,9 +147,11 @@ export async function build(argv: Argv) {
 			return process.exitCode = 1;
 		}
 
-		let input = relative(argv.cwd, argv.dest);
+		let cwd = process.cwd();
+		let input = relative(cwd, argv.dest);
 		console.log('~> compressing...', input);
-		await exec(`minify -r "${input}" -o .`);
+		let output = relative(cwd, argv.cwd) || '.';
+		await exec(`minify -r "${input}" -o "${output}"`);
 	}
 
 	console.log('~> DONE~!');
