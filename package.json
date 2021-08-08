@@ -1,40 +1,13 @@
 {
-  "name": "bongo",
   "private": true,
-  "version": "0.0.0",
-  "repository": "lukeed/bongo",
-  "description": "WIP",
-  "types": "index.d.ts",
-  "license": "MIT",
-  "bin": {
-    "ssg": "bin.js"
-  },
-  "files": [
-    "bin.js",
-    "index.js",
-    "index.d.ts"
-  ],
-  "author": {
-    "name": "Luke Edwards",
-    "email": "luke.edwards05@gmail.com",
-    "url": "https://lukeed.com"
-  },
-  "engines": {
-    "node": ">=12.10"
-  },
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -cw",
     "test": "tsc --noEmit"
   },
-  "dependencies": {
-    "esbuild": "^0.12.0",
-    "kleur": "^4.0.0",
-    "mri": "^1.1.0",
-    "tempura": "^0.3.1"
-  },
   "devDependencies": {
     "@types/node": "14.11.2",
+    "esbuild": "^0.12.0",
     "markdown-it": "12.1.0",
     "rollup": "2.50.4",
     "sirv": "1.0.12",
