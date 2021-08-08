@@ -3,9 +3,9 @@ import { join, relative } from 'path';
 import * as esbuild from './esbuild';
 import * as fs from './fs';
 
-import type { Argv, Config } from 'ssg';
+import type { Argv, Config } from 'bongo';
 import type { Args } from './tempura/index';
-import { BuildOptions } from 'esbuild';
+import type { BuildOptions } from 'esbuild';
 
 type Cache = Map<string, tempura.Compiler>;
 

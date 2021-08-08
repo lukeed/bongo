@@ -4,7 +4,7 @@ import * as views from './utils/views';
 import { normalize } from './utils/argv';
 import { extname, join, relative } from 'path';
 
-import type { Argv, Template } from 'ssg';
+import type { Argv, Template } from 'bongo';
 import type { Compiler } from './utils/tempura';
 
 export async function build(argv: Argv) {

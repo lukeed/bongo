@@ -1,5 +1,5 @@
 import { join, resolve } from 'path';
-import type { Argv } from 'ssg';
+import type { Argv } from 'bongo';
 
 export function normalize(argv: Argv): asserts argv is Required<Argv> {
 	argv.cwd = resolve(argv.cwd);
