@@ -1,7 +1,7 @@
 const { join } = require('path');
 const { gzipSync } = require('zlib');
 const { builtinModules } = require('module');
-const { readdir } = require('fs/promises');
+const { readdir } = require('fs').promises;
 const { rollup } = require('rollup');
 
 const plugins = require('./plugins');
