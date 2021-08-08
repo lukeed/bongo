@@ -4,7 +4,6 @@ const { minify } = require('terser');
 const { transform } = require('esbuild');
 // const { transpileModule } = require('typescript');
 const tsconfig = require('./tsconfig.json');
-const pkg = require('./package.json');
 
 const isDEV = !!process.env.ROLLUP_WATCH;
 
@@ -58,10 +57,10 @@ const esbuild = {
 };
 
 module.exports = {
-	input: 'src/index.ts',
+	input: 'packages/bongo/src/index.ts',
 	output: {
 		format: 'cjs',
-		file: 'index.js',
+		file: 'packages/bongo/index.js',
 		preferConst: true,
 		esModule: false,
 		interop: false,
@@ -70,7 +69,7 @@ module.exports = {
 	},
 	external: [
 		...require('module').builtinModules,
-		...Object.keys(pkg.dependencies),
+		...Object.keys(require('./packages/bongo/package.json').dependencies),
 	],
 	plugins: [
 		resolve,

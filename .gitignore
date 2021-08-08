@@ -4,7 +4,6 @@ node_modules
 *.lock
 *.log
 
-/build
-/index.js
+/packages/bongo/index.js
 
 /demo123/public

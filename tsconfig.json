@@ -14,14 +14,14 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "bongo": ["./index.d.ts"]
+      "bongo": ["./packages/bongo/index.d.ts"]
     }
   },
   "include": [
-    "src"
+    "packages"
   ],
   "exclude": [
     "node_modules",
-    "/index.js"
+    "packages/bongo/index.js"
   ]
 }
