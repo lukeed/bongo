@@ -1,7 +1,7 @@
 import { dirname, join, resolve } from 'path';
 import * as fs from './fs';
 
-import type { Config } from 'ssg';
+import type { Config } from 'bongo';
 
 const priority = [
 	'bongo.config.mjs',

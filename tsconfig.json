@@ -14,7 +14,7 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "ssg": ["./index.d.ts", "./index.js"]
+      "bongo": ["./index.d.ts"]
     }
   },
   "include": [
