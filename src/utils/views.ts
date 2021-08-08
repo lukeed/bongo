@@ -18,6 +18,7 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 
 	let opts: BuildOptions = {
 		outdir: argv.dest,
+		absWorkingDir: argv.cwd,
 		publicPath: new URL(config.$site.url).pathname,
 		minify: argv.minify,
 	};
@@ -55,13 +56,10 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 			// TODO: errors, warnings
 			// TODO: track `result.metafile.inputs[key].imports`
 			let result = await esbuild.build(input, options);
-			return '';
 
 			// esbuild returns all cwd-relative
 			let entry = relative(argv.cwd, input);
-
 			let key, tmp, outfile='';
-			console.log('here', input, result);
 
 			for (key in result.metafile!.outputs) {
 				tmp = result.metafile!.outputs[key];
@@ -88,11 +86,12 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 			}
 
 			if (inline) {
-				tmp = result.outputFiles!.shift()!;
+				// TODO: reference count should fix this
+				tmp = result.outputFiles![0]!;
 				output += '>' + tmp.text + '</script>';
 
 				// all others are chunks, write to disk
-				Promise.all(result.outputFiles!.map(obj => {
+				Promise.all(result.outputFiles!.slice(1).map(obj => {
 					return fs.write(obj.path, obj.contents);
 				})); //.catch(rej);
 			} else {

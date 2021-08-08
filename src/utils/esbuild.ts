@@ -38,9 +38,8 @@ export function build(input: string, config?: BuildOptions): Promise<BuildResult
 	let thunk = Assets[input];
 	if (thunk) return thunk;
 
-	let options = config
-		? { ...defaults, ...config }
-		: defaults;
-
-	return Assets[input] = esbuild(options);
+	return Assets[input] = esbuild({
+		...defaults, ...config,
+		entryPoints: [input],
+	});
 }
