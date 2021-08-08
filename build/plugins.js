@@ -2,17 +2,24 @@ const fs = require('fs');
 const path = require('path');
 const { minify } = require('terser');
 const { transform } = require('esbuild');
-// const { transpileModule } = require('typescript');
-const tsconfig = require('./tsconfig.json');
+const tsconfig = require('../tsconfig.json');
 
-const isDEV = !!process.env.ROLLUP_WATCH;
+const isDEV = process.argv.includes('--dev');
 
+/**
+ * @typedef {import('rollup').Plugin} Plugin
+ */
+
+/**
+ * @type {Plugin}
+ */
 const resolve = {
 	name: 'resolve',
 	resolveId(file, importer) {
 		let tmp, { ext } = path.parse(file);
 		if (ext) return file;
 
+		// @ts-ignore - TODO: does this matter
 		let next = path.resolve(path.dirname(importer), file);
 		if (fs.existsSync(next)) return next;
 
@@ -23,17 +30,27 @@ const resolve = {
 	}
 };
 
+/**
+ * @type {Plugin}
+ */
 const terser = {
 	name: 'terser',
-	renderChunk(code, _chunk, opts) {
-		return minify(code, {
+	async renderChunk(source, _chunk, opts) {
+		let { code, map } = await minify(source, {
 			toplevel: true,
 			sourceMap: !!opts.sourcemap,
 			compress: true,
 		});
+
+		if (code) return { code, map };
+		this.warn('Missing chunk output!');
+		return null;
 	}
 };
 
+/**
+ * @type {Plugin}
+ */
 const esbuild = {
 	name: 'esbuild',
 	async transform(code, file) {
@@ -56,24 +73,7 @@ const esbuild = {
 	}
 };
 
-module.exports = {
-	input: 'packages/bongo/src/index.ts',
-	output: {
-		format: 'cjs',
-		file: 'packages/bongo/index.js',
-		preferConst: true,
-		esModule: false,
-		interop: false,
-		strict: false,
-		freeze: false
-	},
-	external: [
-		...require('module').builtinModules,
-		...Object.keys(require('./packages/bongo/package.json').dependencies),
-	],
-	plugins: [
-		resolve,
-		esbuild,
-		!isDEV && terser,
-	]
-}
+const list = [resolve, esbuild];
+isDEV || list.push(terser);
+
+module.exports = list;

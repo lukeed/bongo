@@ -1,18 +1,13 @@
 {
   "private": true,
   "scripts": {
-    "build": "rollup -c",
-    "watch": "rollup -cw",
+    "build": "node build",
     "test": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "14.11.2",
     "bump": "1.0.0-next.1",
-    "esbuild": "^0.12.0",
-    "markdown-it": "12.1.0",
-    "rollup": "2.50.4",
     "sirv": "1.0.12",
-    "terser": "5.7.0",
     "typescript": "4.3.2"
   }
 }

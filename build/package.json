@@ -1,0 +1,8 @@
+{
+	"private": true,
+	"devDependencies": {
+		"esbuild": "^0.12.0",
+    "rollup": "2.50.4",
+    "terser": "5.7.0"
+	}
+}
