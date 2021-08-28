@@ -1,9 +1,11 @@
-import * as fs from 'fs/promises';
+import { promises as fs } from 'fs';
 import { dirname, join } from 'path';
 import { existsSync as exists } from 'fs';
 
 export { exists };
-export const rmdir = fs.rmdir;
+
+// @ts-ignore - Node 14.4 added `rm`
+export const rmdir = fs.rm || fs.rmdir;
 export const read = fs.readFile;
 export const ls = fs.readdir;
 
