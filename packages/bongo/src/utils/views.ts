@@ -1,5 +1,5 @@
 import * as tempura from './tempura/index';
-import { join, relative } from 'path';
+import { basename, join, relative } from 'path';
 import * as esbuild from './esbuild';
 import * as fs from './fs';
 
@@ -13,9 +13,6 @@ export const Partials: Cache = new Map;
 export const Layouts: Cache = new Map;
 
 export async function collect(argv: Required<Argv>, config: Required<Config>): Promise<void> {
-	let extn = /\.hbs$/i;
-	let { layouts } = argv;
-
 	let opts: BuildOptions = {
 		outdir: argv.dest,
 		absWorkingDir: argv.cwd,
@@ -108,30 +105,43 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 	let props = ['$site', '$page', '$assets', '$utils'];
 	let options: tempura.Options = { async: true, props, blocks };
 
-	async function compile(file: string) {
+	// TODO: improv error msg display
+	async function compile(dir: string, rel: string) {
 		try {
+			let file = join(dir, rel);
 			let content = await fs.read(file, 'utf8');
 			return tempura.compile(content, options);
 		} catch (err) {
-			file = relative(layouts, file);
-			let tmp = new Error(`Error compiling "${file}" template!`);
+			let type = basename(dir).slice(0, -1); // strip "s"
+			let tmp = new Error(`Error compiling "${rel}" ${type}!`);
 			if (!(err instanceof SyntaxError)) tmp.message += '\n\t'+err.message;
 			throw tmp;
 		}
 	}
 
+	let extn = /\.hbs$/i;
+	let { layouts, partials } = argv;
+
+	// TODO: normalize path separators
 	console.log('~> collect "partials" views');
-	await fs.list(argv.partials, async (absolute, rel, name) => {
+	await fs.list(partials, async (_, rel) => {
 		if (!extn.test(rel)) return;
-		let key = name.replace(extn, '');
-		let render = await compile(absolute);
-		// NOTE: Partials do NOT have access to `$page` var
-		blocks[key] = (x: Args) => render({ ...x, ...config }, blocks);
-		Partials.set(rel, blocks[key]);
+		let key = rel.replace(extn, '');
+		// @ts-ignore - placeholder
+		Partials.set(rel, key);
+		// @ts-ignore - key awareness
+		blocks[key] = true;
 	});
 
+	for (let [rel, key] of Partials) {
+		let render = await compile(partials, rel);
+		// NOTE: Partials do NOT have access to `$page` var
+		let compiler = (x: Args) => render({ ...x, ...config }, blocks);
+		Partials.set(rel, blocks[String(key)] = compiler);
+	}
+
 	console.log('~> collect "layouts" views');
-	await fs.list(layouts, async (absolute, rel, name) => {
-		if (extn.test(name)) Layouts.set(rel, await compile(absolute));
+	await fs.list(layouts, async (_, rel) => {
+		if (extn.test(rel)) Layouts.set(rel, await compile(layouts, rel));
 	});
 }
