@@ -4,10 +4,15 @@ import { existsSync as exists } from 'fs';
 
 export { exists };
 
-// @ts-ignore - Node 14.4 added `rm`
-export const rmdir = fs.rm || fs.rmdir;
-export const read = fs.readFile;
+// @ts-ignore - Node 14.4
+const rm = fs.rm || fs.rmdir;
+
 export const ls = fs.readdir;
+export const read = fs.readFile;
+
+export async function rmdir(path: string): Promise<void> {
+	!exists(path) || await rm(path, { recursive: true });
+}
 
 export function assert(path: string, msg = ''): asserts path is string {
 	if (!exists(path)) throw new Error(`Missing "${msg || path}" file!`);
