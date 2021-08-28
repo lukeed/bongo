@@ -30,6 +30,11 @@ export async function copy(src: string, dest: string) {
 	await fs.copyFile(src, dest);
 }
 
+// NOTE: prevents Rollup import() -> require() transform
+export function load<T = any>(ident: string): Promise<T> {
+	return Function('x', 'return import("file:///" + x)')(ident);
+}
+
 // @modified lukeed/totalist
 export type Caller = (abs: string, rel: string, name: string) => any;
 export async function list(dir: string, callback: Caller, prefix='') {

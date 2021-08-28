@@ -86,8 +86,7 @@ export async function load(root: string): Promise<Required<Config>> {
 	let file = await find(root, '.');
 
 	if (file) {
-		// NOTE: prevents Rollup import() -> require() transform
-		let user = await Function('x', 'return import(x)')(file);
+		let user = await fs.load(file);
 		merge(output, user.default || user);
 		// TODO: validate $site keys
 	} else {
