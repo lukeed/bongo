@@ -120,21 +120,14 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		}
 	}
 
-	console.log('~> collect "shortcodes" views');
-	await fs.list(argv.shortcodes, async (absolute, _, name) => {
-		if (!extn.test(name)) return;
+	console.log('~> collect "partials" views');
+	await fs.list(argv.partials, async (absolute, rel, name) => {
+		if (!extn.test(rel)) return;
 		let key = name.replace(extn, '');
 		let render = await compile(absolute);
-		// NOTE: Shortcodes do NOT have access to `$page` var
-		blocks[key] = (x: Args) => render({ ...x, ...config }, blocks);
-	});
-
-	console.log('~> collect "partials" views');
-	await fs.list(argv.partials, async (absolute, rel) => {
-		if (!extn.test(rel)) return;
-		let render = await compile(absolute);
 		// NOTE: Partials do NOT have access to `$page` var
-		Partials.set(rel, (x: Args) => render({ ...x, ...config }, blocks));
+		blocks[key] = (x: Args) => render({ ...x, ...config }, blocks);
+		Partials.set(rel, blocks[key]);
 	});
 
 	console.log('~> collect "layouts" views');
