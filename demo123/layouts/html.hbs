@@ -38,6 +38,7 @@
 		<main>
 			{{#partial src="datetime" value=Date.now() }}
 			{{#partial src="datetime.hbs" value=Date.now() }}
+			{{#datetime value=Date.now() }}
 			<hr>
 			<p>i am here "{{{ $page.path }}}" – "{{{ $page.url }}}"</p>
 			<hr>
