@@ -9,9 +9,8 @@ export function normalize(argv: Argv): asserts argv is Required<Argv> {
 	argv.dest = join(argv.cwd, 'public');
 
 	argv.assets = join(argv.src, 'assets');
-	argv.layouts = join(argv.src, 'layouts');
 	argv.content = join(argv.src, 'content');
 
+	argv.layouts = join(argv.src, 'layouts');
 	argv.partials = join(argv.layouts, 'partials');
-	argv.shortcodes = join(argv.layouts, 'shortcodes');
 }

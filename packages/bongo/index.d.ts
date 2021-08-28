@@ -9,7 +9,6 @@ export interface Argv {
 	assets?: string;
 	content?: string;
 	partials?: string;
-	shortcodes?: string;
 	layouts?: string;
 }
 
