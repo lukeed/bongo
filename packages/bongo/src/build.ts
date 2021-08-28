@@ -94,8 +94,8 @@ export async function build(argv: Argv) {
 			params: params,
 		};
 
-		// lookup priority
-		let i=0, dirs = rel.split(/[\\\/]+/g).slice(0, -1).concat('defaults');
+		// lookup priority –> need "" for `/layouts/*` root
+		let i=0, dirs = rel.split(/[\\\/]+/g).slice(0, -1).concat('');
 		output = join(dest, path.substring(1), 'index.html');
 
 		if (ext === 'hbs') {
@@ -112,7 +112,7 @@ export async function build(argv: Argv) {
 			}
 
 			// Should always be defined as a fallback
-			if (!render) throw new Error('Missing "defaults/html.hbs" template');
+			if (!render) throw new Error('Missing "html.hbs" template');
 			content = await render({ $page, ...config });
 		}
 
@@ -125,7 +125,7 @@ export async function build(argv: Argv) {
 				if (render) break;
 			}
 			// Should always be defined as a bare minimum
-			if (!render) throw new Error('Missing "defaults/html.hbs" template');
+			if (!render) throw new Error('Missing "html.hbs" template');
 			content = await render({ $page, ...config });
 		}
 
