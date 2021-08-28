@@ -14,7 +14,7 @@ export async function build(argv: Argv) {
 	const config = await load(argv.cwd);
 	const { $site, $assets:ASSETS } = config;
 
-	await fs.rmdir(argv.dest, { recursive: true });
+	await fs.rmdir(argv.dest);
 
 	config.$assets = {
 		// @ts-ignore -> switcheroo
