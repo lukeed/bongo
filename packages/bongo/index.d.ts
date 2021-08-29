@@ -16,9 +16,13 @@ export interface Argv {
 export type Loader = (file: string, content: Uint8Array | string) => Promisable<{
 	filename: string;
 	content: Uint8Array | string;
-	metadata?: Record<string, unknown>;
+	metadata?: Loader.Metadata;
 	sourcemap?: any | null; // TODO
 }>;
+
+export namespace Loader {
+	type Metadata = Record<string, unknown>;
+}
 
 export namespace Template {
 	interface Menu {
@@ -74,5 +78,7 @@ export interface Config {
 			format(value: string|number|Date, format: string): string;
 		};
 	};
-	$assets?: Record<string, Loader>;
+	$assets?: {
+		[extension: string]: Loader;
+	};
 }

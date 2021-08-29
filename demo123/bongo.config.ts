@@ -1,9 +1,9 @@
-import type { Config } from '../packages/bongo';
-import type * as markdown from 'markdown-it';
+import type { Config, Loader } from '../packages/bongo';
+import type * as markdownit from 'markdown-it';
 
 console.log('INSIDE TS CONFIG FILE');
 
-let mdown: markdown;
+let mdown: markdownit;
 
 const config: Config = {
 	$site: {
@@ -28,8 +28,8 @@ const config: Config = {
 				content = new TextDecoder().decode(content);
 			}
 
-			let metadata = {};
 			let filename = input + '.html';
+			let metadata: Loader.Metadata = {};
 			let match = /---\r?\n([\s\S]+?)\r?\n---/.exec(content);
 
 			if (match != null) {
