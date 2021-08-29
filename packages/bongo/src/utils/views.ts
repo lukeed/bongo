@@ -1,6 +1,7 @@
 import * as tempura from './tempura/index';
 import { basename, join, relative } from 'path';
 import * as esbuild from './esbuild';
+import * as log from './log';
 import * as fs from './fs';
 
 import type { Argv, Config } from 'bongo';
@@ -122,8 +123,9 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 	let extn = /\.hbs$/i;
 	let { layouts, partials } = argv;
 
+	if (argv.debug) log.debug('[views.collect]', 'partials')
+
 	// TODO: normalize path separators
-	console.log('~> collect "partials" views');
 	await fs.list(partials, async (_, rel) => {
 		if (!extn.test(rel)) return;
 		let key = rel.replace(extn, '');
@@ -140,7 +142,7 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		Partials.set(rel, blocks[String(key)] = compiler);
 	}
 
-	console.log('~> collect "layouts" views');
+	if (argv.debug) log.debug('[views.collect]', 'layouts')
 	await fs.list(layouts, async (_, rel) => {
 		if (extn.test(rel)) Layouts.set(rel, await compile(layouts, rel));
 	});

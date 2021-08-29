@@ -3,6 +3,7 @@ import type { Argv } from 'bongo';
 
 export function normalize(argv: Argv): asserts argv is Required<Argv> {
 	argv.cwd = resolve(argv.cwd);
+	argv.debug = !!argv.debug;
 
 	// attach path directories
 	argv.src = join(argv.cwd, argv.src || '.');

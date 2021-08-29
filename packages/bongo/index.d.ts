@@ -10,6 +10,7 @@ export interface Argv {
 	content?: string;
 	partials?: string;
 	layouts?: string;
+	debug?: boolean;
 }
 
 export type Loader = (file: string, content: Uint8Array | string) => Promisable<{

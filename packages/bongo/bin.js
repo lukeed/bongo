@@ -3,9 +3,11 @@ const argv = require('mri')(process.argv.slice(2), {
 	default: {
 		'C': '.',
 		'm': false,
+		'd': false,
 	},
 	alias: {
 		'C': 'cwd',
+		'd': 'debug',
 		'm': 'minify',
 		'v': 'version',
 		'h': 'help',

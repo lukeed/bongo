@@ -1,4 +1,5 @@
 import * as fs from './utils/fs';
+import * as log from './utils/log';
 import { load } from './utils/config';
 import * as views from './utils/views';
 import { normalize } from './utils/argv';
@@ -9,10 +10,12 @@ import type { Compiler } from './utils/tempura';
 
 export async function build(argv: Argv) {
 	normalize(argv);
-	console.log(argv);
 
 	const config = await load(argv.cwd);
 	const { $site, $assets:ASSETS } = config;
+	const debug = argv.debug ? log.debug : () => {};
+
+	debug('[build.argv]', argv);
 
 	await fs.rmdir(argv.dest);
 
@@ -53,6 +56,8 @@ export async function build(argv: Argv) {
 				await fs.read(input)
 			) as Uint8Array | string;
 
+			debug('[content.loader]', ext, '~> found');
+
 			while (prev !== ext) {
 				if (rgx.test(ext)) break;
 
@@ -68,6 +73,7 @@ export async function build(argv: Argv) {
 				}
 
 				ext = extname(filename).substring(1);
+				debug('[content.looper]', prev, '~>', ext);
 			}
 
 			if (rgx.test(ext)) {
@@ -76,7 +82,7 @@ export async function build(argv: Argv) {
 				return fs.write(output, data);
 			}
 		} else {
-			// TODO: print "no match" if debug
+			debug('[content.loader]', ext, '~> unknown');
 			return fs.copy(input, output);
 		}
 
@@ -106,7 +112,7 @@ export async function build(argv: Argv) {
 				for (j=0; j < files.length; j++) {
 					layout = join(dirs[i], files[j]);
 					render = Layouts.get(layout);
-					// TODO: --debug log order
+					debug('[content.layout]', rel, '~>', layout);
 					if (render) break outer;
 				}
 			}
@@ -121,7 +127,7 @@ export async function build(argv: Argv) {
 			for (i=0; i < dirs.length; i++) {
 				layout = join(dirs[i], 'html.hbs');
 				render = Layouts.get(layout);
-				// TODO: --debug log order
+				debug('[content.layout]', rel, '~>', layout);
 				if (render) break;
 			}
 			// Should always be defined as a bare minimum
