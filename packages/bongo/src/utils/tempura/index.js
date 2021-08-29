@@ -42,7 +42,7 @@ function gen(input, options) {
 			// comment, continue
 		} else if (char === '#') {
 			close();
-			[, action, inner] = /^#\s*(\w[\w\d]+)\s*([^]*)/.exec(inner);
+			[, action, inner] = /^#\s*(\w[\w\d./]+)\s*([^]*)/.exec(inner);
 
 			if (action === 'expect') {
 				inner.split(/[\n\r\s\t]*,[\n\r\s\t]*/g).forEach(key => {
@@ -80,7 +80,7 @@ function gen(input, options) {
 				}
 				inner = inner || '{}';
 				tmp = options.async ? 'await ' : '';
-				wip += '${' + tmp + '$$2.' + action + '(' + inner + ',$$2)}';
+				wip += '${' + tmp + '$$2["' + action + '"](' + inner + ',$$2)}';
 			} else {
 				throw new Error(`Unknown "${action}" block`);
 			}
