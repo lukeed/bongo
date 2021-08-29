@@ -4,7 +4,7 @@ interface Args1 {
 	name: string;
 }
 
-const greet: Template.Compiler<Args1> = function (args: Args1) {
+const greet: Template.Compiler<Args1> = function (args) {
 	return `<span>hello, ${args.name}</span>`;
 }
 

@@ -6,7 +6,6 @@ import { normalize } from './utils/argv';
 import { extname, join, relative } from 'path';
 
 import type { Argv, Template } from 'bongo';
-import type { Compiler } from './utils/tempura';
 
 export async function build(argv: Argv) {
 	normalize(argv);
@@ -44,7 +43,7 @@ export async function build(argv: Argv) {
 		let basename = name.substring(0, idx);
 		let params: Template.Params = {};
 
-		let render: Compiler | void;
+		let render: Template.Compiler | void;
 		let layout='', content='';
 
 		if (ext === 'hbs') {

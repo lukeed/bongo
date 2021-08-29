@@ -4,11 +4,12 @@ import * as esbuild from './esbuild';
 import * as log from './log';
 import * as fs from './fs';
 
-import type { Argv, Config } from 'bongo';
+import type { Argv, Config, Template } from 'bongo';
 import type { BuildOptions, Format } from 'esbuild';
-import type { Args, Compiler } from './tempura/index';
+import type { Args } from './tempura/index';
 
-type Cache = Map<string, Compiler>;
+// TODO: revert to `tempura.Compiler` postfix
+type Cache = Map<string, Template.Compiler>;
 
 export const Layouts: Cache = new Map;
 export const Partials: Cache = new Map;
@@ -39,14 +40,14 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		minify: argv.minify,
 	};
 
-	let blocks: tempura.Blocks = {
+	let blocks: Template.Partials = {
 		/**
 		 * Alternative partial format
 		 * @note Partials do not have `$page` info
 		 * @example {{#partial src="minutes" text="hello world" }}
 		 * @example {{#partial src="minutes.hbs" text="hello world" }}
 		 */
-		partial(args: Args) {
+		partial(args) {
 			let { src, ...rest } = args;
 			let key = toPartialName(src);
 			let render = Partials.get(key);
@@ -58,7 +59,7 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		 * @todo
 		 * @example {{#style src="index.css"}}
 		 */
-		async style(args: Args) {
+		async style(args) {
 			return 'TODO';
 		},
 

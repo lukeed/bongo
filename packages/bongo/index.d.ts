@@ -27,7 +27,8 @@ export namespace Loader {
 type Args = Record<string, any>;
 
 export namespace Template {
-	type Compiler<T extends Args = Args> = import('tempura').Compiler<T>;
+	type Partials = { [name: string]: Template.Compiler };
+	type Compiler<T extends Args = Args> = (data: T, blocks?: Partials) => Promisable<string>;
 
 	interface Menu {
 		name: string;
@@ -85,7 +86,5 @@ export interface Config {
 	$assets?: {
 		[extension: string]: Loader;
 	};
-	$partials?: {
-		[name: string]: Template.Compiler;
-	};
+	$partials?: Template.Partials;
 }
