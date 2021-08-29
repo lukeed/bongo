@@ -1,9 +1,11 @@
 import { dirname, join, resolve } from 'path';
+import { transform } from './esbuild';
 import * as fs from './fs';
 
 import type { Config } from 'bongo';
 
 const priority = [
+	'bongo.config.ts',
 	'bongo.config.mjs',
 	'bongo.config.cjs',
 	'bongo.config.js',
@@ -86,9 +88,12 @@ export async function load(root: string): Promise<Required<Config>> {
 	let file = await find(root, '.');
 
 	if (file) {
-		let user = await fs.load(file);
-		merge(output, user.default || user);
+		let user = /\.ts$/.test(file)
+			? await transform(file)
+			: await fs.load(file)
+
 		// TODO: validate $site keys
+		merge(output, user.default || user);
 	} else {
 		throw new Error('Missing configuration file');
 	}

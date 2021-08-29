@@ -1,5 +1,3 @@
-import * as fs from './fs';
-
 import type { BuildResult } from 'esbuild';
 import type { BuildOptions } from 'esbuild';
 
@@ -27,9 +25,9 @@ let defaults: BuildOptions = {
 	metafile: true,
 };
 
-let esbuild: typeof import('esbuild').build;
+let esbuild: typeof import('esbuild');
 export function build(input: string, config?: BuildOptions): Promise<BuildResult> {
-	esbuild = esbuild || require('esbuild').build;
+	esbuild = esbuild || require('esbuild');
 
 	// TODO: track references
 	// TODO: collect all inputs for build for code splitting reuse
@@ -38,8 +36,40 @@ export function build(input: string, config?: BuildOptions): Promise<BuildResult
 	let thunk = Assets[input];
 	if (thunk) return thunk;
 
-	return Assets[input] = esbuild({
+	return Assets[input] = esbuild.build({
 		...defaults, ...config,
 		entryPoints: [input],
 	});
+}
+
+export async function transform(filename: string) {
+	esbuild = esbuild || require('esbuild');
+
+	require.extensions['.ts'] = require.extensions['.ts'] || function (Module, filename) {
+		// @ts-ignore – internal method
+		const pitch = Module._compile.bind(Module);
+
+		// @ts-ignore - internal method
+		Module._compile = (source: string) => {
+			const { code, warnings } = esbuild.transformSync(source, {
+				minify: true,
+				format: 'cjs',
+				sourcemap: 'inline',
+				sourcefile: filename,
+				loader: 'ts',
+			});
+
+			warnings.forEach(msg => {
+				console.warn(`\nesbuild warning in ${filename}:`);
+				console.warn(msg.location);
+				console.warn(msg.text);
+			});
+
+			return pitch(code, filename);
+		};
+
+		require.extensions['.js'](Module, filename);
+	};
+
+	return require(filename);
 }

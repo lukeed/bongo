@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
-import { dirname, join } from 'path';
 import { existsSync as exists } from 'fs';
+import { dirname, join } from 'path';
 
 export { exists };
 
