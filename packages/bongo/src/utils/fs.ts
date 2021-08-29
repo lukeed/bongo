@@ -31,8 +31,14 @@ export async function copy(src: string, dest: string) {
 }
 
 // NOTE: prevents Rollup import() -> require() transform
-export function load<T = any>(ident: string): Promise<T> {
-	return Function('x', 'return import("file:///" + x)')(ident);
+export async function load<T = any>(ident: string, dir = ''): Promise<T> {
+	try {
+		if (dir) ident = join(dir, ident);
+		return await Function('x', 'return import("file:///" + x)')(ident);
+	} catch (err) {
+		if (err.code !== 'ERR_UNKNOWN_FILE_EXTENSION') throw err;
+		return require(ident);
+	}
 }
 
 // @modified lukeed/totalist

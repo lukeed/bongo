@@ -24,7 +24,11 @@ export namespace Loader {
 	type Metadata = Record<string, unknown>;
 }
 
+type Args = Record<string, any>;
+
 export namespace Template {
+	type Compiler<T extends Args = Args> = import('tempura').Compiler<T>;
+
 	interface Menu {
 		name: string;
 		href: string;
