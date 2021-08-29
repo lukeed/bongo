@@ -153,7 +153,6 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 
 		// NOTE: Partials do NOT have access to `$page` var
 		let compiler = (x: Args) => render({ ...x, ...config }, blocks);
-
 		Partials.set(key, blocks[key] = compiler);
 	}
 

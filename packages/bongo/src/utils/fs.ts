@@ -14,19 +14,22 @@ export async function rmdir(path: string): Promise<void> {
 	!exists(path) || await rm(path, { recursive: true });
 }
 
+export async function mkdir(input: string) {
+	if (exists(input=dirname(input))) return;
+	await fs.mkdir(input, { recursive: true });
+}
+
 export function assert(path: string, msg = ''): asserts path is string {
 	if (!exists(path)) throw new Error(`Missing "${msg || path}" file!`);
 }
 
 export async function write(file: string, data: string|Buffer|Uint8Array) {
-	let dir = dirname(file);
-	exists(dir) || await fs.mkdir(dir, { recursive: true });
+	await mkdir(file);
 	await fs.writeFile(file, data);
 }
 
 export async function copy(src: string, dest: string) {
-	let dir = dirname(dest);
-	exists(dir) || await fs.mkdir(dir, { recursive: true });
+	await mkdir(dest);
 	await fs.copyFile(src, dest);
 }
 
