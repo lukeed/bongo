@@ -43,6 +43,12 @@ const config: Config = {
 			content = mdown.render(content);
 			return { filename, content, metadata };
 		}
+	},
+
+	$partials: {
+		custom(args: Record<string, string>) {
+			return 'hello: ' + args.name;
+		}
 	}
 }
 

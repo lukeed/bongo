@@ -158,12 +158,12 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 	let isHBS = /\.hbs$/i;
 	let isJS = /\.([mc]?js|ts)$/i;
 	let { layouts, partials } = argv;
-
-	if (argv.debug) log.debug('[views.collect]', 'partials')
+	let debug = argv.debug ? log.debug : () => {};
 
 	await fs.list(partials, async (_, rel) => {
 		if (isHBS.test(rel) || isJS.test(rel)) {
 			let key = toPartialName(rel);
+			debug('[collect.partials]', key);
 			// @ts-ignore - setting placeholders
 			Partials.set(key, blocks[key] = rel);
 		}
@@ -182,10 +182,16 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		Partials.set(key, blocks[key] = compiler);
 	}
 
-	if (argv.debug) log.debug('[views.collect]', 'layouts')
+	for (let name in config.$partials) {
+		let key = toPartialName(name);
+		debug('[collect.$partials]', key);
+		let compiler = config.$partials[name];
+		Partials.set(key, blocks[key] = compiler);
+	}
 
 	await fs.list(layouts, async (_, rel) => {
 		if (isHBS.test(rel)) {
+			debug('[collect.layouts]', rel);
 			Layouts.set(rel, await compile(layouts, rel));
 		}
 	});

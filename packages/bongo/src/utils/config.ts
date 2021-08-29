@@ -41,7 +41,8 @@ export async function find(root: string, start: string): Promise<string|void> {
  */
 export function merge(base: Required<Config>, custom: Config) {
 	Object.assign(base.$site, custom.$site);
-	if (custom.$assets) Object.assign(base.$assets, custom.$assets);
+	Object.assign(base.$assets, custom.$assets);
+	Object.assign(base.$partials, custom.$partials);
 	for (let key in custom.$utils) {
 		if (typeof custom.$utils[key] !== 'object') {
 			base.$utils[key] = custom.$utils[key];
@@ -82,7 +83,10 @@ export async function load(root: string): Promise<Required<Config>> {
 		},
 		$assets: {
 			// loaders
-		}
+		},
+		$partials: {
+			// custom partials
+		},
 	};
 
 	let file = await find(root, '.');

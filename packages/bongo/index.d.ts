@@ -85,4 +85,7 @@ export interface Config {
 	$assets?: {
 		[extension: string]: Loader;
 	};
+	$partials?: {
+		[name: string]: Template.Compiler;
+	};
 }
