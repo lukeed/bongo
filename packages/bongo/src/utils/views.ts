@@ -1,14 +1,14 @@
-import * as tempura from './tempura/index';
 import { parse, join, relative } from 'path';
+import * as tempura from './tempura/index';
 import * as esbuild from './esbuild';
 import * as log from './log';
 import * as fs from './fs';
 
 import type { Argv, Config } from 'bongo';
-import type { Args } from './tempura/index';
-import type { BuildOptions } from 'esbuild';
+import type { BuildOptions, Format } from 'esbuild';
+import type { Args, Compiler } from './tempura/index';
 
-type Cache = Map<string, tempura.Compiler>;
+type Cache = Map<string, Compiler>;
 
 export const Layouts: Cache = new Map;
 export const Partials: Cache = new Map;
@@ -20,6 +20,17 @@ function toPartialName(file: string): string {
 	return file.substring(0, file.length - ext.length);
 }
 
+namespace Args {
+	export interface Script {
+		src?: string;
+		defer?: boolean;
+		target?: string;
+		inline?: boolean;
+		format?: Format;
+		async?: boolean;
+	}
+}
+
 export async function collect(argv: Required<Argv>, config: Required<Config>): Promise<void> {
 	let opts: BuildOptions = {
 		outdir: argv.dest,
@@ -29,21 +40,36 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 	};
 
 	let blocks: tempura.Blocks = {
+		/**
+		 * Alternative partial format
+		 * @note Partials do not have `$page` info
+		 * @example {{#partial src="minutes" text="hello world" }}
+		 * @example {{#partial src="minutes.hbs" text="hello world" }}
+		 */
 		partial(args: Args) {
-			// NOTE: partials do not have access to `$page` !!
-			let { src, ...rest } = args as Record<string, string>;
-
+			let { src, ...rest } = args;
 			let key = toPartialName(src);
 			let render = Partials.get(key);
 			if (render) return render(rest);
-
 			throw new Error(`Unknown "${key}" partial!`);
 		},
+
+		/**
+		 * @todo
+		 * @example {{#style src="index.css"}}
+		 */
 		async style(args: Args) {
 			return 'TODO';
 		},
-		async script(args: Args) {
+
+		/**
+		 * Process/bundle a script file.
+		 * @example {{#script src="main.ts" target="es2019" format="esm" async=true }}
+		 * @example {{#script src="demo.mjs" inline=true }}
+		 */
+		async script(args: Args.Script) {
 			let { src, target, format, async, defer, inline } = args;
+			if (!src) throw new Error('Missing "src" argument');
 
 			let input = join(argv.assets, src);
 			fs.assert(input, `assets/${src}`);
