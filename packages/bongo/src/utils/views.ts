@@ -199,3 +199,18 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		}
 	});
 }
+
+export function frontmatter(content: string): [number, Template.Params] {
+	let metadata: Template.Params = {};
+	if (content.substring(0, 3) !== '---') return [0, metadata];
+
+	let match = /^---\r?\n([\s\S]+?)\r?\n---/.exec(content);
+	if (match == null) return [0, metadata];
+
+	match[1].split('\n').forEach(pair => {
+		let [key, ...v] = pair.split(':');
+		metadata[key.trim()] = v.join(':').trim();
+	});
+
+	return [match[0].length, metadata];
+}
