@@ -23,7 +23,7 @@ if (argv.v) {
 if (argv.h) {
 	let output = '';
 	output += '\n  Usage';
-	output += '\n    ssg <command> [options]';
+	output += '\n    bongo <command> [options]';
 	output += '\n';
 	output += '\n  Available Commands';
 	output += '\n    build    Build the source directory';
