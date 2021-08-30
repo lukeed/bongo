@@ -161,6 +161,7 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 	let { layouts, partials } = argv;
 	let debug = argv.debug ? log.debug : () => {};
 
+	if (fs.exists(partials)) {
 	await fs.list(partials, async (_, rel) => {
 		if (isHBS.test(rel) || isJS.test(rel)) {
 			let key = toPartialName(rel);
@@ -181,6 +182,7 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		// NOTE: Partials do NOT have access to `$page` var
 		let compiler = (x: Args) => render({ ...x, ...config }, blocks);
 		Partials.set(key, blocks[key] = compiler);
+	}
 	}
 
 	for (let name in config.$partials) {
