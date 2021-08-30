@@ -7,7 +7,7 @@ import { extname, join, relative } from 'path';
 
 import type { Argv, Template } from 'bongo';
 
-export async function build(argv: Argv) {
+export async function build(argv: Argv): Promise<void> {
 	normalize(argv);
 
 	const config = await load(argv.cwd);
@@ -164,7 +164,7 @@ export async function build(argv: Argv) {
 		} catch (err) {
 			// TODO: formatting
 			console.error('You must have `minify` available in your $PATH for `--minify` to work.');
-			return process.exitCode = 1;
+			return process.exit(1);
 		}
 
 		let cwd = process.cwd();

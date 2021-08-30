@@ -88,3 +88,5 @@ export interface Config {
 	};
 	$partials?: Template.Partials;
 }
+
+export function build(argv: Argv): Promise<void>;
