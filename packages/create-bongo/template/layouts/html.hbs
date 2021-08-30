@@ -1,7 +1,7 @@
 <html lang={{ $site.lang }}>
 	<head>
-		{{#var title = $site.title }}
 		{{#var descr = $utils.truncate($page.summary || $site.description, 165) }}
+		{{#var title = $page.title ? ($site.title + ' | ' + $page.title) : $site.title }}
 
 		<meta charset="utf-8">
 		<title>{{ title }}</title>
@@ -26,6 +26,7 @@
 	</head>
 	<body>
 		<main>
+			<p>URL : {{ $page.url }}</p>
 			{{{ $page.content }}}
 		</main>
 	</body>
