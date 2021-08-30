@@ -19,10 +19,10 @@
 		<meta name="description" content="{{ descr }}" />
 
 		{{#style src="style.css" output="s.css" }}
-		{{ $page.styles || '' }}
+		{{ $page.styles }}
 
 		{{#script src="bundle.ts" defer=true inline=true }}
-		{{ $page.scripts || '' }}
+		{{ $page.scripts }}
 	</head>
 	<body>
 		<main>

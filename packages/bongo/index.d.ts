@@ -48,12 +48,12 @@ export namespace Template {
 	interface Page {
 		url: string;
 		path: string;
-		content: string;
-		params: Params;
-		styles?: string;
-		scripts?: string;
-		summary: string;
 		title: string;
+		params: Params;
+		summary: string;
+		content: string;
+		scripts: string;
+		styles: string;
 	}
 
 	interface Params {

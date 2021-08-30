@@ -113,6 +113,8 @@ export async function build(argv: Argv): Promise<void> {
 			url: new URL(path, $site.url).href,
 			summary: (params.summary as string) || '',
 			title: (params.title as string) || '',
+			scripts: '',
+			styles: '',
 		};
 
 		// lookup priority –> need "" for `/layouts/*` root

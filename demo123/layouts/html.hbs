@@ -25,14 +25,14 @@
 		<link rel="manifest" href={{ $utils.url.abs("/manifest.json") }}/>
 
 		{{#style src="root.sass" output="r.css" }}
-		{{ $page.styles || '' }}
+		{{ $page.styles }}
 
 		<script>var $$r=document.documentElement;$$r.className='';!function(){var a=localStorage.getItem("dark");(a=a&&+a)||a||window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,$$r.classList.toggle("dark",a=!!a),localStorage.setItem("dark",+a+"")}()</script>
 
 		<!-- <script nomodule defer src="https://cdnjs.cloudflare.com/ajax/libs/promiz/1.0.6/promiz.min.js"></script> -->
 		<!-- <script nomodule defer src="https://cdn.jsdelivr.net/npm/promis@1.1.4/promise.min.js"></script> -->
 		{{#script src="root.ts" defer=true inline=true }}
-		{{ $page.scripts || '' }}
+		{{ $page.scripts }}
 	</head>
 	<body>
 		<main>
