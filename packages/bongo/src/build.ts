@@ -101,7 +101,10 @@ export async function build(argv: Argv) {
 
 		// lookup priority –> need "" for `/layouts/*` root
 		let i=0, dirs = rel.split(/[\\\/]+/g).slice(0, -1).concat('');
-		output = join(dest, path.substring(1), 'index.html');
+
+		path = path.substring(1);
+		if (path === 'index') path = '';
+		output = join(dest, path, 'index.html');
 
 		if (ext === 'hbs') {
 			let j=0, files = ['index.hbs', 'html.hbs'];
