@@ -1,9 +1,7 @@
 export type Args = Record<string, any>;
 export type Blocks = Record<string, Compiler>;
 
-export type Compiler<T extends Args = Args> =
-	| ((data: T, blocks?: Blocks) => Promise<string>|string)
-	| ((data?: T) => Promise<string>|string)
+export type Compiler<T extends Args = Args> = (data: T, blocks?: Blocks) => Promise<string> | string;
 
 export interface Options {
 	loose?: boolean;
