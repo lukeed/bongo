@@ -90,3 +90,4 @@ export interface Config {
 }
 
 export function build(argv: Argv): Promise<void>;
+export function define(config: Config): Config;
