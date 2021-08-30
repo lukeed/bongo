@@ -1,3 +1,5 @@
+// TODO: blocks.setup hook
+// TODO? add `#expr` for js stmt/logic
 const ESCAPE = /[&"<]/g, CHARS = {
 	'"': '&quot;',
 	'&': '&amp;',
