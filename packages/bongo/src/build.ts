@@ -42,23 +42,33 @@ export async function build(argv: Argv) {
 		let ext = name.substring(idx + 1);
 		let basename = name.substring(0, idx);
 		let params: Template.Params = {};
+		let isPage = /(hbs|html?)$/;
 
 		let render: Template.Compiler | void;
 		let layout='', content='';
 
-		if (ext === 'hbs') {
-			// do nothing
+		if (isPage.test(ext)) {
+			content = await fs.read(input, 'utf8');
+			let [idx, metadata] = views.frontmatter(content);
+
+			if (idx > 0) {
+				Object.assign(params, metadata);
+				content = content.substring(idx);
+			}
+
+			if (ext === 'hbs') {
+				console.log('[TODO] compile "*.hbs" content');
+			}
 		} else if (ASSETS[ext]) {
 			let loader, filename = input;
-			let prev, rgx = /(hbs|html?)$/;
-			let data = new Uint8Array(
+			let prev, data = new Uint8Array(
 				await fs.read(input)
 			) as Uint8Array | string;
 
 			debug('[content.loader]', ext, '~> found');
 
 			while (prev !== ext) {
-				if (rgx.test(ext)) break;
+				if (isPage.test(ext)) break;
 
 				// TODO: ASSETS after config
 				// TODO: loader receives utils
@@ -75,7 +85,7 @@ export async function build(argv: Argv) {
 				debug('[content.looper]', prev, '~>', ext);
 			}
 
-			if (rgx.test(ext)) {
+			if (isPage.test(ext)) {
 				content = typeof data === 'string' ? data : new TextDecoder().decode(data);
 			} else {
 				return fs.write(output, data);
@@ -92,21 +102,23 @@ export async function build(argv: Argv) {
 			}
 		}
 
+		path = path.substring(1);
+		if (path === 'index') path = '';
+		output = join(dest, path, 'index.html');
+
+		path += '/'; // ensure trailing
+
 		let $page: Template.Page = {
-			path: path,
-			url: new URL(path.substring(1), $site.url).href,
-			content: content,
-			params: params,
+			path, params, content,
+			url: new URL(path, $site.url).href,
+			summary: (params.summary as string) || '',
+			title: (params.title as string) || '',
 		};
 
 		// lookup priority –> need "" for `/layouts/*` root
 		let i=0, dirs = rel.split(/[\\\/]+/g).slice(0, -1).concat('');
 
-		path = path.substring(1);
-		if (path === 'index') path = '';
-		output = join(dest, path, 'index.html');
-
-		if (ext === 'hbs') {
+		if (isPage.test(ext)) {
 			let j=0, files = ['index.hbs', 'html.hbs'];
 			if (basename !== 'index') files.splice(0, 1, `${basename}.hbs`, 'single.hbs');
 

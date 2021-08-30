@@ -50,10 +50,10 @@ export namespace Template {
 		path: string;
 		content: string;
 		params: Params;
-		summary?: string;
-		scripts?: string;
 		styles?: string;
-		title?: string;
+		scripts?: string;
+		summary: string;
+		title: string;
 	}
 
 	interface Params {
