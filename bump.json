@@ -1,6 +1,9 @@
 {
-  "version": "0.0.0",
+  "version": "0.0.1",
   "packages": [
-    "packages/bongo"
-  ]
+    "packages/bongo",
+    "packages/create-bongo",
+    "packages/plugin.markdown"
+  ],
+  "message": "v{VERSION}"
 }
