@@ -5,6 +5,6 @@
     "build": "bongo build"
   },
   "devDependencies": {
-    "bongo": "latest"
+    "@lukeed/bongo": "latest"
   }
 }
