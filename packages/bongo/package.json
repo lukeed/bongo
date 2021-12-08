@@ -21,7 +21,7 @@
     "node": ">=12.10"
   },
   "dependencies": {
-    "esbuild": "^0.12.0",
+    "esbuild": "^0.14.0",
     "kleur": "^4.0.0",
     "mri": "^1.1.0",
     "tempura": "^0.3.1"
