@@ -11,6 +11,7 @@ const isDEV = process.argv.includes('--dev');
  */
 
 /**
+ * Locate/auto-resolve files
  * @type {Plugin}
  */
 const resolve = {
@@ -31,6 +32,7 @@ const resolve = {
 };
 
 /**
+ * Minify JS w/ Terser
  * @type {Plugin}
  */
 const terser = {
@@ -49,6 +51,7 @@ const terser = {
 };
 
 /**
+ * Convert TS -> JS
  * @type {Plugin}
  */
 const esbuild = {
@@ -73,7 +76,21 @@ const esbuild = {
 	}
 };
 
-const list = [resolve, esbuild];
+/**
+ * Do NOT convert import() -> require()
+ * @type {Plugin}
+ */
+const imports = {
+	name: 'imports',
+	renderDynamicImport(opts) {
+		return {
+			left: 'import(',
+			right: ')',
+		};
+	}
+}
+
+const list = [resolve, esbuild, imports];
 isDEV || list.push(terser);
 
 module.exports = list;

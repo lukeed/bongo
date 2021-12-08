@@ -2,6 +2,7 @@ const { build, list } = require('./util');
 
 (async function () {
 	let pkgs = await list();
+
 	await Promise.all(
 		pkgs.map(build)
 	);
