@@ -60,8 +60,8 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		 * @example {{#style src="index.css"}}
 		 */
 		async style(args) {
-			console.log('INSIDE #STYLE block', args);
-			return 'TODO';
+			// console.log('INSIDE #STYLE block', args);
+			return 'TODO:#STYLE';
 		},
 
 		/**
@@ -70,7 +70,7 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		 * @example {{#script src="demo.mjs" inline=true }}
 		 */
 		async script(args: Args.Script) {
-			console.log('INSIDE #SCRIPT block', args);
+			// console.log('INSIDE #SCRIPT block', args);
 			let { src, target, format, async, defer, inline } = args;
 			if (!src) throw new Error('Missing "src" argument');
 
@@ -92,7 +92,7 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 			// TODO: errors, warnings
 			// TODO: track `result.metafile.inputs[key].imports`
 			let result = await esbuild.build(input, options);
-			console.log('~> result', result);
+			// console.log('~> result', result);
 
 
 			// esbuild returns all cwd-relative
