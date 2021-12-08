@@ -166,6 +166,7 @@ export async function build(argv: Argv): Promise<void> {
 		} catch (err) {
 			// TODO: formatting
 			console.error('You must have `minify` available in your $PATH for `--minify` to work.');
+			console.error('Visit ~https://github.com/tdewolff/minify~ for installation instructions.');
 			return process.exit(1);
 		}
 
