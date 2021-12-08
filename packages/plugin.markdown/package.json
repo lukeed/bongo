@@ -8,7 +8,6 @@
   "license": "MIT",
   "files": [
     "index.js",
-    "index.mjs",
     "index.d.ts"
   ],
   "author": {
