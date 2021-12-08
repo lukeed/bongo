@@ -39,7 +39,7 @@ export async function load<T = any>(ident: string, dir = ''): Promise<T> {
 		if (dir) ident = join(dir, ident);
 		return await Function('x', 'return import("file:///" + x)')(ident);
 	} catch (err) {
-		if (err.code !== 'ERR_UNKNOWN_FILE_EXTENSION') throw err;
+		if ((err as any).code !== 'ERR_UNKNOWN_FILE_EXTENSION') throw err;
 		return require(ident);
 	}
 }

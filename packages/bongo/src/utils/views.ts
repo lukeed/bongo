@@ -60,6 +60,7 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		 * @example {{#style src="index.css"}}
 		 */
 		async style(args) {
+			console.log('INSIDE #STYLE block', args);
 			return 'TODO';
 		},
 
@@ -69,6 +70,7 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		 * @example {{#script src="demo.mjs" inline=true }}
 		 */
 		async script(args: Args.Script) {
+			console.log('INSIDE #SCRIPT block', args);
 			let { src, target, format, async, defer, inline } = args;
 			if (!src) throw new Error('Missing "src" argument');
 
@@ -90,6 +92,8 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 			// TODO: errors, warnings
 			// TODO: track `result.metafile.inputs[key].imports`
 			let result = await esbuild.build(input, options);
+			console.log('~> result', result);
+
 
 			// esbuild returns all cwd-relative
 			let entry = relative(argv.cwd, input);
@@ -151,7 +155,9 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		} catch (err) {
 			let type = parse(dir).name.slice(0, -1); // strip "s"
 			let tmp = new Error(`Error compiling "${rel}" ${type}!`);
-			if (!(err instanceof SyntaxError)) tmp.message += '\n\t'+err.message;
+			if (!(err instanceof SyntaxError)) {
+				tmp.message += '\n\t' + (err as Error).message;
+			}
 			throw tmp;
 		}
 	}
@@ -162,27 +168,27 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 	let debug = argv.debug ? log.debug : () => {};
 
 	if (fs.exists(partials)) {
-	await fs.list(partials, async (_, rel) => {
-		if (isHBS.test(rel) || isJS.test(rel)) {
-			let key = toPartialName(rel);
-			debug('[collect.partials]', key);
-			// @ts-ignore - setting placeholders
-			Partials.set(key, blocks[key] = rel);
+		await fs.list(partials, async (_, rel) => {
+			if (isHBS.test(rel) || isJS.test(rel)) {
+				let key = toPartialName(rel);
+				debug('[collect.partials]', key);
+				// @ts-ignore - setting placeholders
+				Partials.set(key, blocks[key] = rel);
+			}
+		});
+
+		for (let [key, rel] of Partials) {
+			let file = String(rel);
+			let render = isHBS.test(file)
+				? await compile(partials, file)
+				: await fs.load(file, partials);
+
+			render = render.default || render;
+
+			// NOTE: Partials do NOT have access to `$page` var
+			let compiler = (x: Args) => render({ ...x, ...config }, blocks);
+			Partials.set(key, blocks[key] = compiler);
 		}
-	});
-
-	for (let [key, rel] of Partials) {
-		let file = String(rel);
-		let render = isHBS.test(file)
-			? await compile(partials, file)
-			: await fs.load(file, partials);
-
-		render = render.default || render;
-
-		// NOTE: Partials do NOT have access to `$page` var
-		let compiler = (x: Args) => render({ ...x, ...config }, blocks);
-		Partials.set(key, blocks[key] = compiler);
-	}
 	}
 
 	for (let name in config.$partials) {
