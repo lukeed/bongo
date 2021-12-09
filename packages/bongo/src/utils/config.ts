@@ -39,7 +39,10 @@ export async function find(root: string, start: string): Promise<string|void> {
  * Priority: rules > plugins
  * @NOTE Mutates `base` object!
  */
-export function merge(base: Required<Config>, custom: Config) {
+export function merge(base: Required<Config>, custom: Partial<Config>) {
+	if (custom.plugins) {
+		custom.plugins.forEach(o => merge(base, o));
+	}
 	Object.assign(base.$site, custom.$site);
 	Object.assign(base.$assets, custom.$assets);
 	Object.assign(base.$partials, custom.$partials);
@@ -87,6 +90,9 @@ export async function load(root: string): Promise<Required<Config>> {
 		$partials: {
 			// custom partials
 		},
+		plugins: [
+			// any user plugins
+		]
 	};
 
 	let file = await find(root, '.');
@@ -94,7 +100,7 @@ export async function load(root: string): Promise<Required<Config>> {
 	if (file) {
 		let user = /\.ts$/.test(file)
 			? await transform(file)
-			: await fs.load(file)
+			: await fs.load(file);
 
 		// TODO: validate $site keys
 		merge(output, user.default || user);

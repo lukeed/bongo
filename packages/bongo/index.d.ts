@@ -87,6 +87,7 @@ export interface Config {
 		[extension: string]: Loader;
 	};
 	$partials?: Template.Partials;
+	plugins?: Partial<Config>[];
 }
 
 export function build(argv: Argv): Promise<void>;
