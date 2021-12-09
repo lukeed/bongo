@@ -1,19 +1,20 @@
-import type { BuildResult } from 'esbuild';
-import type { BuildOptions } from 'esbuild';
+import type { BuildOptions, BuildResult } from 'esbuild';
 
-interface AssetCache {
-	[absolute: string]: Promise<BuildResult>;
-}
+type Group = `${string}~${string}`;
+type Thunk = Promise<BuildResult>;
 
-let Assets: AssetCache = {};
+let INPUTS: Record<Group, Set<string>> = {};
+let CONFIGS: Record<Group, BuildOptions> = {};
+let ASSETS: Record<Group, Thunk> = {};
+
+let esbuild: typeof import('esbuild');
+
 let defaults: BuildOptions = {
 	bundle: true,
 	splitting: true,
 	// outdir: outdir,
 	// entryPoints: [file],
 	// absWorkingDir: srcdir,
-	target: 'es2017',
-	format: 'esm',
 	resolveExtensions: ['.ts', '.js', '.cjs', '.mjs', '.css', '.json'],
 	mainFields: ['browser', 'module', 'jsnext', 'main'],
 	conditions: ['browser', 'import', 'production'],
@@ -21,25 +22,66 @@ let defaults: BuildOptions = {
 	incremental: false, // TODO
 	sourcemap: false, // TODO
 	minify: true, // always, faster
-	publicPath: '/', // new URL($site.url).pathname,
+	publicPath: '/', // replaced in build
+	write: true,
 	metafile: true,
+	allowOverwrite: true,
+	entryNames: '[name].[hash]',
+	chunkNames: '[name].[hash]',
 };
 
-let esbuild: typeof import('esbuild');
-export function build(input: string, config?: BuildOptions): Promise<BuildResult> {
+export function toGroup(options: BuildOptions): Group {
+	return (options.format || '') + '~' + String(options.target || '') as Group;
+}
+
+// TODO: invalidate ASSETS for dev server
+export function reset() {
+	INPUTS = {};
+	CONFIGS = {};
+	ASSETS = {};
+}
+
+export function prebuild(input: string, config: BuildOptions): Group {
+	let group = toGroup(config);
+	let inputs = INPUTS[group] || new Set;
+	CONFIGS[group] = CONFIGS[group] || config;
+	INPUTS[group] = inputs;
+	inputs.add(input);
+	return group;
+}
+
+// TODO: move warning|error handling here
+export function build(group: Group): Thunk {
 	esbuild = esbuild || require('esbuild');
 
-	// TODO: track references
-	// TODO: collect all inputs for build for code splitting reuse
-	// if `inline` 2+ count, hoist to external
-
-	let thunk = Assets[input];
+	let thunk = ASSETS[group];
 	if (thunk) return thunk;
 
-	return Assets[input] = esbuild.build({
-		...defaults, ...config,
-		entryPoints: [input],
-	});
+	let inputs = INPUTS[group];
+	let options = CONFIGS[group];
+	if (!inputs || !inputs.size || !options) {
+		throw new Error('invalid group');
+	}
+
+	options.entryPoints = [...inputs];
+	options = { ...defaults, ...options };
+	// console.log('~> shared:', options.entryPoints);
+	return ASSETS[group] = esbuild.build(options);
+}
+
+// TODO: errors, warnings
+// TODO: track `result.metafile.inputs[key].imports`
+export function postbuild(entry: string, result: BuildResult): string | never {
+	// let msgs: string[] = [];
+	// msgs.push(...esbuild.formatMessagesSync(result.errors, { kind: 'error' }));
+	// msgs.push(...esbuild.formatMessagesSync(result.warnings, { kind: 'warning' }));
+
+	let key, tmp;
+	for (key in result.metafile!.outputs) {
+		tmp = result.metafile!.outputs[key];
+		if (tmp.entryPoint === entry) return key;
+	}
+	throw new Error(`Missing output for "${entry}" entrypoint`);
 }
 
 export async function transform(filename: string) {

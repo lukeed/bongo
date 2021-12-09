@@ -30,6 +30,15 @@ namespace Args {
 		format?: Format;
 		async?: boolean;
 	}
+
+	export interface Style {
+		src?: string;
+		// TODO: outfile vs bundle vs ...
+		output?: string;
+		// TODO: enum
+		preload?: boolean;
+		inline?: boolean;
+	}
 }
 
 export async function collect(argv: Required<Argv>, config: Required<Config>): Promise<void> {
@@ -39,6 +48,14 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		publicPath: new URL(config.$site.url).pathname,
 		minify: argv.minify,
 	};
+
+	// esbuild cwd-relative -> absolute
+	// TODO: check (https?)?// prefix
+	let toOutfile = (file: string) => {
+		file = join(argv.cwd, file);
+		file = relative(argv.dest, file);
+		return config.$utils.url.abs(file);
+	}
 
 	let blocks: Template.Partials = {
 		/**
@@ -59,8 +76,8 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		 * @todo
 		 * @example {{#style src="index.css"}}
 		 */
-		async style(args) {
-			// TODO: figure out output="" for bundle vs
+		async style(args: Args.Style) {
+			// TODO: figure out output="" for bundle vs ...
 			let { src, output, preload, inline } = args;
 			if (!src) throw new Error('Missing "src" argument');
 
@@ -75,52 +92,21 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 				options.outfile = join(argv.dest, output);
 			}
 
-			if (inline) {
-				options.write = false;
-			} else {
-				options.allowOverwrite = options.write = true;
-				options.entryNames = options.chunkNames = '[name].[hash]';
-				// if (output = 'r.js') options.outfile = join(outdir, output);
-			}
-
-			// TODO: errors, warnings
-			// TODO: track `result.metafile.inputs[key].imports`
-			let result = await esbuild.build(input, options);
-
-			if (inline) {
-				// TODO: reference count for de-dupe?
-				let html = `<style>${result.outputFiles![0]!.text}</style>`;
-
-				if (result.outputFiles!.length > 1) {
-					console.log(
-						'[TODO][#style.inline] more than 1 output',
-						JSON.stringify(result.outputFiles, null, 2)
-					);
-				}
-
-				return html;
-			}
-
-			// esbuild returns all cwd-relative
+			// TODO: setup()
 			let entry = relative(argv.cwd, input);
-			let key, tmp, outfile='';
+			let group = esbuild.prebuild(input, options);
 
-			for (key in result.metafile!.outputs) {
-				tmp = result.metafile!.outputs[key];
-				if (tmp.entryPoint === entry) {
-					outfile = key;
-					break;
-				}
+			let result = await esbuild.build(group);
+			let outfile = esbuild.postbuild(entry, result);
+
+			if (inline) {
+				outfile = join(argv.cwd, outfile);
+				let contents = await fs.read(outfile, 'utf8');
+				return `<style>${contents}</style>`;
 			}
 
-			if (!outfile) {
-				throw new Error(`Missing output for "${src}" entrypoint`);
-			}
-
-			// TODO: check (https?)?// prefix
-			outfile = join(argv.cwd, outfile);
-			outfile = relative(argv.dest, outfile);
-			outfile = config.$utils.url.abs(outfile);
+			// ~> "/foo.[hash].css"
+			outfile = toOutfile(outfile);
 
 			let plain = `<link rel="stylesheet" href="${outfile}"/>`;
 			if (!preload) return plain;
@@ -146,68 +132,35 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 			fs.assert(input, `assets/${src}`);
 
 			let options = { ...opts };
-			if (target) options.target = target;
-			if (format) options.format = format;
+			options.target = target || 'es2017';
+			options.format = format || 'esm';
 
-			if (inline) {
-				options.write = false;
-			} else {
-				options.allowOverwrite = options.write = true;
-				options.entryNames = options.chunkNames = '[name].[hash]';
-				// if (output = 'r.js') options.outfile = join(outdir, output);
-			}
-
-			// TODO: errors, warnings
-			// TODO: track `result.metafile.inputs[key].imports`
-			let result = await esbuild.build(input, options);
-			// console.log('~> [script] result', JSON.stringify(result, null, 2));
-
-			// esbuild returns all cwd-relative
+			// TODO: setup()
 			let entry = relative(argv.cwd, input);
-			let key, tmp, outfile='';
+			let group = esbuild.prebuild(input, options);
 
-			for (key in result.metafile!.outputs) {
-				tmp = result.metafile!.outputs[key];
-				if (tmp.entryPoint === entry) {
-					outfile = key;
-					break;
-				}
-			}
-
-			if (outfile) {
-				outfile = join(argv.cwd, outfile);
-				outfile = relative(argv.dest, outfile);
-				outfile = config.$utils.url.abs(outfile);
-			} else {
-				throw new Error(`Missing output for "${src}" entrypoint`);
-			}
+			let result = await esbuild.build(group);
+			let outfile = esbuild.postbuild(entry, result);
 
 			// begin construction
-			let output = '<script';
-			if (async) output += ' async';
-			if (!format || format === 'esm') {
-				output += ' type=module';
+			let html = '<script';
+			if (async) html += ' async';
+			if (options.format === 'esm') {
+				html += ' type=module';
 			} else if (defer) {
-				output += ' defer';
+				html += ' defer';
 			}
 
 			if (inline) {
-				// TODO: reference count should fix this
-				tmp = result.outputFiles![0]!;
-				output += '>' + tmp.text + '</script>';
-
-				// all others are chunks, write to disk
-				Promise.all(result.outputFiles!.slice(1).map(obj => {
-					return fs.write(obj.path, obj.contents);
-				})); //.catch(rej);
+				outfile = join(argv.cwd, outfile);
+				let contents = await fs.read(outfile, 'utf8');
+				html += '>' + contents + '</script>';
 			} else {
-				output += ` src="${outfile}"></script>`;
+				outfile = toOutfile(outfile);
+				html += ` src="${outfile}"></script>`;
 			}
 
-			return output;
-
-				// 	return res(output);
-				// }).catch(rej);
+			return html;
 		}
 	};
 
