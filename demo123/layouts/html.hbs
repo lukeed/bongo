@@ -24,7 +24,7 @@
 		<link rel="shortcut icon" href={{ $utils.url.abs("/img/touch/48.png") }}/>
 		<link rel="manifest" href={{ $utils.url.abs("/manifest.json") }}/>
 
-		{{#style src="root.sass" output="r.css" }}
+		{{#style src="root.css" output="r.css" }}
 		{{ $page.styles }}
 
 		<script>var $$r=document.documentElement;$$r.className='';!function(){var a=localStorage.getItem("dark");(a=a&&+a)||a||window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,$$r.classList.toggle("dark",a=!!a),localStorage.setItem("dark",+a+"")}()</script>

@@ -60,8 +60,76 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		 * @example {{#style src="index.css"}}
 		 */
 		async style(args) {
-			// console.log('INSIDE #STYLE block', args);
-			return 'TODO:#STYLE';
+			// TODO: figure out output="" for bundle vs
+			let { src, output, preload, inline } = args;
+			if (!src) throw new Error('Missing "src" argument');
+
+			let input = join(argv.assets, src);
+			fs.assert(input, `assets/${src}`);
+
+			let options = { ...opts };
+
+			if (output) {
+				delete options.outdir;
+				options.splitting = false;
+				options.outfile = join(argv.dest, output);
+			}
+
+			if (inline) {
+				options.write = false;
+			} else {
+				options.allowOverwrite = options.write = true;
+				options.entryNames = options.chunkNames = '[name].[hash]';
+				// if (output = 'r.js') options.outfile = join(outdir, output);
+			}
+
+			// TODO: errors, warnings
+			// TODO: track `result.metafile.inputs[key].imports`
+			let result = await esbuild.build(input, options);
+
+			if (inline) {
+				// TODO: reference count for de-dupe?
+				let html = `<style>${result.outputFiles![0]!.text}</style>`;
+
+				if (result.outputFiles!.length > 1) {
+					console.log(
+						'[TODO][#style.inline] more than 1 output',
+						JSON.stringify(result.outputFiles, null, 2)
+					);
+				}
+
+				return html;
+			}
+
+			// esbuild returns all cwd-relative
+			let entry = relative(argv.cwd, input);
+			let key, tmp, outfile='';
+
+			for (key in result.metafile!.outputs) {
+				tmp = result.metafile!.outputs[key];
+				if (tmp.entryPoint === entry) {
+					outfile = key;
+					break;
+				}
+			}
+
+			if (!outfile) {
+				throw new Error(`Missing output for "${src}" entrypoint`);
+			}
+
+			// TODO: check (https?)?// prefix
+			outfile = join(argv.cwd, outfile);
+			outfile = relative(argv.dest, outfile);
+			outfile = config.$utils.url.abs(outfile);
+
+			let plain = `<link rel="stylesheet" href="${outfile}"/>`;
+			if (!preload) return plain;
+
+			let html = `<link rel="preload" href="${outfile}" as="style"`;
+			html += ` onload="this.onload=null;this.rel='stylesheet'"/>`;
+			html += `<noscript>${plain}</noscript>`;
+
+			return html;
 		},
 
 		/**
@@ -92,8 +160,7 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 			// TODO: errors, warnings
 			// TODO: track `result.metafile.inputs[key].imports`
 			let result = await esbuild.build(input, options);
-			// console.log('~> result', result);
-
+			// console.log('~> [script] result', JSON.stringify(result, null, 2));
 
 			// esbuild returns all cwd-relative
 			let entry = relative(argv.cwd, input);
@@ -108,6 +175,7 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 			}
 
 			if (outfile) {
+				outfile = join(argv.cwd, outfile);
 				outfile = relative(argv.dest, outfile);
 				outfile = config.$utils.url.abs(outfile);
 			} else {
