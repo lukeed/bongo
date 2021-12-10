@@ -1,4 +1,4 @@
-import type { Config, Template } from 'bongo';
+import type { Config, Loader } from 'bongo';
 import type MarkdownIt from 'markdown-it';
 
 let mdown: MarkdownIt;
@@ -15,7 +15,8 @@ export const $assets: Config['$assets'] = {
 			content = new TextDecoder().decode(content);
 		}
 
-		let metadata: Template.Params = {};
+		let filename = input + '.html';
+		let metadata: Loader.Metadata = {};
 		let match = /---\r?\n([\s\S]+?)\r?\n---/.exec(content);
 
 		if (match != null) {
@@ -27,7 +28,6 @@ export const $assets: Config['$assets'] = {
 			});
 		}
 
-		let filename = input + '.html';
 		content = mdown.render(content);
 		return { filename, content, metadata };
 	}

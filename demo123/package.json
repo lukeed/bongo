@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "scripts": {
+    "build": "bongo build"
+  },
+  "devDependencies": {
+    "@bongo/markdown": "workspace:*",
+    "bongo": "workspace:@lukeed/bongo@*"
+  }
+}
