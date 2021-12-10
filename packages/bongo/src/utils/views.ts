@@ -6,7 +6,7 @@ import * as fs from './fs';
 
 import type { Argv, Config, Template } from 'bongo';
 import type { BuildOptions, Format } from 'esbuild';
-import type { Args } from './tempura/index';
+import type { Args, Blocks } from './tempura/index';
 
 // TODO: revert to `tempura.Compiler` postfix
 type Cache = Map<string, Template.Compiler>;
@@ -40,7 +40,7 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		minify: argv.minify,
 	};
 
-	let blocks: Template.Partials = {
+	let blocks: Blocks = {
 		/**
 		 * Alternative partial format
 		 * @note Partials do not have `$page` info
@@ -138,6 +138,11 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 				// }).catch(rej);
 		}
 	};
+
+	blocks.script.setup = function (text) {
+		let src = Function('return (' + text + ')')();
+		console.log('script ::', src);
+	}
 
 	let props = ['$site', '$page', '$assets', '$utils'];
 	let options: tempura.Options = { async: true, props, blocks };

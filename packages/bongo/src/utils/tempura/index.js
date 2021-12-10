@@ -83,6 +83,7 @@ function gen(input, options) {
 				inner = inner || '{}';
 				tmp = options.async ? 'await ' : '';
 				wip += '${' + tmp + '$$2["' + action + '"](' + inner + ',$$2)}';
+				if (extra[action].setup) extra[action].setup(inner);
 			} else {
 				throw new Error(`Unknown "${action}" block`);
 			}
