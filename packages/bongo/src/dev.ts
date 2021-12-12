@@ -23,6 +23,9 @@ export async function dev(argv: Argv) {
 	const server = await http.start(flags);
 	console.log('~> started', server.address());
 
+	// TODO: content -> single file rebuild
+	// TODO: layouts/partials -> all content
+	// TODO: assets -> invalidate bundle(s), all content
 	await fs.watch([
 		flags.assets,
 		flags.layouts,
