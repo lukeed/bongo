@@ -161,13 +161,12 @@ export async function build(argv: Argv): Promise<void> {
 
 		if (argv.dev) {
 			content += `<script>`;
-			content += `var es = new EventSource('${RELOAD}');`;
-			content += `es.onopen = () => console.log('[dev] live reload enabled');`;
-			content += `es.onmessage = () => location.reload();`;
+			content +=   `var es = new EventSource('${RELOAD}');`;
+			content +=   `es.onopen = () => console.log('[dev] live reload enabled');`;
+			content +=   `es.onmessage = () => location.reload();`;
 			content += `</script>`;
 		}
 
-		// console.log('~> output', { output, params });
 		await fs.write(output, content);
 	});
 

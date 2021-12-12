@@ -50,16 +50,28 @@ export async function load<T = any>(ident: string, dir = ''): Promise<T> {
 // @modified lukeed/totalist
 export type Caller = (abs: string, rel: string, name: string) => any;
 export async function list(dir: string, callback: Caller, prefix='') {
+	// NOTE: build `index.*` files last
+	let index: [string, string, string] | void;
 	let files = await ls(dir, { withFileTypes: true });
 
 	await Promise.all(
 		files.map(dirent => {
 			let item = join(dir, dirent.name);
 			let rel = join(prefix, dirent.name);
-			if (dirent.isFile()) return callback(item, rel, dirent.name);
-			return /^(shortcode|partial)s$/.test(dirent.name) || list(item, callback, rel);
+			if (dirent.isDirectory()) {
+				return /^(shortcode|partial)s$/.test(dirent.name) || list(item, callback, rel);
+			}
+			if (dirent.name.startsWith('index.')) {
+				index = [item, rel, dirent.name];
+			} else {
+				return callback(item, rel, dirent.name);
+			}
 		})
 	);
+
+	if (index!) {
+		await callback.apply(callback, index);
+	}
 }
 
 async function setup(dir: string, onChange: WatchListener) {
