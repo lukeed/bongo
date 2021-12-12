@@ -1,9 +1,11 @@
+import { extname, join, relative } from 'path';
+
 import * as fs from './utils/fs';
 import * as log from './utils/log';
 import { load } from './utils/config';
 import * as views from './utils/views';
 import { normalize } from './utils/argv';
-import { extname, join, relative } from 'path';
+import { RELOAD } from './utils/http';
 
 import type { Argv, Template } from 'bongo';
 
@@ -122,7 +124,9 @@ export async function build(argv: Argv): Promise<void> {
 
 		if (isPage.test(ext)) {
 			let j=0, files = ['index.hbs', 'html.hbs'];
-			if (basename !== 'index') files.splice(0, 1, `${basename}.hbs`, 'single.hbs');
+			if (basename !== 'index') {
+				files.splice(0, 1, `${basename}.hbs`, 'single.hbs');
+			}
 
 			outer: for (; i < dirs.length; i++) {
 				for (j=0; j < files.length; j++) {
@@ -149,6 +153,14 @@ export async function build(argv: Argv): Promise<void> {
 			// Should always be defined as a bare minimum
 			if (!render) throw new Error('Missing "html.hbs" template');
 			content = await render({ $page, ...config });
+		}
+
+		if (argv.dev) {
+			content += `<script>`;
+			content += `var es = new EventSource('${RELOAD}');`;
+			content += `es.onopen = () => console.log('[dev] live reload enabled');`;
+			content += `es.onmessage = () => location.reload();`;
+			content += `</script>`;
 		}
 
 		// console.log('~> output', { output, params });

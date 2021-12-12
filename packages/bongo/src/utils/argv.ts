@@ -1,16 +1,21 @@
-import { join, resolve } from 'path';
+import { resolve } from 'path';
 import type { Argv } from 'bongo';
 
 export function normalize(argv: Argv): asserts argv is Required<Argv> {
 	argv.cwd = resolve(argv.cwd);
 	argv.debug = !!argv.debug;
+	argv.dev = !!argv.dev;
 
 	// attach path directories
-	argv.src = join(argv.cwd, argv.src || '.');
-	argv.dest = join(argv.cwd, 'public');
+	argv.src = resolve(argv.cwd, argv.src || '.');
+	argv.dest = resolve(argv.cwd, 'public');
 
-	argv.assets = join(argv.src, 'assets');
-	argv.content = join(argv.src, 'content');
-	argv.partials = join(argv.src, 'partials');
-	argv.layouts = join(argv.src, 'layouts');
+	argv.assets = resolve(argv.src, 'assets');
+	argv.content = resolve(argv.src, 'content');
+	argv.partials = resolve(argv.src, 'partials');
+	argv.layouts = resolve(argv.src, 'layouts');
+
+	const { PORT, HOST } = process.env;
+	argv.port = argv.port || PORT && +PORT || 3000;
+	argv.host = argv.host || HOST || 'localhost';
 }

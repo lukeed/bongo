@@ -27,6 +27,7 @@ if (argv.h) {
 	output += '\n';
 	output += '\n  Available Commands';
 	output += '\n    build    Build the source directory';
+	output += '\n    dev      Develop with a live-reload server';
 	output += '\n';
 	output += '\n  Options';
 	output += '\n    -C, --cwd        Directory to resolve from  (default .)';

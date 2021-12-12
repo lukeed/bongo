@@ -2,6 +2,7 @@ type Promisable<T> = Promise<T> | T;
 
 export interface Argv {
 	cwd: string;
+	dev?: boolean;
 	minify?: boolean;
 	// added via normalize
 	src?: string;
@@ -11,6 +12,8 @@ export interface Argv {
 	partials?: string;
 	layouts?: string;
 	debug?: boolean;
+	port?: number;
+	host?: string;
 }
 
 export type Loader = (file: string, content: Uint8Array | string) => Promisable<{
