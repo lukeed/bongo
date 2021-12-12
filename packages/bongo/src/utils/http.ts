@@ -35,10 +35,13 @@ export function start(argv: Required<Argv>): Promise<Server> {
 		});
 
 		res.socket!.setTimeout(0);
+
 		req.once('close', () => {
 			clients.delete(res);
 			res.end();
 		});
+
+		res.write('event: status\ndata: open\n\n');
 
 		return clients.add(res);
 	});
