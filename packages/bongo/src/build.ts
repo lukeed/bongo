@@ -33,6 +33,7 @@ export async function build(argv: Argv): Promise<void> {
 	await views.collect(argv, config);
 
 	const { Layouts } = views;
+	const isPage = /(hbs|html?)$/;
 	const { dest, content } = argv;
 
 	await fs.list(content, async (input, rel, name) => {
@@ -44,11 +45,12 @@ export async function build(argv: Argv): Promise<void> {
 		let ext = name.substring(idx + 1);
 		let basename = name.substring(0, idx);
 		let params: Template.Params = {};
-		let isPage = /(hbs|html?)$/;
 
 		let render: Template.Compiler | void;
 		let layout='', content='';
 
+		// TODO: if `index` then defer for last
+		// TODO: collect non-`index` pages for "$section" (?)
 		if (isPage.test(ext)) {
 			content = await fs.read(input, 'utf8');
 			let [idx, metadata] = views.frontmatter(content);
@@ -104,11 +106,13 @@ export async function build(argv: Argv): Promise<void> {
 			}
 		}
 
-		path = path.substring(1);
-		if (path === 'index') path = '';
-		output = join(dest, path, 'index.html');
+		if (basename === 'index') {
+			path = path.substring(0, path.length - 5);
+		} else if (!path.endsWith('/')) {
+			path += '/'; // ensure trailing
+		}
 
-		path += '/'; // ensure trailing
+		output = join(dest, path, 'index.html');
 
 		let $page: Template.Page = {
 			path, params, content,
