@@ -5,7 +5,7 @@ type Thunk = Promise<BuildResult>;
 
 let INPUTS: Record<Group, Set<string>> = {};
 let CONFIGS: Record<Group, BuildOptions> = {};
-let ASSETS: Record<Group, Thunk> = {};
+let BUNDLERS: Record<Group, Thunk> = {};
 
 let esbuild: typeof import('esbuild');
 
@@ -34,11 +34,11 @@ export function toGroup(options: BuildOptions): Group {
 	return (options.format || '') + '~' + String(options.target || '') as Group;
 }
 
-// TODO: invalidate ASSETS for dev server
+// TODO: invalidate BUNDLERS for dev server
 export function reset() {
 	INPUTS = {};
 	CONFIGS = {};
-	ASSETS = {};
+	BUNDLERS = {};
 }
 
 export function prebuild(input: string, config: BuildOptions): Group {
@@ -54,7 +54,7 @@ export function prebuild(input: string, config: BuildOptions): Group {
 export function build(group: Group): Thunk {
 	esbuild = esbuild || require('esbuild');
 
-	let thunk = ASSETS[group];
+	let thunk = BUNDLERS[group];
 	if (thunk) return thunk;
 
 	let inputs = INPUTS[group];
@@ -66,7 +66,7 @@ export function build(group: Group): Thunk {
 	options.entryPoints = [...inputs];
 	options = { ...defaults, ...options };
 	// console.log('~> shared:', options.entryPoints);
-	return ASSETS[group] = esbuild.build(options);
+	return BUNDLERS[group] = esbuild.build(options);
 }
 
 // TODO: errors, warnings

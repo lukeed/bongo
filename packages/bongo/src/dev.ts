@@ -1,13 +1,32 @@
+import * as esbuild from './utils/esbuild';
+import * as views from './utils/views';
 import * as http from './utils/http';
-import { normalize } from './utils/argv';
+import * as fs from './utils/fs';
 import { build } from './build';
 
 import type { Argv } from 'bongo';
 
 export async function dev(argv: Argv) {
 	argv.dev = true;
-	await build(argv);
 
-	const server = await http.start(argv as Required<Argv>);
+	async function rebuild() {
+		esbuild.reset();
+		console.log('~> inside');
+		views.Partials.clear();
+		views.Layouts.clear();
+		await build(argv);
+		http.reload();
+	}
+
+	await build(argv);
+	const flags = argv as Required<Argv>;
+	const server = await http.start(flags);
 	console.log('~> started', server.address());
+
+	await fs.watch([
+		flags.assets,
+		flags.layouts,
+		flags.partials,
+		flags.content,
+	], rebuild);
 }
