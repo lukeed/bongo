@@ -9,15 +9,6 @@ import type { Argv } from 'bongo';
 export async function dev(argv: Argv) {
 	argv.dev = true;
 
-	async function rebuild() {
-		esbuild.reset();
-		console.log('~> inside');
-		views.Partials.clear();
-		views.Layouts.clear();
-		await build(argv);
-		http.reload();
-	}
-
 	await build(argv);
 	const flags = argv as Required<Argv>;
 	const server = await http.start(flags);
@@ -31,5 +22,13 @@ export async function dev(argv: Argv) {
 		flags.layouts,
 		flags.partials,
 		flags.content,
-	], rebuild);
+	], async function (file) {
+		console.log('[ dev ]', file);
+
+		esbuild.reset();
+		views.Partials.clear();
+		views.Layouts.clear();
+		await build(argv);
+		http.reload();
+	});
 }

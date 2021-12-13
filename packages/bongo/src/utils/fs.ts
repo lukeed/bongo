@@ -2,8 +2,9 @@ import { watch as fsw } from 'fs';
 import { promises as fs } from 'fs';
 import { existsSync as exists } from 'fs';
 import { dirname, join } from 'path';
+import { throttle } from './index';
 
-import type { FSWatcher, WatchListener } from 'fs';
+import type { FSWatcher } from 'fs';
 
 export { exists };
 
@@ -74,13 +75,18 @@ export async function list(dir: string, callback: Caller, prefix='') {
 	}
 }
 
-async function setup(dir: string, onChange: WatchListener) {
+type Handler = (dir: string, type: string, filename: string) => any;
+
+async function setup(dir: string, onChange: Handler) {
 	let output: Record<string, FSWatcher> = {};
 
 	try {
 		output[dir] = fsw(dir, { recursive: true }, onChange.bind(0, dir));
-	} catch (err) {
-		if (err.code !== 'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM') throw err;
+	} catch (err: any) {
+		if (err.code !== 'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM') {
+			throw err;
+		}
+
 		output[dir] = fsw(dir, onChange.bind(0, dir));
 		await list(dir, (rel, abs) => {
 			output[abs] = fsw(abs, onChange.bind(0, abs));
@@ -91,35 +97,33 @@ async function setup(dir: string, onChange: WatchListener) {
 }
 
 // @modified lukeed/watchlist
-export async function watch(list: string[], callback: Function) {
-	const dirs = new Set(list.filter(exists));
+type Callback = (filename: string) => any;
+export async function watch(list: string[], callback: Callback) {
+	const dirs = new Set(
+		list.filter(exists)
+	);
 
-	let wip = 0;
-	const Triggers = new Set;
-	const Watchers = new Map;
-
-	async function handle(): Promise<void> {
-		await callback();
-		if (--wip) return handle();
-	}
+	const Triggers = new Set<string>();
+	const Watchers = new Map<string, FSWatcher>();
 
 	// TODO: Catch `EPERM` on Windows for removed dir
-	async function onChange(dir: string, filename: string) {
+	const onChange: Handler = throttle(async function (dir, type, filename) {
 		let tmp = join(dir, filename);
 		if (Triggers.has(tmp)) return;
-		if (wip++) return wip = 1;
 
 		// todo?
-		console.clear();
+		// console.clear();
 
 		Triggers.add(tmp);
-		await handle();
+		await callback(tmp);
 		Triggers.delete(tmp);
-	}
+	}, 100);
 
-	let dir, output, key;
+	let dir, output;
 	for (dir of dirs) {
 		output = await setup(dir, onChange);
-		for (key in output) Watchers.set(key, output[key]);
+		for (let key in output) {
+			Watchers.set(key, output[key]);
+		}
 	}
 }
