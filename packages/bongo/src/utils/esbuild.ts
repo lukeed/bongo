@@ -65,6 +65,8 @@ export function build(group: Group): Thunk {
 
 	options.entryPoints = [...inputs];
 	options = { ...defaults, ...options };
+	// NOTE: esbuild only supports splitting w/ ESM format
+	if (options.format !== 'esm') options.splitting = false;
 	// console.log('~> shared:', options.entryPoints);
 	return BUNDLERS[group] = esbuild.build(options);
 }
