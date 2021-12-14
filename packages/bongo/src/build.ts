@@ -32,6 +32,11 @@ export async function build(argv: Argv): Promise<void> {
 	// sets `views` caches
 	await views.collect(argv, config);
 
+	// TODO: save all `$page`|params into URL key
+	// const Pages = new Map<url, info>;
+	// TODO: save all `params.tag` into own cache
+	// const Tags = new Map<tag, url>;
+
 	const { Layouts } = views;
 	const isPage = /(hbs|html?)$/;
 	const { dest, content } = argv;

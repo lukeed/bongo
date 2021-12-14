@@ -1,3 +1,4 @@
+import { relative } from 'path';
 import * as esbuild from './utils/esbuild';
 import * as views from './utils/views';
 import * as http from './utils/http';
@@ -23,11 +24,12 @@ export async function dev(argv: Argv) {
 		flags.partials,
 		flags.content,
 	], async function (file) {
-		console.log('[ dev ]', file);
+		console.log('[ dev ]', relative(flags.cwd, file));
 
 		esbuild.reset();
 		views.Partials.clear();
 		views.Layouts.clear();
+
 		await build(argv);
 		http.reload();
 	});
