@@ -1,7 +1,10 @@
 import type { Loader } from 'bongo';
+import type { Options } from 'markdown-it';
 
-declare const $assets: {
+type Loaders = {
 	md: Loader
 };
 
-export { $assets }
+export function markdown(options?: Options): {
+	$assets: Loaders;
+}
