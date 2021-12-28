@@ -1,4 +1,4 @@
-import markdown from '@bongo/markdown';
+import { markdown } from '@bongo/markdown';
 
 /**
  * @typedef {import('..').Config} Config
@@ -25,5 +25,5 @@ export const $assets = {
  * @type {Config['plugins']}
  */
 export const plugins = [
-	markdown
+	markdown()
 ]

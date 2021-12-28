@@ -1,4 +1,4 @@
-import markdown from '@bongo/markdown';
+import { markdown } from '@bongo/markdown';
 import type { Config } from 'bongo';
 
 console.log('INSIDE TS CONFIG FILE');
@@ -24,7 +24,7 @@ const config: Config = {
 	},
 
 	plugins: [
-		markdown
+		markdown()
 	]
 }
 
