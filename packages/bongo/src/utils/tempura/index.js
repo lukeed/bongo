@@ -82,6 +82,11 @@ function gen(input, options) {
 				}
 				inner = inner || '{}';
 				tmp = options.async ? 'await ' : '';
+				if (extra[action].setup) {
+					// TODO: try / catch ?
+					let json = Function('return ' + inner)();
+					extra[action].setup(json);
+				}
 				wip += '${' + tmp + '$$2["' + action + '"](' + inner + ',$$2)}';
 			} else {
 				throw new Error(`Unknown "${action}" block`);

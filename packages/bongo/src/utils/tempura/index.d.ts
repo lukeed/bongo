@@ -1,5 +1,8 @@
 export type Args = Record<string, any>;
-export type Blocks = Record<string, Compiler>;
+export type Block = Compiler & {
+	setup?<T extends Args>(data: T): Promise<void> | void;
+}
+export type Blocks = Record<string, Block>;
 
 export type Compiler<T extends Args = Args> = (data: T, blocks?: Blocks) => Promise<string> | string;
 

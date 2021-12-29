@@ -14,6 +14,10 @@ type Cache = Map<string, Template.Compiler>;
 export const Layouts: Cache = new Map;
 export const Partials: Cache = new Map;
 
+const Assets: {
+	[input: string]: esbuild.Group
+} = {};
+
 // Remove the extension
 // TODO: normalize path separators
 function toPartialName(file: string): string {
@@ -78,25 +82,14 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		 */
 		async style(args: Args.Style) {
 			// TODO: figure out output="" for bundle vs ...
-			let { src, output, preload, inline } = args;
-			if (!src) throw new Error('Missing "src" argument');
+			let { src, preload, inline } = args;
+			let input = join(argv.assets, src!);
 
-			let input = join(argv.assets, src);
-			fs.assert(input, `assets/${src}`);
-
-			let options = { ...opts };
-
-			if (output) {
-				delete options.outdir;
-				options.splitting = false;
-				options.outfile = join(argv.dest, output);
-			}
-
-			// TODO: setup()
-			let entry = relative(argv.cwd, input);
-			let group = esbuild.prebuild(input, options);
-
+			// NOTE: already setup()
+			let group = Assets[input]!;
 			let result = await esbuild.build(group);
+
+			let entry = relative(argv.cwd, input);
 			let outfile = esbuild.postbuild(entry, result);
 
 			if (inline) {
@@ -124,28 +117,23 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		 * @example {{#script src="demo.mjs" inline=true }}
 		 */
 		async script(args: Args.Script) {
-			// console.log('INSIDE #SCRIPT block', args);
-			let { src, target, format, async, defer, inline } = args;
-			if (!src) throw new Error('Missing "src" argument');
+			let { src, format, async, defer, inline } = args;
+			let input = join(argv.assets, src!);
 
-			let input = join(argv.assets, src);
-			fs.assert(input, `assets/${src}`);
+			// NOTE: already setup()
+			let group = Assets[input]!;
 
-			let options = { ...opts };
-			options.target = target || 'es2017';
-			options.format = format || 'esm';
-
-			// TODO: setup()
 			let entry = relative(argv.cwd, input);
-			let group = esbuild.prebuild(input, options);
-
 			let result = await esbuild.build(group);
 			let outfile = esbuild.postbuild(entry, result);
+
+			// NOTE: matches setup
+			format = format || 'esm';
 
 			// begin construction
 			let html = '<script';
 			if (async) html += ' async';
-			if (options.format === 'esm') {
+			if (format === 'esm') {
 				html += ' type=module';
 			} else if (defer) {
 				html += ' defer';
@@ -163,6 +151,41 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 			return html;
 		}
 	};
+
+	blocks.style.setup = function (args: Args.Style) {
+		let { src, output } = args;
+		if (!src) throw new Error('Missing "src" argument');
+
+		let input = join(argv.assets, src);
+		if (Assets[input]) return;
+
+		fs.assert(input, `assets/${src}`);
+
+		let options = { ...opts };
+
+		if (output) {
+			options.splitting = false;
+			options.outfile = join(argv.dest, output);
+		}
+
+		Assets[input] = esbuild.prebuild(input, options);
+	}
+
+	blocks.script.setup = function (args: Args.Script) {
+		let { src, target, format } = args;
+		if (!src) throw new Error('Missing "src" argument');
+
+		let input = join(argv.assets, src);
+		if (Assets[input]) return;
+
+		fs.assert(input, `assets/${src}`);
+
+		let options = { ...opts };
+		options.target = target || 'es2017';
+		options.format = format || 'esm';
+
+		Assets[input] = esbuild.prebuild(input, options);
+	}
 
 	let props = ['$site', '$page', '$assets', '$utils'];
 	let options: tempura.Options = { async: true, props, blocks };

@@ -1,7 +1,7 @@
 import type { BuildOptions, BuildResult } from 'esbuild';
 
-type Group = `${string}~${string}`;
-type Thunk = Promise<BuildResult>;
+export type Group = `${string}~${string}`;
+export type Thunk = Promise<BuildResult>;
 
 let INPUTS: Record<Group, Set<string>> = {};
 let CONFIGS: Record<Group, BuildOptions> = {};
@@ -59,15 +59,24 @@ export function build(group: Group): Thunk {
 
 	let inputs = INPUTS[group];
 	let options = CONFIGS[group];
+
 	if (!inputs || !inputs.size || !options) {
 		throw new Error('invalid group');
 	}
 
 	options.entryPoints = [...inputs];
 	options = { ...defaults, ...options };
+
+	if (inputs.size > 1) {
+		options.splitting = true;
+		delete options.outfile;
+	} else if (options.outfile) {
+		delete options.outdir;
+	}
+
 	// NOTE: esbuild only supports splitting w/ ESM format
 	if (options.format !== 'esm') options.splitting = false;
-	// console.log('~> shared:', options.entryPoints);
+
 	return BUNDLERS[group] = esbuild.build(options);
 }
 

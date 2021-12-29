@@ -54,7 +54,8 @@ export async function build(argv: Argv): Promise<void> {
 		let render: Template.Compiler | void;
 		let layout='', content='';
 
-		// TODO: if `index` then defer for last
+		// TODO: run a loop for all `$section` pages first before render
+		// 			-> for `index.*`, menus, sitemap, etc
 		// TODO: collect non-`index` pages for "$section" (?)
 		if (isPage.test(ext)) {
 			content = await fs.read(input, 'utf8');

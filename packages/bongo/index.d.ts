@@ -29,9 +29,16 @@ export namespace Loader {
 
 type Args = Record<string, any>;
 
+// TODO: import from tempura
+type Blocks = Record<string, Block>;
+type Block = Template.Compiler & {
+	setup?<T extends Args>(data: T): Promise<void> | void;
+}
+
 export namespace Template {
-	type Partials = { [name: string]: Template.Compiler };
-	type Compiler<T extends Args = Args> = (data: T, blocks?: Partials) => Promisable<string>;
+	// TODO: import from tempura
+	type Compiler<T extends Args = Args> = (data: T, blocks?: Blocks) => Promise<string> | string;
+	type Partials = Blocks;
 
 	interface Menu {
 		name: string;
@@ -48,6 +55,9 @@ export namespace Template {
 		};
 	}
 
+	// TODO: lastmodified value
+	// TODO: file.abs path
+	// TODO: file.rel path
 	interface Page {
 		url: string;
 		path: string;
