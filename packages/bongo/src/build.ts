@@ -59,11 +59,11 @@ export async function build(argv: Argv): Promise<void> {
 		// TODO: collect non-`index` pages for "$section" (?)
 		if (isPage.test(ext)) {
 			content = await fs.read(input, 'utf8');
-			let [idx, metadata] = views.frontmatter(content);
+			let { offset, value } = views.frontmatter(content);
 
-			if (idx > 0) {
-				Object.assign(params, metadata);
-				content = content.substring(idx);
+			if (offset > 0) {
+				Object.assign(params, value);
+				content = content.substring(offset);
 			}
 
 			if (ext === 'hbs') {

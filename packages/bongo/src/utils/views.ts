@@ -250,17 +250,23 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 	});
 }
 
-export function frontmatter(content: string): [number, Template.Params] {
-	let metadata: Template.Params = {};
-	if (content.substring(0, 3) !== '---') return [0, metadata];
+export function frontmatter(content: string): {
+	offset: number;
+	value: Template.Params
+} {
+	let value: Template.Params = {};
+
+	if (content.substring(0, 3) !== '---') {
+		return { offset: 0, value };
+	}
 
 	let match = /^---\r?\n([\s\S]+?)\r?\n---/.exec(content);
-	if (match == null) return [0, metadata];
+	if (match == null) 	return { offset: 0, value };
 
 	match[1].split('\n').forEach(pair => {
 		let [key, ...v] = pair.split(':');
-		metadata[key.trim()] = v.join(':').trim();
+		value[key.trim()] = v.join(':').trim();
 	});
 
-	return [match[0].length, metadata];
+	return { offset: match[0].length, value };
 }
