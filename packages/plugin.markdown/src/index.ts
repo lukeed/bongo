@@ -13,28 +13,24 @@ export function markdown(options?: MarkdownIt.Options): Partial<Config> {
 
 	return {
 		$assets: {
-			async md(input, content) {
+			async md(input, content, utils) {
 				mdown = mdown || await import('markdown-it').then(m => m.default(options!));
 
 				if (typeof content !== 'string') {
-					content = new TextDecoder().decode(content);
+					content = utils.decode(content);
 				}
 
-				let filename = input + '.html';
-				let metadata: Loader.Metadata = {};
-				let match = /---\r?\n([\s\S]+?)\r?\n---/.exec(content);
-
-				if (match != null) {
-					content = content.substring(match[0].length);
-					match[1].split('\n').forEach(pair => {
-						let idx = pair.indexOf(':');
-						let key = pair.substring(0, idx++).trim();
-						metadata[key] = pair.substring(idx).trim();
-					});
+				let { offset, value } = utils.frontmatter(content)
+				if (offset > 0) content = content.substring(offset);
 				}
 
 				content = mdown.render(content);
-				return { filename, content, metadata };
+
+				return {
+					filename: input + '.html',
+					content: mdown.render(content),
+					metadata: value,
+				};
 			}
 		}
 	}
