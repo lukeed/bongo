@@ -20,6 +20,10 @@ const config: Config = {
 	$partials: {
 		custom(args: Record<string, string>) {
 			return 'hello: ' + args.name;
+		},
+		hello(args) {
+			console.log('FOUND HELLO', args);
+			return '<div class="ello">puppet</div>';
 		}
 	},
 
