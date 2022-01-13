@@ -141,9 +141,8 @@ export async function build(argv: Argv): Promise<void> {
 			outer: for (; i < dirs.length; i++) {
 				for (j=0; j < files.length; j++) {
 					layout = join(dirs[i], files[j]);
-					render = Layouts.get(layout);
 					debug('[content.layout]', rel, '~>', layout);
-					if (render) break outer;
+					if (render = Layouts.get(layout)) break outer;
 				}
 			}
 
@@ -156,9 +155,8 @@ export async function build(argv: Argv): Promise<void> {
 			$page.content = content;
 			for (i=0; i < dirs.length; i++) {
 				layout = join(dirs[i], 'html.hbs');
-				render = Layouts.get(layout);
 				debug('[content.layout]', rel, '~>', layout);
-				if (render) break;
+				if (render = Layouts.get(layout)) break;
 			}
 			// Should always be defined as a bare minimum
 			if (!render) throw new Error('Missing "html.hbs" template');

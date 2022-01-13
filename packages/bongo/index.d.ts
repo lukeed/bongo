@@ -16,15 +16,16 @@ export interface Argv {
 	host?: string;
 }
 
-export type Loader = (file: string, content: Uint8Array | string) => Promisable<{
-	filename: string;
-	content: Uint8Array | string;
-	metadata?: Loader.Metadata;
-	sourcemap?: any | null; // TODO
-}>;
+export type Loader = (file: string, content: Uint8Array | string) => Promisable<Loader.Result>;
 
 export namespace Loader {
 	type Metadata = Record<string, unknown>;
+	interface Result {
+		filename: string;
+		content: Uint8Array | string;
+		metadata?: Loader.Metadata;
+		sourcemap?: any | null; // TODO
+	}
 }
 
 type Args = Record<string, any>;
