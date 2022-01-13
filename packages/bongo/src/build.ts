@@ -7,7 +7,7 @@ import * as views from './utils/views';
 import { normalize } from './utils/argv';
 import { RELOAD } from './utils/http';
 
-import type { Argv, Template } from 'bongo';
+import type { Argv, Loader, Template } from 'bongo';
 
 export async function build(argv: Argv): Promise<void> {
 	normalize(argv);
@@ -37,9 +37,24 @@ export async function build(argv: Argv): Promise<void> {
 	// TODO: save all `params.tag` into own cache
 	// const Tags = new Map<tag, url>;
 
-	const { Layouts } = views;
 	const isPage = /(hbs|html?)$/;
+	const { Layouts, Partials } = views;
 	const { dest, content } = argv;
+
+	const loader_utils: Loader.Utilities = {
+		frontmatter: views.frontmatter,
+
+		render(name, ...args) {
+			let view = Partials.get(name);
+			// @ts-ignore - strict bind/apply rule
+			if (view) return view.apply(view, args);
+			throw new Error(`Unknown "${name}" partial!`);
+		},
+
+		decode(input) {
+			return new TextDecoder().decode(input);
+		},
+	};
 
 	await fs.list(content, async (input, rel, name) => {
 		let idx = rel.lastIndexOf('.');
@@ -83,7 +98,7 @@ export async function build(argv: Argv): Promise<void> {
 				// TODO: ASSETS after config
 				// TODO: loader receives utils
 				if (loader = ASSETS[prev = ext]) {
-					let result = await loader(filename, data);
+					let result = await loader(filename, data, loader_utils);
 					filename = result.filename;
 					data = result.content;
 					if (result.metadata) {

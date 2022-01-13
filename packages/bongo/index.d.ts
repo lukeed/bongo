@@ -16,15 +16,29 @@ export interface Argv {
 	host?: string;
 }
 
-export type Loader = (file: string, content: Uint8Array | string) => Promisable<Loader.Result>;
+export type Loader = (
+	file: string,
+	content: Uint8Array | string,
+	utils: Loader.Utilities,
+) => Promisable<Loader.Result>;
 
 export namespace Loader {
 	type Metadata = Record<string, unknown>;
+
 	interface Result {
 		filename: string;
 		content: Uint8Array | string;
 		metadata?: Loader.Metadata;
 		sourcemap?: any | null; // TODO
+	}
+
+	interface Utilities {
+		decode(input: Uint8Array): string;
+		render(partial: string, ...args: any[]): Promisable<string>;
+		frontmatter(content: string): {
+			offset: number;
+			value: Metadata;
+		};
 	}
 }
 
