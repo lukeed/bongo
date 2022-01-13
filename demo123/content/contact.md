@@ -11,7 +11,5 @@ inner *content* here
 </bongo:alert>
 
 <bongo:alert type="warning">
-
   <bongo:hello/>
-
 </bongo:alert>
