@@ -27,7 +27,7 @@ async function unpack(raw: string, utils: Loader.Utilities): Promise<string> {
 
 		if (inner) {
 			inner = await unpack(inner.trim(), utils);
-			args.$slot = mdown.render(inner);
+			args.$slot = mdown.renderInline(inner);
 		}
 
 		raw = (
@@ -37,7 +37,7 @@ async function unpack(raw: string, utils: Loader.Utilities): Promise<string> {
 		);
 	}
 
-	return mdown.render(raw);
+	return mdown.renderInline(raw);
 }
 
 export function markdown(options?: MarkdownIt.Options): Partial<Config> {
