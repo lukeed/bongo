@@ -27,7 +27,16 @@ async function unpack(raw: string, utils: Loader.Utilities): Promise<string> {
 
 		if (inner) {
 			inner = await unpack(inner.trim(), utils);
-			args.$slot = mdown.renderInline(inner);
+
+			if (inner.startsWith('<')) {
+				if (inner.startsWith('<p>') && inner.endsWith('</p>\n')) {
+					inner = inner.substring(3, inner.length - 5);
+				}
+			} else {
+				inner = mdown.render(inner);
+			}
+
+			args.$slot = inner;
 		}
 
 		raw = (
@@ -37,7 +46,7 @@ async function unpack(raw: string, utils: Loader.Utilities): Promise<string> {
 		);
 	}
 
-	return mdown.renderInline(raw);
+	return mdown.render(raw);
 }
 
 export function markdown(options?: MarkdownIt.Options): Partial<Config> {
