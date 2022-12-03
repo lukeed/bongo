@@ -1,0 +1,381 @@
+import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
+import { markdown } from '@bongo/markdown';
+
+import * as esbuild from './esbuild';
+import * as utils from './utils';
+import * as $ from './paths';
+
+import type { Args } from 'tempura';
+import type { Config as CC, Loader, Template } from './types';
+
+console.log('---');
+
+const isHBS = /\.hbs$/;
+const isPAGE = /\.(hbs|html)$/;
+
+/**
+ * Remove the extension
+ * @TODO normalize path separators
+ */
+export function toPartialName(file: string): string {
+	let extn = path.extname(file);
+	return file.substring(0, file.length - extn.length);
+}
+
+// ---
+
+export const Partials = new Map<string, Template.Compiler>();
+export const Layouts = new Map<string, Template.Compiler>();
+
+// Default template blocks
+// ---
+
+// esbuild cwd-relative -> absolute
+// TODO: check (https?)?// prefix
+function toOutfile(file: string) {
+	file = path.join($.ROOT, file);
+	file = path.relative($.PUBLIC, file);
+	return Config.$utils!.url.abs(file);
+}
+
+/**
+ * Alternative partial format
+ * @note Partials do not have `$page` info
+ * @example {{#partial src="minutes" text="hello world" }}
+ * @example {{#partial src="minutes.hbs" text="hello world" }}
+ */
+utils.blocks['partial'] = function (args: Args) {
+	let { src, ...rest } = args;
+	let key = toPartialName(src);
+	let render = Partials.get(key);
+	if (render) return render(rest);
+	throw new Error(`Unknown "${key} partial!`);
+};
+
+/**
+ * @todo
+ * @example {{#style src="index.css"}}
+ */
+utils.blocks['style'] = function (args: Args) {
+	let { src, ...rest } = args;
+	console.log('[style]', args);
+	return '<style></style>';
+};
+
+/**
+ * Process/bundle a script file.
+ * @example {{#script src="main.ts" target="es2019" format="esm" async=true }}
+ * @example {{#script src="demo.mjs" inline=true }}
+ */
+utils.blocks['script'] = async function (args: Args) {
+	let { src, format, target, async, defer, inline } = args;
+	if (!src) throw new Error('Missing "src" argument');
+
+	console.log('SCRIPT ARGS', args)
+
+	format = format || 'esm';
+
+	let input = path.join($.ASSETS, src!);
+	let outfile = await esbuild.bundle(input, {
+		outdir: $.PUBLIC,
+		absWorkingDir: $.ROOT,
+		publicPath: new URL(Config.$site.url).pathname,
+		minify: true,
+		target: target || 'es2017',
+		format,
+	});
+
+	// begin construction
+	let html = '<script';
+	if (async) html += ' async';
+	if (format === 'esm') {
+		html += ' type=module';
+	} else if (defer) {
+		html += ' defer';
+	}
+
+	if (inline) {
+		console.log('> before >', outfile);
+		outfile = path.join($.ROOT, outfile);
+		let contents = await utils.read(outfile);
+		html += '>' + contents + '</script>';
+	} else {
+		outfile = toOutfile(outfile);
+		html += ` src="${outfile}"></script>`;
+	}
+
+	return html;
+};
+
+export async function setup() {
+	Partials.clear();
+
+	// Compile any partials
+	// ---
+	if (utils.exists($.PARTIALS)) {
+		// collect partials -> placeholder for valid blocks
+		await utils.ls($.PARTIALS, (abs, rel) => {
+			let key = toPartialName(rel);
+			// @ts-ignore --> placeholder key
+			Partials.set(key, utils.blocks[key] = abs);
+		});
+
+		for (let [key, file] of Partials) {
+			// TODO: handle *.hbs vs *.[tj]s
+			let render = await utils.view('' + file);
+			// TODO: pass thru config.$site et al
+			Partials.set(key, utils.blocks[key] = render);
+		}
+	}
+
+	// Compile "/layouts/**" files
+	// ---
+	await utils.ls($.LAYOUTS, async (abs, rel) => {
+		if (isHBS.test(rel)) Layouts.set(rel, await utils.view(abs));
+	});
+
+	console.log({ Partials, Layouts });
+}
+
+// Default extension loaders
+// ---
+const Assets: Record<string, Loader> = {
+	// TODO: reserve "html" for post-html processing only
+	// > move this to while loop as `isPAGE` w/ HBS check
+	html(filename, data, utils) {
+		let content = typeof data === 'string' ? data : data.toString();
+		let { offset, value } = utils.frontmatter(content);
+		if (offset > 0) content = content.substring(offset);
+		console.log('>>> inside HTML loader', { filename, content });
+		return { filename, content, metadata:value };
+	},
+	md(file, data, utils) {
+		let content = typeof data === 'string' ? data : data.toString();
+		return markdown().$assets.md(file, content, utils) as Promise<Loader.Result>;
+	},
+};
+
+// Default loader utilities
+// ---
+const Utilities: Loader.Utilities = {
+	frontmatter: utils.frontmatter,
+	render(name, ...args) {
+		let view = Partials.get(name);
+		// @ts-ignore - strict bind/apply rule
+		if (view) return view.apply(view, args);
+		throw new Error(`Unknown "${name}" partial!`);
+	}
+};
+
+// Default configuration
+const Config: CC = {
+	$site: {
+		url: 'https://demo.com/',
+		lang: 'en',
+		title: 'Documentation',
+	},
+	$utils: {
+		// todo: move all to import
+		truncate(text: string, length: number): string {
+			return (text || '').substring(0, length);
+		},
+		countwords(text: string): number {
+			return text.split(/\s+/g).length;
+		},
+		url: {
+			abs(to: string, fro?: string): string {
+				return new URL(to, fro || Config.$site.url).pathname;
+			}
+		},
+		date: {
+			format(value: string|number|Date, format: string): string {
+				let d = new Date(value);
+				return d.toISOString();
+			}
+		}
+	}
+};
+
+export interface Argv {
+	dev?: boolean;
+	minify?: boolean;
+}
+
+export interface Result {
+	file: string;
+	data: Buffer | string;
+}
+
+export async function compile(file: string, options?: Argv): Promise<Result> {
+	options = options || {};
+
+	// Config ||= await load();
+	// TODO: merge Config.$assets
+	const { $site, $utils } = Config;
+
+	let relname = path.relative($.CONTENT, file); // "foo/bar.jpg"
+	let outfile = path.join($.PUBLIC, relname);
+
+	let details = path.parse(relname);
+
+	let name = details.name; // "bar"
+	let extn = details.ext.substring(1); // "jpg"
+
+	let prev, params: Template.Params = {};
+	let content: Buffer | string = await fs.readFile(file);
+
+	let loader = Assets[extn];
+	if (!loader) return { file, data: content }; // -> copy
+	// if (!loader) return utils.copy(file, outfile);
+
+	while (prev !== extn) {
+		if (extn === 'hbs') {
+			if (typeof content !== 'string') {
+				content = content.toString();
+			}
+
+			let { offset, value } = utils.frontmatter(content);
+			if (offset > 0) content = content.substring(offset);
+
+			content = await utils.compile(content)({ ...params, ...value });
+			file = file.replace(isHBS, '.html');
+		} else if (loader = Assets[extn]) {
+			let result = await loader(file, content, Utilities);
+			content = result.content;
+			file = result.filename;
+			if (result.metadata) {
+				Object.assign(params, result.metadata);
+			}
+		}
+
+		prev = extn;
+		extn = path.extname(file).substring(1);
+		// debug('[content.looper]', prev, '~>', ext);
+	}
+
+	// stop here if not dealing with a ".hbs|html" file
+	// if (!isPAGE.test(file)) return utils.write(file, content);
+	if (!isPAGE.test(file)) return { file, data: content };
+
+	// ensure we're not dealing with Buffer content
+	if (typeof content !== 'string') content = content.toString();
+
+	let pathname = '/' + name; // "/bar"
+	if (details.dir) pathname = '/' + details.dir + pathname; // "/foo/bar"
+
+	if (typeof params.url === 'string') {
+		pathname = '/' + params.url.replace(/^.?\/+/, '');
+		if (/^(https?:)?\/\//.test(pathname)) {
+			throw new Error('Custom `url` must be path only');
+		}
+	}
+
+	if (name === 'index') {
+		// "/foobar/index" ~> "/foobar/"
+		pathname = pathname.substring(0, pathname.length - 5);
+	} else if (!pathname.endsWith('/')) {
+		pathname += '/'; // ensure trailing
+	}
+
+	outfile = path.join($.PUBLIC, pathname, 'index.html');
+
+	let $page: Template.Page = {
+		path: pathname, params, content,
+		url: new URL(pathname, $site.url).href,
+		summary: (params.summary as string) || '',
+		title: (params.title as string) || '',
+		scripts: '',
+		styles: '',
+	};
+
+	// lookup "/layouts/**" tree; w/ priority
+	// NOTE: need "" for `/layouts/*` root
+	let i=0, dirs = relname.split(/[\\\/]+/g).slice(0, -1).concat('');
+	let j=0, files=['index.hbs', 'html.hbs'];
+	let render: Template.Compiler | void;
+	let layout = ''; // layout path
+
+	// "content/blog/hello.md" looks for:
+	//   1. layouts/blog/hello.hbs
+	//   1. layouts/blog/single.hbs
+	//   1. layouts/hello.hbs
+	//   1. layouts/single.hbs
+	if (name !== 'index') files.splice(0, 1, `${name}.hbs`, 'single.hbs');
+
+	outer: for (; i < dirs.length; i++) {
+		for (j=0; j < files.length; j++) {
+			layout = path.join(dirs[i], files[j]);
+			// debug('[content.layout]', rel, '~>', layout);
+			if (render = Layouts.get(layout)) break outer;
+		}
+	}
+
+	// Should always be defined as a fallback
+	if (!render) throw new Error('Missing "html.hbs" template');
+	content = await render({ $page, $site, $utils });
+
+	if (!layout.endsWith('html.hbs')) {
+		$page.content = content;
+		for (i=0; i < dirs.length; i++) {
+			layout = path.join(dirs[i], 'html.hbs');
+			// debug('[content.layout]', rel, '~>', layout);
+			if (render = Layouts.get(layout)) break;
+		}
+		// Should always be defined as a bare minimum
+		if (!render) throw new Error('Missing "html.hbs" template');
+		content = await render({ $page, $site, $utils });
+	}
+
+	if (options.dev) {
+		content += `<script>`;
+		content +=   `var es = new EventSource('/~bongo~/reload');`;
+		content +=   `es.onopen = () => console.log('[dev] live reload enabled');`;
+		content +=   `es.onmessage = () => location.reload();`;
+		content += `</script>`;
+	}
+
+	return {
+		file: outfile,
+		data: content,
+	};
+
+	await utils.write(outfile, content);
+}
+
+/**
+ * Complete build run-through
+ */
+export async function run(options?: Argv) {
+	await utils.clean($.PUBLIC);
+
+	options ||= {};
+
+	await setup();
+	await utils.list($.CONTENT, async file => {
+		let out = await compile(file, options);
+		await utils.write(out.file, out.data);
+	});
+
+	if (options.minify) {
+		const child = await import('node:child_process');
+		const { promisify } = await import('node:util');
+		const exec = promisify(child.exec);
+
+		try {
+			let { stdout, stderr } = await exec('minify --version');
+			if (stderr.length || stdout.length < 1) throw 1;
+		} catch (err) {
+			// TODO: formatting
+			console.error('You must have `minify` available in your $PATH for `--minify` to work.');
+			console.error('Visit ~https://github.com/tdewolff/minify~ for installation instructions.');
+			process.exit(1);
+		}
+
+		let input = path.relative($.ROOT, $.PUBLIC);
+		console.log('~> compressing...', input);
+		await exec(`minify -r "${input}" -o "."`);
+	}
+
+	console.log('~> DONE!');
+}

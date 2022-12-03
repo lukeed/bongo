@@ -2,9 +2,21 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "build": "bongo build"
+    "prebuild": "windicss '{layouts,partials}/**/*.hbs' -to assets/tw.css -cm",
+    "bongo": "tsm bongo/bin.ts",
+    "build": "bongo build",
+    "dev": "bongo dev"
   },
   "devDependencies": {
-    "bongo": "npm:@lukeed/bongo"
+    "@bongo/markdown": "0.0.8",
+    "@polka/url": "1.0.0-next.21",
+    "@types/node": "18.11.10",
+    "bongo": "npm:@lukeed/bongo",
+    "esbuild": "0.15.16",
+    "flru": "1.0.2",
+    "mrmime": "1.0.1",
+    "tempura": "0.4.0",
+    "tsm": "2.3.0",
+    "windicss": "3.5.6"
   }
 }

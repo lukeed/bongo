@@ -18,6 +18,7 @@
     "noEmit": true,
   },
   "include": [
+    "bongo",
     "assets",
     "partials"
   ]
