@@ -4,6 +4,7 @@ import { markdown } from '@bongo/markdown';
 
 import * as esbuild from './esbuild';
 import * as utils from './utils';
+import * as ENV from './argv';
 import * as $ from './paths';
 
 import type { Args } from 'tempura';
@@ -81,7 +82,7 @@ utils.blocks['script'] = async function (args: Args) {
 		outdir: $.PUBLIC,
 		absWorkingDir: $.ROOT,
 		publicPath: new URL(Config.$site.url).pathname,
-		minify: true,
+		minify: ENV.MINIFY,
 		target: target || 'es2017',
 		format,
 	});
@@ -197,19 +198,12 @@ const Config: CC = {
 	}
 };
 
-export interface Argv {
-	dev?: boolean;
-	minify?: boolean;
-}
-
 export interface Result {
 	file: string;
 	data: Buffer | string;
 }
 
-export async function compile(file: string, options?: Argv): Promise<Result> {
-	options = options || {};
-
+export async function compile(file: string): Promise<Result> {
 	// Config ||= await load();
 	// TODO: merge Config.$assets
 	const { $site, $utils } = Config;
@@ -327,7 +321,7 @@ export async function compile(file: string, options?: Argv): Promise<Result> {
 		content = await render({ $page, $site, $utils });
 	}
 
-	if (options.dev) {
+	if (ENV.DEV) {
 		content += `<script>`;
 		content +=   `var es = new EventSource('/~bongo~/reload');`;
 		content +=   `es.onopen = () => console.log('[dev] live reload enabled');`;
@@ -339,25 +333,23 @@ export async function compile(file: string, options?: Argv): Promise<Result> {
 		file: outfile,
 		data: content,
 	};
+}
 
-	await utils.write(outfile, content);
+export async function write(file: string) {
+	let out = await compile(file);
+	await utils.write(out.file, out.data);
 }
 
 /**
  * Complete build run-through
  */
-export async function run(options?: Argv) {
+export async function run() {
 	await utils.clean($.PUBLIC);
 
-	options ||= {};
-
 	await setup();
-	await utils.list($.CONTENT, async file => {
-		let out = await compile(file, options);
-		await utils.write(out.file, out.data);
-	});
+	await utils.list($.CONTENT, write);
 
-	if (options.minify) {
+	if (ENV.MINIFY) {
 		const child = await import('node:child_process');
 		const { promisify } = await import('node:util');
 		const exec = promisify(child.exec);

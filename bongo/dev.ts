@@ -1,4 +1,4 @@
-import { createReadStream, stat, Stats, statSync } from 'node:fs';
+import { createReadStream, statSync } from 'node:fs';
 import { join, normalize } from 'node:path';
 import * as http from 'node:http';
 
@@ -8,16 +8,13 @@ import { parse } from '@polka/url';
 
 import * as build from './build';
 import * as utils from './utils';
+import * as ENV from './argv';
 import * as $ from './paths';
 
+import type { Stats } from 'node:fs';
 import type { OutgoingHttpHeaders, ServerResponse } from 'node:http';
 
 const { PORT, HOST } = process.env;
-
-export interface Argv {
-	minify?: boolean;
-	expose?: boolean;
-}
 
 const Extensions = ['', '.html', '.hbs', '.md'];
 const Clients = new Set<ServerResponse>();
@@ -102,13 +99,7 @@ const Cache = flru(100);
 // INPUT -> ETAG
 const Tags = new Map<string, string>();
 
-export async function run(options: Argv) {
-	//~> `build.*` fn config
-	const config: build.Argv = {
-		minify: !!options.minify,
-		dev: true,
-	};
-
+export async function run(options: ENV.Argv) {
 	// initial build
 	await build.setup();
 	await utils.clean($.PUBLIC);
@@ -116,7 +107,7 @@ export async function run(options: Argv) {
 
 	let port = +PORT! || 8080;
 	let host = HOST || 'localhost';
-	if (!HOST && options.expose) host = '0.0.0.0';
+	if (!HOST && options.public) host = '0.0.0.0';
 
 	// TODO: render files as needed; NO PREBUILD
 	let server = http.createServer(async function (req, res) {
@@ -149,9 +140,8 @@ export async function run(options: Argv) {
 				res.setHeader('Cache-Control', 'no-cache');
 				res.setHeader('Etag', etag);
 
-				let { file, data } = await build.compile(input, config);
-				let clen = Buffer.byteLength(data);
-				return send(res, file, clen, data);
+				let { file, data } = await build.compile(input);
+				return send(res, file, Buffer.byteLength(data), data);
 			}
 
 			console.error('[404]', req.method, req.url)
@@ -190,8 +180,7 @@ export async function run(options: Argv) {
 		Tags.delete(pathname);
 
 		if (utils.exists(file)) {
-			let out = await build.compile(file, config);
-			await utils.write(out.file, out.data);
+			await build.write(file);
 		}
 
 		reload();
