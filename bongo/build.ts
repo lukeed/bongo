@@ -161,22 +161,12 @@ export async function setup() {
 	await utils.ls($.LAYOUTS, async (abs, rel) => {
 		if (isHBS.test(rel)) Layouts.set(rel, await utils.view(abs));
 	});
-
-	console.log({ Partials, Layouts });
 }
 
 // Default extension loaders
+// TODO: merge Config.$assets in
 // ---
 const Assets: Record<string, Loader> = {
-	// TODO: reserve "html" for post-html processing only
-	// > move this to while loop as `isPAGE` w/ HBS check
-	html(filename, data, utils) {
-		let content = typeof data === 'string' ? data : data.toString();
-		let { offset, value } = utils.frontmatter(content);
-		if (offset > 0) content = content.substring(offset);
-		console.log('>>> inside HTML loader', { filename, content });
-		return { filename, content, metadata:value };
-	},
 	md(file, data, utils) {
 		let content = typeof data === 'string' ? data : data.toString();
 		return markdown().$assets.md(file, content, utils) as Promise<Loader.Result>;
@@ -229,6 +219,7 @@ export interface Result {
 	data: Buffer | string;
 }
 
+type Extension = `.${string}`;
 export async function compile(file: string): Promise<Result> {
 	// Config ||= await load();
 	// TODO: merge Config.$assets
@@ -240,27 +231,35 @@ export async function compile(file: string): Promise<Result> {
 	let details = path.parse(relname);
 
 	let name = details.name; // "bar"
-	let extn = details.ext.substring(1); // "jpg"
+	let extn = details.ext as Extension; // ".jpg"
 
-	let prev, params: Template.Params = {};
 	let content: Buffer | string = await fs.readFile(file);
 
-	let loader = Assets[extn];
-	if (!loader) return { file, data: content }; // -> copy
-	// if (!loader) return utils.copy(file, outfile);
+	let loader: Loader | undefined;
+	let prev: Extension | undefined;
+	let params: Template.Params = {};
 
 	while (prev !== extn) {
-		if (extn === 'hbs') {
+		// TODO: collect non-`index` pages for "$section" (?)
+		// TODO: run a loop for all `$section` pages first before render
+		// 			-> for `index.*`, menus, sitemap, etc
+		if (isPAGE.test(extn)) {
 			if (typeof content !== 'string') {
 				content = content.toString();
 			}
 
 			let { offset, value } = utils.frontmatter(content);
-			if (offset > 0) content = content.substring(offset);
 
-			content = await utils.compile(content)({ ...params, ...value });
-			file = file.replace(isHBS, '.html');
-		} else if (loader = Assets[extn]) {
+			if (offset > 0) {
+				Object.assign(params, value);
+				content = content.substring(offset);
+			}
+
+			if (extn === '.hbs') {
+				content = await utils.compile(content)({ ...params, ...value });
+				file = file.replace(isHBS, '.html');
+			}
+		} else if (loader = Assets[extn.substring(1)]) {
 			let result = await loader(file, content, Utilities);
 			content = result.content;
 			file = result.filename;
@@ -270,12 +269,10 @@ export async function compile(file: string): Promise<Result> {
 		}
 
 		prev = extn;
-		extn = path.extname(file).substring(1);
-		// debug('[content.looper]', prev, '~>', ext);
+		extn = path.extname(file) as Extension;
 	}
 
 	// stop here if not dealing with a ".hbs|html" file
-	// if (!isPAGE.test(file)) return utils.write(file, content);
 	if (!isPAGE.test(file)) return { file, data: content };
 
 	// ensure we're not dealing with Buffer content
