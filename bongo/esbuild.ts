@@ -1,4 +1,6 @@
 import { relative } from 'node:path';
+import { reload } from './dev';
+import * as ENV from './argv';
 import * as $ from './paths';
 
 export type BuildOptions = import('esbuild').BuildOptions;
@@ -43,6 +45,23 @@ export async function bundle(input: string, options: BuildOptions): Promise<stri
 
 	// NOTE: esbuild only supports splitting w/ ESM format
 	if (options.format !== 'esm') options.splitting = false;
+
+	if (ENV.DEV) {
+		// drop "[hash]" segment from output file(s)
+		options.entryNames = options.chunkNames = '[name]';
+		options.sourcemap = 'inline';
+		options.watch = {
+			onRebuild(error, result) {
+				if (error) {
+					console.error('[dev] build failure:', error);
+				} else {
+					for (let k in result!.metafile!.inputs)
+						console.log('[dev] "%s" update', k);
+					reload();
+				}
+			}
+		};
+	}
 
 	let result = await esbuild.build(options);
 
