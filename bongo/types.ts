@@ -1,21 +1,5 @@
 type Promisable<T> = Promise<T> | T;
 
-// export interface Argv {
-// 	cwd: string;
-// 	dev?: boolean;
-// 	minify?: boolean;
-// 	// added via normalize
-// 	src?: string;
-// 	dest?: string;
-// 	assets?: string;
-// 	content?: string;
-// 	partials?: string;
-// 	layouts?: string;
-// 	debug?: boolean;
-// 	port?: number;
-// 	host?: string;
-// }
-
 // TODO: Uint8Array instead of Buffer?
 export type Loader = (
 	file: string,

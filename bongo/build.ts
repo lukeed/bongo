@@ -35,7 +35,6 @@ export const Layouts = new Map<string, Template.Compiler>();
 // esbuild cwd-relative -> absolute
 // TODO: check (https?)?// prefix
 function toOutfile(file: string) {
-	file = path.join($.ROOT, file);
 	file = path.relative($.PUBLIC, file);
 	return Config.$utils!.url.abs(file);
 }
@@ -58,10 +57,42 @@ utils.blocks['partial'] = function (args: Args) {
  * @todo
  * @example {{#style src="index.css"}}
  */
-utils.blocks['style'] = function (args: Args) {
-	let { src, ...rest } = args;
-	console.log('[style]', args);
-	return '<style></style>';
+utils.blocks['style'] = async function (args: Args) {
+	let { src, output, preload, inline } = args;
+	if (!src) throw new Error('Missing "src" argument');
+
+	let config: esbuild.BuildOptions = {
+		outdir: $.PUBLIC,
+		absWorkingDir: $.ROOT,
+		publicPath: new URL(Config.$site.url).pathname,
+		minify: ENV.MINIFY,
+		charset: 'utf8',
+	};
+
+	if (output) {
+		config.splitting = false;
+		config.outfile = path.join($.PUBLIC, output);
+	}
+
+	let input = path.join($.ASSETS, src);
+	let outfile = await esbuild.bundle(input, config);
+
+	if (inline) {
+		let contents = await utils.read(outfile);
+		return '<style>' + contents + '</style>';
+	}
+
+	// ~> "/foo.[hash].css"
+	outfile = toOutfile(outfile);
+
+	let plain = `<link rel="stylesheet" href="${outfile}"/>`;
+	if (!preload) return plain;
+
+	let html = `<link rel="preload" href="${outfile}" as="style"`;
+	html += ` onload="this.onload=null;this.rel='stylesheet'"/>`;
+	html += `<noscript>${plain}</noscript>`;
+
+	return html;
 };
 
 /**
@@ -73,17 +104,15 @@ utils.blocks['script'] = async function (args: Args) {
 	let { src, format, target, async, defer, inline } = args;
 	if (!src) throw new Error('Missing "src" argument');
 
-	console.log('SCRIPT ARGS', args)
-
 	format = format || 'esm';
 
-	let input = path.join($.ASSETS, src!);
+	let input = path.join($.ASSETS, src);
 	let outfile = await esbuild.bundle(input, {
 		outdir: $.PUBLIC,
 		absWorkingDir: $.ROOT,
 		publicPath: new URL(Config.$site.url).pathname,
-		minify: ENV.MINIFY,
 		target: target || 'es2017',
+		charset: 'utf8',
 		format,
 	});
 
@@ -97,16 +126,13 @@ utils.blocks['script'] = async function (args: Args) {
 	}
 
 	if (inline) {
-		console.log('> before >', outfile);
-		outfile = path.join($.ROOT, outfile);
 		let contents = await utils.read(outfile);
-		html += '>' + contents + '</script>';
-	} else {
-		outfile = toOutfile(outfile);
-		html += ` src="${outfile}"></script>`;
+		return html + '>' + contents + '</script>';
 	}
 
-	return html;
+	//=> "/foo.[hash].js"
+	outfile = toOutfile(outfile);
+	return html + ` src="${outfile}"></script>`;
 };
 
 export async function setup() {

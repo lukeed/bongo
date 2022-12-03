@@ -1,4 +1,4 @@
-import { relative } from 'node:path';
+import { join, relative } from 'node:path';
 import { reload } from './dev';
 import * as ENV from './argv';
 import * as $ from './paths';
@@ -10,17 +10,19 @@ let esbuild: typeof import('esbuild');
 let defaults: BuildOptions = {
 	bundle: true,
 	splitting: true,
-	// outdir: outdir,
-	// entryPoints: [file],
-	// absWorkingDir: srcdir,
+	treeShaking: true,
+
 	resolveExtensions: ['.ts', '.js', '.cjs', '.mjs', '.css', '.json'],
 	mainFields: ['browser', 'module', 'jsnext', 'main'],
 	conditions: ['browser', 'import', 'production'],
 	platform: 'neutral',
-	incremental: false, // TODO
-	sourcemap: false, // TODO
+
+	incremental: false, // DEV has value
+	sourcemap: false, // DEV has value
+
 	minify: true, // always, faster
 	publicPath: '/', // replaced in build
+
 	write: true,
 	metafile: true,
 	allowOverwrite: true,
@@ -69,7 +71,7 @@ export async function bundle(input: string, options: BuildOptions): Promise<stri
 	input = relative($.ROOT, input);
 	for (key in result.metafile!.outputs) {
 		tmp = result.metafile!.outputs[key];
-		if (tmp.entryPoint === input) return key;
+		if (tmp.entryPoint === input) return join($.ROOT, key);
 	}
 
 	throw new Error(`Missing output for "${input} entry`);
