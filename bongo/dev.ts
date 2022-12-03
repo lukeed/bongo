@@ -155,7 +155,7 @@ export async function run(options: ENV.Argv) {
 			'cache-control': 'no-cache',
 		});
 
-		res.socket!.setTimeout(0);
+		if (res.socket) res.socket.setTimeout(0);
 
 		req.once('close', () => {
 			Clients.delete(res);
