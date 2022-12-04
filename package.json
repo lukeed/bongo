@@ -2,8 +2,9 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
+    "setup": "tsm bongo/make.ts",
+    "bongo": "node bongo/bin.mjs",
     "prebuild": "windicss '{layouts,partials}/**/*.hbs' -to assets/tw.css -cm",
-    "bongo": "tsm bongo/bin.ts",
     "build": "bongo build",
     "dev": "bongo dev"
   },
@@ -17,6 +18,7 @@
     "flru": "1.0.2",
     "markdown-it": "13.0.1",
     "mrmime": "1.0.1",
+    "rollup": "3.5.1",
     "tempura": "0.4.0",
     "tsm": "2.3.0",
     "windicss": "3.5.6"

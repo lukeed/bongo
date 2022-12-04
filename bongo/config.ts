@@ -13,6 +13,10 @@ const priority = [
 	'bongo.config.js',
 ] as const;
 
+export function define(config: Config): Config {
+	return config;
+}
+
 /**
  * Traverse upwards until find a config file
  * @NOTE Does not leave `root` directory
