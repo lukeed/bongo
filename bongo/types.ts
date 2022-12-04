@@ -85,5 +85,5 @@ export interface Config {
 		[extension: string]: Loader;
 	};
 	$partials?: Template.Partials;
-	// plugins?: Partial<Config>[];
+	plugins?: Partial<Config>[];
 }

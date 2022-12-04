@@ -3,9 +3,8 @@ import { reload } from './dev';
 import * as ENV from './argv';
 import * as $ from './paths';
 
+export type Service = typeof import('esbuild');
 export type BuildOptions = import('esbuild').BuildOptions;
-
-let esbuild: typeof import('esbuild');
 
 let defaults: BuildOptions = {
 	bundle: true,
@@ -30,8 +29,13 @@ let defaults: BuildOptions = {
 	chunkNames: '[name].[hash]',
 };
 
+let esbuild: Service;
+export async function load(): Promise<Service> {
+	return esbuild ||= await import('esbuild');
+}
+
 export async function bundle(input: string, options: BuildOptions): Promise<string> {
-	esbuild = esbuild || await import('esbuild');
+	esbuild = await load();
 
 	options.entryPoints = [input];
 	options = { ...defaults, ...options };

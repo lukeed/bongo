@@ -8,6 +8,8 @@ import type { WatchListener } from 'node:fs';
 
 export { existsSync as exists };
 
+export const readdir = fs.readdir;
+
 export function bail(msg: unknown): never {
 	console.error('ERROR', msg);
 	process.exit(1);
@@ -137,6 +139,8 @@ export function frontmatter(content: string): {
 
 /**
  * Recursively watch a directory
+ * @note does not work with linux?
+ * @see lukeed/watchlist
  */
 export function watch(
 	input: string,

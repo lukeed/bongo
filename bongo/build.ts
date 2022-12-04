@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises';
 import { markdown } from '@bongo/markdown';
 
 import * as esbuild from './esbuild';
+import * as config from './config';
 import * as utils from './utils';
 import * as ENV from './argv';
 import * as $ from './paths';
@@ -26,8 +27,37 @@ export function toPartialName(file: string): string {
 
 // ---
 
-export const Partials = new Map<string, Template.Compiler>();
 export const Layouts = new Map<string, Template.Compiler>();
+export const Partials = new Map<string, Template.Compiler>();
+
+// Project configuration
+let Config: Required<CC> | undefined;
+
+// Default extension loaders
+// TODO: merge Config.$assets in
+// ---
+const Assets: Record<string, Loader> = {
+	html(file, data, utils) {
+		console.log('> INSIDE HTML LOADER', { file });
+		return { filename: file, content: data };
+	},
+	md(file, data, utils) {
+		let content = typeof data === 'string' ? data : data.toString();
+		return markdown().$assets.md(file, content, utils) as Promise<Loader.Result>;
+	},
+};
+
+// Default loader utilities
+// ---
+const Utilities: Loader.Utilities = {
+	frontmatter: utils.frontmatter,
+	render(name, ...args) {
+		let view = Partials.get(name);
+		// @ts-ignore - strict bind/apply rule
+		if (view) return view.apply(view, args);
+		throw new Error(`Unknown "${name}" partial!`);
+	}
+};
 
 // Default template blocks
 // ---
@@ -36,7 +66,7 @@ export const Layouts = new Map<string, Template.Compiler>();
 // TODO: check (https?)?// prefix
 function toOutfile(file: string) {
 	file = path.relative($.PUBLIC, file);
-	return Config.$utils!.url.abs(file);
+	return Config!.$utils.url.abs(file);
 }
 
 /**
@@ -64,7 +94,7 @@ utils.blocks['style'] = async function (args: Args) {
 	let config: esbuild.BuildOptions = {
 		outdir: $.PUBLIC,
 		absWorkingDir: $.ROOT,
-		publicPath: new URL(Config.$site.url).pathname,
+		publicPath: new URL(Config!.$site.url).pathname,
 		minify: ENV.MINIFY,
 		charset: 'utf8',
 	};
@@ -110,7 +140,7 @@ utils.blocks['script'] = async function (args: Args) {
 	let outfile = await esbuild.bundle(input, {
 		outdir: $.PUBLIC,
 		absWorkingDir: $.ROOT,
-		publicPath: new URL(Config.$site.url).pathname,
+		publicPath: new URL(Config!.$site.url).pathname,
 		target: target || 'es2017',
 		charset: 'utf8',
 		format,
@@ -136,7 +166,7 @@ utils.blocks['script'] = async function (args: Args) {
 };
 
 export async function setup() {
-	Partials.clear();
+	Config = await config.load($.ROOT);
 
 	// Compile any partials
 	// ---
@@ -163,67 +193,17 @@ export async function setup() {
 	});
 }
 
-// Default extension loaders
-// TODO: merge Config.$assets in
-// ---
-const Assets: Record<string, Loader> = {
-	md(file, data, utils) {
-		let content = typeof data === 'string' ? data : data.toString();
-		return markdown().$assets.md(file, content, utils) as Promise<Loader.Result>;
-	},
-};
-
-// Default loader utilities
-// ---
-const Utilities: Loader.Utilities = {
-	frontmatter: utils.frontmatter,
-	render(name, ...args) {
-		let view = Partials.get(name);
-		// @ts-ignore - strict bind/apply rule
-		if (view) return view.apply(view, args);
-		throw new Error(`Unknown "${name}" partial!`);
-	}
-};
-
-// Default configuration
-const Config: CC = {
-	$site: {
-		url: 'https://demo.com/',
-		lang: 'en',
-		title: 'Documentation',
-	},
-	$utils: {
-		// todo: move all to import
-		truncate(text: string, length: number): string {
-			return (text || '').substring(0, length);
-		},
-		countwords(text: string): number {
-			return text.split(/\s+/g).length;
-		},
-		url: {
-			abs(to: string, fro?: string): string {
-				return new URL(to, fro || Config.$site.url).pathname;
-			}
-		},
-		date: {
-			format(value: string|number|Date, format: string): string {
-				let d = new Date(value);
-				return d.toISOString();
-			}
-		}
-	}
-};
+type Extension = `.${string}`;
 
 export interface Result {
 	file: string;
 	data: Buffer | string;
 }
 
-type Extension = `.${string}`;
 export async function compile(file: string): Promise<Result> {
 	// Config ||= await load();
 	// TODO: merge Config.$assets
-	const { $site, $utils } = Config;
+	const { $site, $utils } = Config!;
 
 	let relname = path.relative($.CONTENT, file); // "foo/bar.jpg"
 	let outfile = path.join($.PUBLIC, relname);
@@ -260,7 +240,7 @@ export async function compile(file: string): Promise<Result> {
 				file = file.replace(isHBS, '.html');
 			}
 		} else if (loader = Assets[extn.substring(1)]) {
-			let result = await loader(file, content, Utilities);
+			let result = await loader(file, content, Utilities) as Loader.Result;
 			content = result.content;
 			file = result.filename;
 			if (result.metadata) {
@@ -350,6 +330,13 @@ export async function compile(file: string): Promise<Result> {
 		content +=   `es.onopen = () => console.log('[dev] live reload enabled');`;
 		content +=   `es.onmessage = () => location.reload();`;
 		content += `</script>`;
+	}
+
+	if (Assets.html) {
+		// NOTE: final HTML (post-)processing
+		let result = await Assets.html(outfile, content, Utilities);
+		outfile = result.filename;
+		content = result.content;
 	}
 
 	return {
