@@ -34,7 +34,7 @@ export const Partials = new Map<string, Template.Compiler>();
 let Config: Required<CC> | undefined;
 
 // Default extension loaders
-// TODO: merge Config.$assets in
+// TODO: support multiple per extn?
 // ---
 const Assets: Record<string, Loader> = {
 	html(file, data, utils) {
@@ -167,6 +167,7 @@ utils.blocks['script'] = async function (args: Args) {
 
 export async function setup() {
 	Config = await config.load($.ROOT);
+	Object.assign(Assets, Config.$assets);
 
 	// Compile any partials
 	// ---

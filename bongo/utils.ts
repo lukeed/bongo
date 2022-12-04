@@ -97,7 +97,7 @@ export async function list(dir: string, callback: Caller, prefix=''): Promise<vo
 			let rel = path.join(prefix, dirent.name);
 
 			if (dirent.isDirectory()) {
-				return /^(shortcode|partial)s$/.test(dirent.name) || list(item, callback, rel);
+				return list(item, callback, rel);
 			}
 
 			if (dirent.name.startsWith('index.')) {
