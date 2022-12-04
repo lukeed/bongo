@@ -1,4 +1,4 @@
-import { join, relative } from 'node:path';
+import * as path from 'node:path';
 import { reload } from './dev';
 import * as ENV from './argv';
 import * as $ from './paths';
@@ -72,10 +72,12 @@ export async function bundle(input: string, options: BuildOptions): Promise<stri
 	let result = await esbuild.build(options);
 
 	let key, tmp;
-	input = relative($.ROOT, input);
+	input = path.relative($.ROOT, input);
 	for (key in result.metafile!.outputs) {
 		tmp = result.metafile!.outputs[key];
-		if (tmp.entryPoint === input) return join($.ROOT, key);
+		if (tmp.entryPoint === input) {
+			return path.join($.ROOT, key);
+		}
 	}
 
 	throw new Error(`Missing output for "${input} entry`);

@@ -1,6 +1,5 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
-import { markdown } from '@bongo/markdown';
 
 import * as esbuild from './esbuild';
 import * as config from './config';
@@ -37,14 +36,10 @@ let Config: Required<CC> | undefined;
 // TODO: support multiple per extn?
 // ---
 const Assets: Record<string, Loader> = {
-	html(file, data, utils) {
-		console.log('> INSIDE HTML LOADER', { file });
-		return { filename: file, content: data };
-	},
-	md(file, data, utils) {
-		let content = typeof data === 'string' ? data : data.toString();
-		return markdown().$assets.md(file, content, utils) as Promise<Loader.Result>;
-	},
+	// html(file, data, utils) {
+	// 	// console.log('> INSIDE HTML LOADER', { file });
+	// 	return { filename: file, content: data };
+	// },
 };
 
 // Default loader utilities

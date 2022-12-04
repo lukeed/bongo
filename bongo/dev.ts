@@ -1,5 +1,5 @@
+import * as path from 'node:path';
 import { createReadStream, statSync } from 'node:fs';
-import { join, normalize } from 'node:path';
 import * as http from 'node:http';
 
 import flru from 'flru';
@@ -45,7 +45,9 @@ function locate(uri: string): string | void {
 	}
 
 	for (i=0; i < arr.length; i++) {
-		tmp = normalize( join($.CONTENT, arr[i]) );
+		tmp = path.normalize(
+			path.join($.CONTENT, arr[i])
+		);
 		if (tmp.startsWith($.CONTENT)) {
 			try { if (statSync(tmp).isFile()) return tmp }
 			catch (_) { /* ignore; ENONET */ }
@@ -115,7 +117,7 @@ export async function run(options: ENV.Argv) {
 		let { pathname } = parse(req);
 
 		if (pathname !== '/~bongo~/reload') {
-			let input = join($.PUBLIC, pathname);
+			let input = path.join($.PUBLIC, pathname);
 
 			let stats: Stats | undefined;
 			try { stats = statSync(input) }
@@ -173,7 +175,7 @@ export async function run(options: ENV.Argv) {
 	utils.watch($.CONTENT, async (evt, rel) => {
 		console.log('[dev] "content/%s" %sd', rel, evt);
 
-		let file = join($.CONTENT, rel);
+		let file = path.join($.CONTENT, rel);
 
 		// file to URL pathname
 		let pathname = '/' + rel.replace(/[\\\/]+/g, '/').replace(/([/]?index)?\.(html?|hbs|md)$/g, '');
@@ -197,7 +199,7 @@ export async function run(options: ENV.Argv) {
 
 		// wipe "/layout" file
 		build.Layouts.delete(rel);
-		let file = join($.LAYOUTS, rel);
+		let file = path.join($.LAYOUTS, rel);
 		if (isHBS.test(rel) && utils.exists(file)) {
 			build.Layouts.set(rel, await utils.view(file));
 		}
@@ -215,7 +217,7 @@ export async function run(options: ENV.Argv) {
 		let name = build.toPartialName(rel);
 		build.Partials.delete(name);
 
-		let file = join($.PARTIALS, rel);
+		let file = path.join($.PARTIALS, rel);
 		if (isHBS.test(rel) && utils.exists(file)) {
 			utils.blocks[name] = await utils.view('' + file);
 			build.Partials.set(name, utils.blocks[name]);

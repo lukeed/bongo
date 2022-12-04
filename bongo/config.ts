@@ -1,4 +1,4 @@
-import { dirname, join, resolve } from 'node:path';
+import * as path from 'node:path';
 import { createRequire } from 'node:module';
 
 import * as esbuild from './esbuild';
@@ -19,16 +19,16 @@ const priority = [
  * @modified lukeed/escalade
  */
 export async function find(root: string, start: string): Promise<string|void> {
-	let i=0, dir = resolve(root, start);
+	let i=0, dir = path.resolve(root, start);
 	let files = new Set(await utils.readdir(dir));
 
 	for (; i < priority.length; i++) {
 		if (files.has(priority[i])) {
-			return join(dir, priority[i]);
+			return path.join(dir, priority[i]);
 		}
 	}
 
-	dir = dirname(dir);
+	dir = path.dirname(dir);
 
 	if (dir.startsWith(root)) {
 		return find(root, dir);

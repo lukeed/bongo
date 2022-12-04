@@ -1,13 +1,8 @@
-import { dirname, join, resolve, } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import * as path from 'node:path';
 
-export const __dirname = dirname(
-	fileURLToPath(import.meta.url)
-);
-
-export const ROOT = resolve('.');
-export const ASSETS = join(ROOT, 'assets');
-export const CONTENT = join(ROOT, 'content');
-export const PARTIALS = join(ROOT, 'partials');
-export const LAYOUTS = join(ROOT, 'layouts');
-export const PUBLIC = join(ROOT, 'public');
+export const ROOT = path.resolve('.');
+export const ASSETS = path.join(ROOT, 'assets');
+export const CONTENT = path.join(ROOT, 'content');
+export const PARTIALS = path.join(ROOT, 'partials');
+export const LAYOUTS = path.join(ROOT, 'layouts');
+export const PUBLIC = path.join(ROOT, 'public');
