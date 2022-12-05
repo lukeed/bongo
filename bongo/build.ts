@@ -12,9 +12,6 @@ import type { Config as CC, Loader, Template } from './types';
 
 console.log('---');
 
-const isHBS = /\.hbs$/;
-const isPAGE = /\.(hbs|html)$/;
-
 /**
  * Remove the extension
  * @TODO normalize path separators
@@ -183,9 +180,10 @@ export async function setup() {
 	}
 
 	// Compile "/layouts/**" files
+	// TODO: accept JS/TS files
 	// ---
 	await utils.ls($.LAYOUTS, async (abs, rel) => {
-		if (isHBS.test(rel)) Layouts.set(rel, await utils.view(abs));
+		if ($.isHBS.test(rel)) Layouts.set(rel, await utils.view(abs));
 	});
 }
 
@@ -219,7 +217,7 @@ export async function compile(file: string): Promise<Result> {
 		// TODO: collect non-`index` pages for "$section" (?)
 		// TODO: run a loop for all `$section` pages first before render
 		// 			-> for `index.*`, menus, sitemap, etc
-		if (isPAGE.test(extn)) {
+		if ($.isPAGE.test(extn)) {
 			if (typeof content !== 'string') {
 				content = content.toString();
 			}
@@ -233,7 +231,7 @@ export async function compile(file: string): Promise<Result> {
 
 			if (extn === '.hbs') {
 				content = await utils.compile(content)({ ...params, ...value });
-				file = file.replace(isHBS, '.html');
+				file = file.replace($.isHBS, '.html');
 			}
 		} else if (loader = Assets[extn.substring(1)]) {
 			let result = await loader(file, content, Utilities) as Loader.Result;
@@ -249,7 +247,7 @@ export async function compile(file: string): Promise<Result> {
 	}
 
 	// stop here if not dealing with a ".hbs|html" file
-	if (!isPAGE.test(file)) return { file, data: content };
+	if (!$.isPAGE.test(file)) return { file, data: content };
 
 	// ensure we're not dealing with Buffer content
 	if (typeof content !== 'string') content = content.toString();

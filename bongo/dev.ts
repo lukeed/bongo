@@ -188,8 +188,6 @@ export async function run(options: ENV.Argv) {
 		reload();
 	});
 
-	const isHBS = /\.hbs$/;
-
 	// rebuild "layout/**" file on change
 	utils.watch($.LAYOUTS, async (evt, rel) => {
 		console.log('[dev] "layouts/%s" %sd', rel, evt);
@@ -200,7 +198,7 @@ export async function run(options: ENV.Argv) {
 		// wipe "/layout" file
 		build.Layouts.delete(rel);
 		let file = path.join($.LAYOUTS, rel);
-		if (isHBS.test(rel) && utils.exists(file)) {
+		if ($.isHBS.test(rel) && utils.exists(file)) {
 			build.Layouts.set(rel, await utils.view(file));
 		}
 
@@ -218,7 +216,7 @@ export async function run(options: ENV.Argv) {
 		build.Partials.delete(name);
 
 		let file = path.join($.PARTIALS, rel);
-		if (isHBS.test(rel) && utils.exists(file)) {
+		if ($.isHBS.test(rel) && utils.exists(file)) {
 			utils.blocks[name] = await utils.view('' + file);
 			build.Partials.set(name, utils.blocks[name]);
 		}
