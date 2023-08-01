@@ -20,12 +20,13 @@ on:
 
 jobs:
   bun:
-		name: Bun
+    name: Bun
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
     - uses: oven-sh/setup-bun@v1
-			with:
-				bun-version: "0.7.1"
+      with:
+        bun-version: "0.7.1"
 
     - name: Install
       run: bun install
