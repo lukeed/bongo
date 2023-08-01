@@ -1,4 +1,4 @@
-name: CI
+name: CI / Bun
 
 on:
   push:
@@ -20,7 +20,6 @@ on:
 
 jobs:
   bun:
-    name: Bun
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
