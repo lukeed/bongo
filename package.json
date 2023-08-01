@@ -6,8 +6,15 @@
   },
   "devDependencies": {
     "@types/node": "16.11.12",
+    "bun-types": "0.7.1",
     "bump": "1.0.0-next.1",
     "sirv": "1.0.19",
     "typescript": "4.5.2"
-  }
+  },
+  "workspaces": [
+    "packages/bongo",
+    "packages/create-bongo",
+    "packages/plugin.markdown",
+    "rewrite"
+  ]
 }

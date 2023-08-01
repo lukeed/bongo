@@ -1,5 +1,6 @@
 {
   "private": true,
+  "name": "rewrite",
   "version": "0.0.0",
   "scripts": {
     "setup": "tsm bongo/make.ts",
