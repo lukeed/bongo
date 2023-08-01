@@ -7,42 +7,31 @@ on:
       - 'demo123/**'
       - '*.md'
     branches:
-      - '**'
+      - 'bun'
     tags-ignore:
       - '**'
-  pull_request:
-    paths-ignore:
-      - 'example/**'
-      - 'demo123/**'
-      - '*.md'
-    branches:
-      - master
+  # pull_request:
+  #   paths-ignore:
+  #     - 'example/**'
+  #     - 'demo123/**'
+  #     - '*.md'
+  #   branches:
+  #     - main
 
 jobs:
-  test:
-    name: Node.js v${{ matrix.nodejs }}
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        nodejs: [12, 14]
+  bun:
+		name: Bun
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-node@v2
-      with:
-        node-version: ${{ matrix.nodejs }}
-
-    - name: (env) pnpm
-      run: curl -L https://raw.githubusercontent.com/pnpm/self-installer/master/install.js | node
+    - uses: actions/checkout@v3
+    - uses: oven-sh/setup-bun@v1
+			with:
+				bun-version: "0.7.1"
 
     - name: Install
-      run: pnpm install
+      run: bun install
 
-    # - name: (coverage) Install
-    #   if: matrix.nodejs >= 14
-    #   run: pnpm add -g c8
-
-    - name: Compiles
-      run: pnpm run build
+    # - name: Compiles
+    #   run: pnpm run build
 
     # - name: Test
     #   if: matrix.nodejs < 14
