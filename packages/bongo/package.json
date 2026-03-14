@@ -20,7 +20,6 @@
     "node": ">=22"
   },
   "dependencies": {
-    "vite": "8.0.0",
     "rolldown": "1.0.0-rc.9",
     "kleur": "^4.0.0",
     "mri": "^1.1.0",

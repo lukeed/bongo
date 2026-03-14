@@ -4,7 +4,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsx build/index.ts",
+    "build": "cd build && tsx index.ts",
     "test": "tsc --noEmit"
   },
   "devDependencies": {

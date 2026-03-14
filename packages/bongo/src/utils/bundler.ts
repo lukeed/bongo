@@ -1,48 +1,46 @@
-import type { InlineConfig, Rollup } from 'vite';
+import type { InputOptions, OutputOptions, RolldownOutput } from 'rolldown';
 
 export type Group = `${string}~${string}`;
-export type Thunk = Promise<Rollup.RollupOutput>;
+export type Thunk = Promise<RolldownOutput>;
+
+interface BundleConfig {
+	input: InputOptions;
+	output: OutputOptions;
+}
 
 let INPUTS: Record<Group, Set<string>> = {};
-let CONFIGS: Record<Group, InlineConfig> = {};
+let CONFIGS: Record<Group, BundleConfig> = {};
 let BUNDLERS: Record<Group, Thunk> = {};
 
-let vite: typeof import('vite');
+let rd: typeof import('rolldown');
 
-async function loadVite() {
-	return vite = vite || await import('vite');
+async function loadRolldown() {
+	return rd = rd || await import('rolldown');
 }
 
 // rolldown/utils transformSync for config loading
 let oxcTransformSync: Function;
 
-let defaults: InlineConfig = {
-	configFile: false,
-	logLevel: 'silent',
-	build: {
-		write: true,
-		sourcemap: false, // TODO
-		minify: true,
-		rollupOptions: {
-			output: {
-				entryFileNames: '[name].[hash].js',
-				chunkFileNames: '[name].[hash].js',
-				assetFileNames: '[name].[hash][extname]',
-			},
-		},
-	},
+let inputDefaults: InputOptions = {
 	resolve: {
 		extensions: ['.ts', '.js', '.cjs', '.mjs', '.css', '.json'],
 		mainFields: ['browser', 'module', 'jsnext', 'main'],
-		conditions: ['browser', 'import', 'production'],
+		conditionNames: ['browser', 'import', 'production'],
 	},
 };
 
-export function toGroup(options: InlineConfig): Group {
-	let fmt = options.build?.rollupOptions?.output;
-	let format = (fmt && !Array.isArray(fmt) ? fmt.format : '') || '';
-	// target is on build.target in vite
-	let target = String(options.build?.target || '');
+let outputDefaults: OutputOptions = {
+	format: 'esm',
+	sourcemap: false, // TODO
+	minify: true,
+	entryFileNames: '[name].[hash].js',
+	chunkFileNames: '[name].[hash].js',
+	assetFileNames: '[name].[hash][extname]',
+};
+
+export function toGroup(config: BundleConfig): Group {
+	let format = config.output.format || '';
+	let target = '';
 	return `${format}~${target}` as Group;
 }
 
@@ -53,7 +51,7 @@ export function reset() {
 	BUNDLERS = {};
 }
 
-export function prebuild(input: string, config: InlineConfig): Group {
+export function prebuild(input: string, config: BundleConfig): Group {
 	let group = toGroup(config);
 	let inputs = INPUTS[group] || new Set;
 	CONFIGS[group] = CONFIGS[group] || config;
@@ -62,32 +60,9 @@ export function prebuild(input: string, config: InlineConfig): Group {
 	return group;
 }
 
-function mergeConfig(base: InlineConfig, override: InlineConfig): InlineConfig {
-	return {
-		...base,
-		...override,
-		build: {
-			...base.build,
-			...override.build,
-			rollupOptions: {
-				...base.build?.rollupOptions,
-				...override.build?.rollupOptions,
-				output: {
-					...(base.build?.rollupOptions?.output as object),
-					...(override.build?.rollupOptions?.output as object),
-				},
-			},
-		},
-		resolve: {
-			...base.resolve,
-			...override.resolve,
-		},
-	};
-}
-
 // TODO: move warning|error handling here
 export async function build(group: Group): Thunk {
-	await loadVite();
+	await loadRolldown();
 
 	let thunk = BUNDLERS[group];
 	if (thunk) return thunk;
@@ -100,23 +75,32 @@ export async function build(group: Group): Thunk {
 	}
 
 	let entryPoints = [...inputs];
-	let rollupInput: Record<string, string> = {};
+	let input: Record<string, string> = {};
 	for (let entry of entryPoints) {
 		let name = entry.replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '');
-		rollupInput[name] = entry;
+		input[name] = entry;
 	}
 
-	let merged = mergeConfig(defaults, config);
+	let inputOpts: InputOptions = {
+		...inputDefaults,
+		...config.input,
+		input,
+		resolve: {
+			...inputDefaults.resolve,
+			...config.input.resolve,
+		},
+	};
 
-	// Build rollupOptions.input
-	merged.build!.rollupOptions = merged.build!.rollupOptions || {};
-	merged.build!.rollupOptions.input = rollupInput;
+	let outputOpts: OutputOptions = {
+		...outputDefaults,
+		...config.output,
+	};
 
-	return BUNDLERS[group] = vite.build(merged) as Thunk;
+	return BUNDLERS[group] = rd.rolldown(inputOpts).then(bundle => bundle.write(outputOpts));
 }
 
 // TODO: errors, warnings
-export function postbuild(entry: string, result: Rollup.RollupOutput): string | never {
+export function postbuild(entry: string, result: RolldownOutput): string | never {
 	for (let chunk of result.output) {
 		if (chunk.type === 'chunk' && chunk.facadeModuleId === entry) {
 			return chunk.fileName;
@@ -133,7 +117,6 @@ export function postbuild(entry: string, result: Rollup.RollupOutput): string | 
 }
 
 export async function transform(filename: string) {
-	await loadVite();
 	oxcTransformSync = oxcTransformSync || (await import('rolldown/utils')).transformSync;
 
 	require.extensions['.ts'] = require.extensions['.ts'] || function (Module: any, filename: string) {

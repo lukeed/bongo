@@ -1,10 +1,10 @@
 # bongo
 
-> A static site generator with partial hydration, built on Vite
+> A static site generator with partial hydration, built on Rolldown
 
 ## Overview
 
-**bongo** is a monorepo containing a static site generator (SSG) and associated tooling. It processes content files (Markdown, HTML, Handlebars) through a loader pipeline, applies layouts/partials via a [tempura](https://github.com/lukeed/tempura)-based template engine, and bundles client-side assets using [Vite](https://vite.dev).
+**bongo** is a monorepo containing a static site generator (SSG) and associated tooling. It processes content files (Markdown, HTML, Handlebars) through a loader pipeline, applies layouts/partials via a [tempura](https://github.com/lukeed/tempura)-based template engine, and bundles client-side assets using [Rolldown](https://rolldown.rs).
 
 ## Setup
 
@@ -40,7 +40,7 @@ $ pnpm test
 │   │       └── utils/
 │   │           ├── argv.ts     # CLI argument normalization
 │   │           ├── config.ts   # Config file discovery & loading
-│   │           ├── esbuild.ts  # Asset bundling via Vite JS API
+│   │           ├── bundler.ts   # Asset bundling via Rolldown JS API
 │   │           ├── fs.ts       # File system utilities (read, write, watch)
 │   │           ├── http.ts     # Dev server (sirv + SSE reload)
 │   │           ├── index.ts    # debounce/throttle helpers
@@ -77,7 +77,7 @@ When you run `bongo build`:
    - Once content reaches `.html`/`.hbs`, it's wrapped in the matching layout template
    - Layout lookup follows a priority order: section-specific → `single.hbs` → `index.hbs` → `html.hbs`
 
-4. **Asset bundling** (`utils/esbuild.ts`): Scripts and styles referenced via `{{#script}}` / `{{#style}}` blocks are bundled using Vite's JS API. Assets are grouped by format+target to enable code splitting. Output filenames include content hashes.
+4. **Asset bundling** (`utils/bundler.ts`): Scripts and styles referenced via `{{#script}}` / `{{#style}}` blocks are bundled using Rolldown's JS API. Assets are grouped by format+target to enable code splitting. Output filenames include content hashes.
 
 ### Loader System
 

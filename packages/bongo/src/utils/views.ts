@@ -5,7 +5,7 @@ import * as log from './log';
 import * as fs from './fs';
 
 import type { Argv, Config, Template } from 'bongo';
-import type { InlineConfig } from 'vite';
+import type { InputOptions, OutputOptions } from 'rolldown';
 import type { Args } from './tempura/index';
 
 // TODO: revert to `tempura.Compiler` postfix
@@ -46,14 +46,10 @@ namespace Args {
 }
 
 export async function collect(argv: Required<Argv>, config: Required<Config>): Promise<void> {
-	let opts: InlineConfig = {
-		configFile: false,
-		logLevel: 'silent',
-		build: {
-			outDir: argv.dest,
-			minify: !!argv.minify,
-		},
-		publicDir: false,
+	let inputOpts: InputOptions = {};
+	let outputOpts: OutputOptions = {
+		dir: argv.dest,
+		minify: !!argv.minify,
 	};
 
 	// output fileName is relative to outDir (dest)
@@ -159,21 +155,10 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 
 		fs.assert(input, `assets/${src}`);
 
-		let options: InlineConfig = { ...opts };
+		let oo = { ...outputOpts };
+		if (output) oo.assetFileNames = output;
 
-		if (output) {
-			options.build = {
-				...options.build,
-				rollupOptions: {
-					...options.build?.rollupOptions,
-					output: {
-						assetFileNames: output,
-					},
-				},
-			};
-		}
-
-		Assets[input] = bundler.prebuild(input, options);
+		Assets[input] = bundler.prebuild(input, { input: { ...inputOpts }, output: oo });
 	}
 
 	blocks.script.setup = function (args: Args.Script) {
@@ -185,20 +170,13 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 
 		fs.assert(input, `assets/${src}`);
 
-		let options: InlineConfig = { ...opts };
-		options.build = {
-			...options.build,
-			target: target || 'es2017',
-			rollupOptions: {
-				...options.build?.rollupOptions,
-				output: {
-					...(options.build?.rollupOptions?.output as object),
-					format: (format || 'esm') as 'es' | 'cjs',
-				},
+		Assets[input] = bundler.prebuild(input, {
+			input: { ...inputOpts },
+			output: {
+				...outputOpts,
+				format: (format || 'esm') as 'es' | 'cjs',
 			},
-		};
-
-		Assets[input] = bundler.prebuild(input, options);
+		});
 	}
 
 	let props = ['$site', '$page', '$assets', '$utils'];
