@@ -6,8 +6,8 @@ import { createRequire } from 'node:module';
 import { rolldown } from 'rolldown';
 import type { OutputOptions } from 'rolldown';
 
-import { plugins } from './plugins';
-import { size } from './size';
+import { plugins } from './plugins.ts';
+import { size } from './size.ts';
 
 const require = createRequire(import.meta.url);
 const packages = join(import.meta.dirname, '../packages');

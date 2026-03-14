@@ -1,4 +1,4 @@
-import { build, list } from './util';
+import { build, list } from './util.ts';
 
 const pkgs = await list();
 

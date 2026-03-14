@@ -24,12 +24,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        nodejs: [22]
+        nodejs: [24]
     steps:
     - uses: actions/checkout@v6
-    - uses: oven-sh/setup-bun@v2
-      with:
-        bun-version: 1.3.10
     - uses: pnpm/action-setup@v4
       with:
         version: 10.x
@@ -45,4 +42,4 @@ jobs:
       run: pnpm run build
 
     - name: Test
-      run: bun test
+      run: pnpm test
