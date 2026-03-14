@@ -75,7 +75,7 @@ export async function list(dir: string, callback: Caller, prefix='') {
 	}
 }
 
-type Handler = (dir: string, type: string, filename: string) => any;
+type Handler = (dir: string, type: string, filename: string | null) => any;
 
 async function setup(dir: string, onChange: Handler) {
 	let output: Record<string, FSWatcher> = {};
@@ -108,6 +108,7 @@ export async function watch(list: string[], callback: Callback) {
 
 	// TODO: Catch `EPERM` on Windows for removed dir
 	const onChange: Handler = throttle(async function (dir, type, filename) {
+		if (!filename) return;
 		let tmp = join(dir, filename);
 		if (Triggers.has(tmp)) return;
 

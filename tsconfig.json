@@ -1,9 +1,8 @@
 {
   "compilerOptions": {
     "module": "esnext",
-    "target": "es2019",
+    "target": "es2023",
     "noImplicitAny": true,
-    "keyofStringsOnly": true,
     "resolveJsonModule": true,
     "strictBindCallApply": true,
     "forceConsistentCasingInFileNames": true,
@@ -13,6 +12,7 @@
     "removeComments": true,
     "sourceMap": false,
     "allowJs": false,
+    "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
     "baseUrl": ".",

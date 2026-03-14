@@ -66,7 +66,7 @@ export async function build(argv: Argv): Promise<void> {
 		let basename = name.substring(0, idx);
 		let params: Template.Params = {};
 
-		let render: Template.Compiler | void;
+		let render: Template.Compiler | void = undefined;
 		let layout='', content='';
 
 		// TODO: run a loop for all `$section` pages first before render
