@@ -24,15 +24,14 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        nodejs: [12, 14]
+        nodejs: [22]
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-node@v2
+    - uses: actions/checkout@v4
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.nodejs }}
-
-    - name: (env) pnpm
-      run: curl -L https://raw.githubusercontent.com/pnpm/self-installer/master/install.js | node
+        cache: pnpm
 
     - name: Install
       run: pnpm install
