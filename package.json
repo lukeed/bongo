@@ -1,7 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "build": "node build",
+    "build": "node --experimental-strip-types build/index.ts",
     "test": "tsc --noEmit"
   },
   "devDependencies": {

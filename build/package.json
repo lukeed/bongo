@@ -1,5 +1,6 @@
 {
   "private": true,
+  "type": "module",
   "devDependencies": {
     "rolldown": "1.0.0-rc.9",
     "vite": "8.0.0"

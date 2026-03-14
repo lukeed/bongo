@@ -1,18 +1,19 @@
-const { join } = require('path');
-const { gzipSync } = require('zlib');
-const { builtinModules } = require('module');
-const { readdir } = require('fs').promises;
-const { rolldown } = require('rolldown');
+import { join } from 'path';
+import { gzipSync } from 'zlib';
+import { builtinModules } from 'module';
+import { readdir } from 'fs/promises';
+import { createRequire } from 'module';
+import { rolldown } from 'rolldown';
+import type { OutputOptions } from 'rolldown';
 
-const plugins = require('./plugins');
-const packages = join(__dirname, '../packages');
+import { plugins } from './plugins.ts';
+
+const require = createRequire(import.meta.url);
+const packages = join(import.meta.dirname, '../packages');
 
 const isDEV = process.argv.includes('--dev');
 
-/**
- * @type {import('rolldown').OutputOptions}
- */
-const output = {
+const output: OutputOptions = {
 	format: 'cjs',
 	file: '~inject~',
 	esModule: false,
@@ -21,24 +22,23 @@ const output = {
 
 const UNITS = ['B ', 'kB', 'MB', 'GB'];
 
-function size(val=0) {
+function size(val = 0): string {
 	if (val < 1e3) return `${val} ${UNITS[0]}`;
 	let exp = Math.min(Math.floor(Math.log10(val) / 3), UNITS.length - 1) || 1;
 	let out = (val / Math.pow(1e3, exp)).toPrecision(3);
 	let idx = out.indexOf('.');
 	if (idx === -1) out += '.00';
 	else if (out.length - idx - 1 !== 2) {
-		out = (out + '00').substring(0, idx + 3); // 2 + 1 for 0-based
+		out = (out + '00').substring(0, idx + 3);
 	}
 	return out + ' ' + UNITS[exp];
 }
 
-exports.list = () => readdir(packages);
+export function list(): Promise<string[]> {
+	return readdir(packages);
+}
 
-/**
- * @param {string} dir
- */
-exports.build = async function (dir) {
+export async function build(dir: string): Promise<void> {
 	try {
 		let abs = join(packages, dir);
 		let pkg = require(join(abs, 'package.json'));
@@ -66,7 +66,7 @@ exports.build = async function (dir) {
 		txt += '  (' + size(gzipSync(code).length) + ')';
 
 		console.log('~>', txt);
-	} catch (err) {
+	} catch (err: any) {
 		let msg = (err.message || err || 'Unknown error').replace(/(\r?\n)/g, '$1      ');
 		console.error('[ERROR]', msg);
 		process.exit(1);
