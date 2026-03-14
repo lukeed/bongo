@@ -7,8 +7,7 @@ import { existsSync, promises as fs } from 'node:fs';
 import { builtinModules } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-import { rollup } from 'rollup';
-import * as esbuild from 'esbuild';
+import { rolldown } from 'rolldown';
 
 const argv = process.argv.slice(2);
 
@@ -64,82 +63,34 @@ async function bundle(input: string, output: string) {
 	const isMIN = !argv.includes('--dev');
 	const format = /\.mjs$/.test(output) ? 'esm' : 'cjs';
 
-	let result = await esbuild.build({
-		bundle: true,
-		target: 'node18',
-		entryPoints: [join(SRC, input)],
-		conditions: ['import', 'node'],
-		mainFields: ['module', 'main'],
-		treeShaking: true,
-		sourcemap: false,
-		charset: 'utf8',
-		format: format,
+	const external = [
+		/^node:/,
+		/^rolldown/,
+		/^mrmime/,
+		/^markdown-it/,
+		/^tempura/,
+		...builtinModules.map(m => new RegExp(`^${m}$`)),
+	];
+
+	let b = await rolldown({
+		input: join(SRC, input),
+		external,
+		resolve: {
+			conditionNames: ['import', 'node'],
+			mainFields: ['module', 'main'],
+		},
+	});
+
+	let result = await b.generate({
+		format: format as 'es' | 'cjs',
 		minify: isMIN,
-		write: false,
-		external: [
-			'node:*',
-			'esbuild', 'mrmime',
-			'markdown-it', 'tempura',
-			...builtinModules,
-		],
-	});
-
-	let b = await rollup({
-		input: './virtual.js',
-		external: [
-			'node:*',
-			'esbuild', 'mrmime',
-			'markdown-it', 'tempura',
-			...builtinModules,
-		],
-		plugins: [{
-			name: 'resolve',
-			resolveId(src) {
-				if (src.startsWith('node:')) {
-					return {
-						id: src,
-						external: true,
-					};
-				}
-
-				if (src === './virtual.js') {
-					return '~entry~';
-				}
-			},
-			load(id) {
-				if (id === '~entry~') {
-					return result.outputFiles[0].text;
-				}
-			},
-		}]
-	});
-
-	let manifest = await b.generate({
-		format,
-		strict: false,
-		esModule: false,
-		file: join(SRC, output),
-		minifyInternalExports: true,
-		interop: 'default',
-		generatedCode: {
-			objectShorthand: true,
-			constBindings: true,
-		}
 	});
 
 	let outdir = dirname(output);
-	for (let c of manifest.output) {
+	for (let c of result.output) {
 		let file = join(outdir, c.fileName);
 		if (c.type === 'asset') {
 			await write(file, c.source);
-		} else if (isMIN) {
-			let r = await esbuild.transform(c.code, {
-				minify: true,
-				sourcefile: file,
-				format: format,
-				loader: 'js',
-			});
-			await write(file, r.code);
 		} else {
 			await write(file, c.code);
 		}

@@ -14,11 +14,10 @@
     "@types/markdown-it": "12.2.3",
     "@types/node": "22.13.14",
     "bongo": "npm:@lukeed/bongo",
-    "esbuild": "0.15.16",
     "flru": "1.0.2",
     "markdown-it": "13.0.1",
     "mrmime": "1.0.1",
-    "rollup": "3.5.1",
+    "rolldown": "1.0.0-rc.9",
     "tempura": "0.4.0",
     "tsm": "2.3.0",
     "windicss": "3.5.6"

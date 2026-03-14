@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 
-import * as esbuild from './esbuild';
+import * as bundler from './bundler';
 import * as config from './config';
 import * as utils from './utils';
 import * as ENV from './argv';
@@ -54,10 +54,8 @@ const Utilities: Loader.Utilities = {
 // Default template blocks
 // ---
 
-// esbuild cwd-relative -> absolute
-// TODO: check (https?)?// prefix
+// output fileName is relative to outDir (dest)
 function toOutfile(file: string) {
-	file = path.relative($.PUBLIC, file);
 	return Config!.$utils.url.abs(file);
 }
 
@@ -83,23 +81,20 @@ utils.blocks['style'] = async function (args: Args) {
 	let { src, output, preload, inline } = args;
 	if (!src) throw new Error('Missing "src" argument');
 
-	let config: esbuild.BuildOptions = {
-		outdir: $.PUBLIC,
-		absWorkingDir: $.ROOT,
-		publicPath: new URL(Config!.$site.url).pathname,
-		minify: ENV.MINIFY,
-		charset: 'utf8',
-	};
-
-	if (output) {
-		config.splitting = false;
-		config.outfile = path.join($.PUBLIC, output);
-	}
-
 	let input = path.join($.ASSETS, src);
-	let outfile = await esbuild.bundle(input, config);
+
+	let oo: import('rolldown').OutputOptions = {
+		dir: $.PUBLIC,
+		minify: !!ENV.MINIFY,
+	};
+	if (output) oo.assetFileNames = output;
+
+	let group = bundler.prebuild(input, { input: {}, output: oo });
+	let result = await bundler.build(group);
+	let outfile = bundler.postbuild(input, result);
 
 	if (inline) {
+		outfile = path.join($.PUBLIC, outfile);
 		let contents = await utils.read(outfile);
 		return '<style>' + contents + '</style>';
 	}
@@ -129,14 +124,17 @@ utils.blocks['script'] = async function (args: Args) {
 	format = format || 'esm';
 
 	let input = path.join($.ASSETS, src);
-	let outfile = await esbuild.bundle(input, {
-		outdir: $.PUBLIC,
-		absWorkingDir: $.ROOT,
-		publicPath: new URL(Config!.$site.url).pathname,
-		target: target || 'es2017',
-		charset: 'utf8',
-		format,
+	let group = bundler.prebuild(input, {
+		input: {},
+		output: {
+			dir: $.PUBLIC,
+			minify: !!ENV.MINIFY,
+			format: (format || 'esm') as 'es' | 'cjs',
+		},
 	});
+
+	let result = await bundler.build(group);
+	let outfile = bundler.postbuild(input, result);
 
 	// begin construction
 	let html = '<script';
@@ -148,6 +146,7 @@ utils.blocks['script'] = async function (args: Args) {
 	}
 
 	if (inline) {
+		outfile = path.join($.PUBLIC, outfile);
 		let contents = await utils.read(outfile);
 		return html + '>' + contents + '</script>';
 	}

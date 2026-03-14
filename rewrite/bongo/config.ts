@@ -1,7 +1,6 @@
 import * as path from 'node:path';
-import { createRequire } from 'node:module';
 
-import * as esbuild from './esbuild';
+import * as bundler from './bundler';
 import * as utils from './utils';
 
 import type { Config } from './types';
@@ -63,7 +62,6 @@ export function merge(base: Required<Config>, custom: Partial<Config>) {
 	}
 }
 
-let $require: NodeJS.Require;
 export async function load(root: string): Promise<Required<Config>> {
 	let output: Required<Config> = {
 		$site: {
@@ -110,38 +108,7 @@ export async function load(root: string): Promise<Required<Config>> {
 	if (!file) throw new Error('Missing configuration file');
 
 	if (/\.ts$/.test(file)) {
-		let service = await esbuild.load();
-
-		type Module = NodeJS.Module & {
-			_compile?(source: string, filename: string): NodeJS.Module;
-		};
-
-		$require ||= createRequire(import.meta.url);
-		$require.extensions['.ts'] ||= function (mod: Module, filename: string) {
-			let pitch = mod._compile!.bind(mod);
-
-			mod._compile = src => {
-				let { code, warnings } = service.transformSync(src, {
-					minify: true,
-					format: 'cjs',
-					sourcemap: 'inline',
-					sourcefile: filename,
-					loader: 'ts',
-				});
-
-				warnings.forEach(msg => {
-					console.warn(`\nesbuild warning in ${filename}:`);
-					console.warn(msg.location);
-					console.warn(msg.text);
-				});
-
-				return pitch(code, filename);
-			};
-
-			$require.extensions['.js'](mod, filename);
-		};
-
-		user = $require(file);
+		user = await bundler.transform(file);
 	} else {
 		user = await import('file:///' + file);
 	}
