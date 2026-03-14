@@ -1,13 +1,14 @@
 {
   "private": true,
   "scripts": {
-    "build": "node --experimental-strip-types build/index.ts",
+    "build": "tsx build/index.ts",
     "test": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "22.13.14",
     "bump": "1.0.0-next.1",
     "sirv": "1.0.19",
+    "tsx": "^4.21.0",
     "typescript": "5.9.3"
   }
 }

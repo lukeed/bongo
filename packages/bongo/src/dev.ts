@@ -1,4 +1,4 @@
-import { relative } from 'path';
+import { relative } from 'node:path';
 import * as bundler from './utils/esbuild';
 import * as views from './utils/views';
 import * as http from './utils/http';

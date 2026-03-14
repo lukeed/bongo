@@ -1,5 +1,5 @@
-import { existsSync } from 'fs';
-import { parse, resolve, dirname } from 'path';
+import { existsSync } from 'node:fs';
+import { parse, resolve, dirname } from 'node:path';
 import type { Plugin } from 'rolldown';
 
 /**

@@ -1,12 +1,12 @@
-import { join } from 'path';
-import { gzipSync } from 'zlib';
-import { builtinModules } from 'module';
-import { readdir } from 'fs/promises';
-import { createRequire } from 'module';
+import { join } from 'node:path';
+import { gzipSync } from 'node:zlib';
+import { builtinModules } from 'node:module';
+import { readdir } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { rolldown } from 'rolldown';
 import type { OutputOptions } from 'rolldown';
 
-import { plugins } from './plugins.ts';
+import { plugins } from './plugins';
 
 const require = createRequire(import.meta.url);
 const packages = join(import.meta.dirname, '../packages');
