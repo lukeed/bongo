@@ -6,7 +6,8 @@ import { createRequire } from 'node:module';
 import { rolldown } from 'rolldown';
 import type { OutputOptions } from 'rolldown';
 
-import { plugins } from './plugins';
+import { plugins } from './plugins.ts';
+import { size } from './size.ts';
 
 const require = createRequire(import.meta.url);
 const packages = join(import.meta.dirname, '../packages');
@@ -19,20 +20,6 @@ const output: OutputOptions = {
 	esModule: false,
 	minify: !isDEV,
 };
-
-const UNITS = ['B ', 'kB', 'MB', 'GB'];
-
-function size(val = 0): string {
-	if (val < 1e3) return `${val} ${UNITS[0]}`;
-	let exp = Math.min(Math.floor(Math.log10(val) / 3), UNITS.length - 1) || 1;
-	let out = (val / Math.pow(1e3, exp)).toPrecision(3);
-	let idx = out.indexOf('.');
-	if (idx === -1) out += '.00';
-	else if (out.length - idx - 1 !== 2) {
-		out = (out + '00').substring(0, idx + 3);
-	}
-	return out + ' ' + UNITS[exp];
-}
 
 export function list(): Promise<string[]> {
 	return readdir(packages);
