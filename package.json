@@ -1,8 +1,5 @@
 {
   "private": true,
-  "engines": {
-    "pnpm": ">=10"
-  },
   "scripts": {
     "build": "node build",
     "test": "tsc --noEmit"
