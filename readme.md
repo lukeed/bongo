@@ -19,7 +19,7 @@ $ pnpm build
 $ pnpm test
 ```
 
-> **Important:** Requires Node 22+
+> **Important:** Requires Node 24+
 
 ## Project Structure
 

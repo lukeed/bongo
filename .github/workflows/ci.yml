@@ -16,7 +16,7 @@ on:
       - 'demo123/**'
       - '*.md'
     branches:
-      - master
+      - main
 
 jobs:
   test:
