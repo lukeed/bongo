@@ -27,6 +27,9 @@ jobs:
         nodejs: [22]
     steps:
     - uses: actions/checkout@v6
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.3.10
     - uses: pnpm/action-setup@v4
       with:
         version: 10.x
@@ -38,25 +41,8 @@ jobs:
     - name: Install
       run: pnpm install
 
-    # - name: (coverage) Install
-    #   if: matrix.nodejs >= 14
-    #   run: pnpm add -g c8
-
     - name: Compiles
       run: pnpm run build
 
-    # - name: Test
-    #   if: matrix.nodejs < 14
-    #   run: pnpm test
-
-    # - name: (coverage) Test
-    #   if: matrix.nodejs >= 14
-    #   run: c8 --include=packages pnpm test
-
-    # - name: (coverage) Report
-    #   if: matrix.nodejs >= 14
-    #   run: |
-    #     c8 report --reporter=text-lcov > coverage.lcov
-    #     bash <(curl -s https://codecov.io/bash)
-    #   env:
-    #     CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    - name: Test
+      run: bun test
