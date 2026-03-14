@@ -14,7 +14,7 @@ $ pnpm install
 $ node build/node.js
 ```
 
-> **Important:** Must be Node 12+ for native ESM
+> **Important:** Must be Node 22+
 
 ## Build
 

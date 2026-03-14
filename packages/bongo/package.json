@@ -17,7 +17,7 @@
     "url": "https://lukeed.com"
   },
   "engines": {
-    "node": ">=12.10"
+    "node": ">=22"
   },
   "dependencies": {
     "esbuild": "^0.14.0",
