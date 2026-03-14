@@ -1,37 +1,45 @@
-import type { BuildOptions, BuildResult } from 'esbuild';
+import type { InlineConfig, Rollup } from 'vite';
 
 export type Group = `${string}~${string}`;
-export type Thunk = Promise<BuildResult>;
+export type Thunk = Promise<Rollup.RollupOutput>;
 
 let INPUTS: Record<Group, Set<string>> = {};
-let CONFIGS: Record<Group, BuildOptions> = {};
+let CONFIGS: Record<Group, InlineConfig> = {};
 let BUNDLERS: Record<Group, Thunk> = {};
 
-let esbuild: typeof import('esbuild');
+let vite: typeof import('vite');
 
-let defaults: BuildOptions = {
-	bundle: true,
-	splitting: true,
-	// outdir: outdir,
-	// entryPoints: [file],
-	// absWorkingDir: srcdir,
-	resolveExtensions: ['.ts', '.js', '.cjs', '.mjs', '.css', '.json'],
-	mainFields: ['browser', 'module', 'jsnext', 'main'],
-	conditions: ['browser', 'import', 'production'],
-	platform: 'neutral',
-	incremental: false, // TODO
-	sourcemap: false, // TODO
-	minify: true, // always, faster
-	publicPath: '/', // replaced in build
-	write: true,
-	metafile: true,
-	allowOverwrite: true,
-	entryNames: '[name].[hash]',
-	chunkNames: '[name].[hash]',
+// rolldown/utils transformSync for config loading
+let oxcTransformSync: Function;
+
+let defaults: InlineConfig = {
+	configFile: false,
+	logLevel: 'silent',
+	build: {
+		write: true,
+		sourcemap: false, // TODO
+		minify: true,
+		rollupOptions: {
+			output: {
+				entryFileNames: '[name].[hash].js',
+				chunkFileNames: '[name].[hash].js',
+				assetFileNames: '[name].[hash][extname]',
+			},
+		},
+	},
+	resolve: {
+		extensions: ['.ts', '.js', '.cjs', '.mjs', '.css', '.json'],
+		mainFields: ['browser', 'module', 'jsnext', 'main'],
+		conditions: ['browser', 'import', 'production'],
+	},
 };
 
-export function toGroup(options: BuildOptions): Group {
-	return (options.format || '') + '~' + String(options.target || '') as Group;
+export function toGroup(options: InlineConfig): Group {
+	let fmt = options.build?.rollupOptions?.output;
+	let format = (fmt && !Array.isArray(fmt) ? fmt.format : '') || '';
+	// target is on build.target in vite
+	let target = String(options.build?.target || '');
+	return `${format}~${target}` as Group;
 }
 
 // TODO: invalidate BUNDLERS for dev server
@@ -41,7 +49,7 @@ export function reset() {
 	BUNDLERS = {};
 }
 
-export function prebuild(input: string, config: BuildOptions): Group {
+export function prebuild(input: string, config: InlineConfig): Group {
 	let group = toGroup(config);
 	let inputs = INPUTS[group] || new Set;
 	CONFIGS[group] = CONFIGS[group] || config;
@@ -50,78 +58,98 @@ export function prebuild(input: string, config: BuildOptions): Group {
 	return group;
 }
 
+function mergeConfig(base: InlineConfig, override: InlineConfig): InlineConfig {
+	return {
+		...base,
+		...override,
+		build: {
+			...base.build,
+			...override.build,
+			rollupOptions: {
+				...base.build?.rollupOptions,
+				...override.build?.rollupOptions,
+				output: {
+					...(base.build?.rollupOptions?.output as object),
+					...(override.build?.rollupOptions?.output as object),
+				},
+			},
+		},
+		resolve: {
+			...base.resolve,
+			...override.resolve,
+		},
+	};
+}
+
 // TODO: move warning|error handling here
 export function build(group: Group): Thunk {
-	esbuild = esbuild || require('esbuild');
+	vite = vite || require('vite');
 
 	let thunk = BUNDLERS[group];
 	if (thunk) return thunk;
 
 	let inputs = INPUTS[group];
-	let options = CONFIGS[group];
+	let config = CONFIGS[group];
 
-	if (!inputs || !inputs.size || !options) {
+	if (!inputs || !inputs.size || !config) {
 		throw new Error('invalid group');
 	}
 
-	options.entryPoints = [...inputs];
-	options = { ...defaults, ...options };
-
-	if (inputs.size > 1) {
-		options.splitting = true;
-		delete options.outfile;
-	} else if (options.outfile) {
-		delete options.outdir;
+	let entryPoints = [...inputs];
+	let rollupInput: Record<string, string> = {};
+	for (let entry of entryPoints) {
+		let name = entry.replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '');
+		rollupInput[name] = entry;
 	}
 
-	// NOTE: esbuild only supports splitting w/ ESM format
-	if (options.format !== 'esm') options.splitting = false;
+	let merged = mergeConfig(defaults, config);
 
-	return BUNDLERS[group] = esbuild.build(options);
+	// Build rollupOptions.input
+	merged.build!.rollupOptions = merged.build!.rollupOptions || {};
+	merged.build!.rollupOptions.input = rollupInput;
+
+	return BUNDLERS[group] = vite.build(merged) as Thunk;
 }
 
 // TODO: errors, warnings
-// TODO: track `result.metafile.inputs[key].imports`
-export function postbuild(entry: string, result: BuildResult): string | never {
-	// let msgs: string[] = [];
-	// msgs.push(...esbuild.formatMessagesSync(result.errors, { kind: 'error' }));
-	// msgs.push(...esbuild.formatMessagesSync(result.warnings, { kind: 'warning' }));
-
-	let key, tmp;
-	for (key in result.metafile!.outputs) {
-		tmp = result.metafile!.outputs[key];
-		if (tmp.entryPoint === entry) return key;
+export function postbuild(entry: string, result: Rollup.RollupOutput): string | never {
+	for (let chunk of result.output) {
+		if (chunk.type === 'chunk' && chunk.facadeModuleId === entry) {
+			return chunk.fileName;
+		}
+	}
+	// Fallback: match by entry name in the filename
+	let name = entry.replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '');
+	for (let chunk of result.output) {
+		if (chunk.type === 'chunk' && chunk.isEntry && chunk.name === name) {
+			return chunk.fileName;
+		}
 	}
 	throw new Error(`Missing output for "${entry}" entrypoint`);
 }
 
 export async function transform(filename: string) {
-	esbuild = esbuild || require('esbuild');
+	vite = vite || require('vite');
+	oxcTransformSync = oxcTransformSync || require('rolldown/utils').transformSync;
 
-	require.extensions['.ts'] = require.extensions['.ts'] || function (Module, filename) {
-		// @ts-ignore – internal method
+	require.extensions['.ts'] = require.extensions['.ts'] || function (Module: any, filename: string) {
 		const pitch = Module._compile.bind(Module);
 
-		// @ts-ignore - internal method
 		Module._compile = (source: string) => {
-			const { code, warnings } = esbuild.transformSync(source, {
-				minify: true,
-				format: 'cjs',
-				sourcemap: 'inline',
-				sourcefile: filename,
-				loader: 'ts',
+			const result = oxcTransformSync(filename, source, {
+				lang: 'ts',
+				sourcemap: false,
 			});
 
-			warnings.forEach(msg => {
-				console.warn(`\nesbuild warning in ${filename}:`);
-				console.warn(msg.location);
-				console.warn(msg.text);
+			(result.warnings || []).forEach((msg: any) => {
+				console.warn(`\noxc warning in ${filename}:`);
+				console.warn(msg.message || msg);
 			});
 
-			return pitch(code, filename);
+			return pitch(result.code, filename);
 		};
 
-		require.extensions['.js'](Module, filename);
+		require.extensions['.js']!(Module, filename);
 	};
 
 	return require(filename);

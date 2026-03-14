@@ -2,22 +2,21 @@ const { join } = require('path');
 const { gzipSync } = require('zlib');
 const { builtinModules } = require('module');
 const { readdir } = require('fs').promises;
-const { rollup } = require('rollup');
+const { rolldown } = require('rolldown');
 
 const plugins = require('./plugins');
 const packages = join(__dirname, '../packages');
 
+const isDEV = process.argv.includes('--dev');
+
 /**
- * @type {import('rollup').OutputOptions}
+ * @type {import('rolldown').OutputOptions}
  */
 const output = {
 	format: 'cjs',
 	file: '~inject~',
-	preferConst: true,
 	esModule: false,
-	interop: false,
-	strict: false,
-	freeze: false
+	minify: !isDEV,
 };
 
 const UNITS = ['B ', 'kB', 'MB', 'GB'];
@@ -49,9 +48,9 @@ exports.build = async function (dir) {
 			...Object.keys(pkg.dependencies || {}),
 			...Object.keys(pkg.peerDependencies || {}),
 			...Object.keys(pkg.optionalDependencies || {}),
-		];
+		].map(name => new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\/.*)?$`));
 
-		let bundle = await rollup({
+		let bundle = await rolldown({
 			input: join(abs, 'src/index.ts'),
 			plugins, external,
 		});

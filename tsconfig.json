@@ -17,7 +17,8 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "bongo": ["./packages/bongo/index.d.ts"]
+      "bongo": ["./packages/bongo/index.d.ts"],
+      "vite": ["./packages/bongo/node_modules/vite/dist/node/index.d.ts"]
     }
   },
   "include": [
