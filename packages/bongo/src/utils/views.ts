@@ -1,11 +1,11 @@
-import { parse, join, relative } from 'path';
+import { parse, join, relative } from 'node:path';
 import * as tempura from './tempura/index';
-import * as esbuild from './esbuild';
+import * as bundler from './bundler';
 import * as log from './log';
 import * as fs from './fs';
 
 import type { Argv, Config, Template } from 'bongo';
-import type { BuildOptions, Format } from 'esbuild';
+import type { InputOptions, OutputOptions } from 'rolldown';
 import type { Args } from './tempura/index';
 
 // TODO: revert to `tempura.Compiler` postfix
@@ -15,7 +15,7 @@ export const Layouts: Cache = new Map;
 export const Partials: Cache = new Map;
 
 const Assets: {
-	[input: string]: esbuild.Group
+	[input: string]: bundler.Group
 } = {};
 
 // Remove the extension
@@ -31,7 +31,7 @@ namespace Args {
 		defer?: boolean;
 		target?: string;
 		inline?: boolean;
-		format?: Format;
+		format?: string;
 		async?: boolean;
 	}
 
@@ -46,18 +46,14 @@ namespace Args {
 }
 
 export async function collect(argv: Required<Argv>, config: Required<Config>): Promise<void> {
-	let opts: BuildOptions = {
-		outdir: argv.dest,
-		absWorkingDir: argv.cwd,
-		publicPath: new URL(config.$site.url).pathname,
-		minify: argv.minify,
+	let inputOpts: InputOptions = {};
+	let outputOpts: OutputOptions = {
+		dir: argv.dest,
+		minify: !!argv.minify,
 	};
 
-	// esbuild cwd-relative -> absolute
-	// TODO: check (https?)?// prefix
+	// output fileName is relative to outDir (dest)
 	let toOutfile = (file: string) => {
-		file = join(argv.cwd, file);
-		file = relative(argv.dest, file);
 		return config.$utils.url.abs(file);
 	}
 
@@ -87,13 +83,12 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 
 			// NOTE: already setup()
 			let group = Assets[input]!;
-			let result = await esbuild.build(group);
+			let result = await bundler.build(group);
 
-			let entry = relative(argv.cwd, input);
-			let outfile = esbuild.postbuild(entry, result);
+			let outfile = bundler.postbuild(input, result);
 
 			if (inline) {
-				outfile = join(argv.cwd, outfile);
+				outfile = join(argv.dest, outfile);
 				let contents = await fs.read(outfile, 'utf8');
 				return `<style>${contents}</style>`;
 			}
@@ -123,9 +118,8 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 			// NOTE: already setup()
 			let group = Assets[input]!;
 
-			let entry = relative(argv.cwd, input);
-			let result = await esbuild.build(group);
-			let outfile = esbuild.postbuild(entry, result);
+			let result = await bundler.build(group);
+			let outfile = bundler.postbuild(input, result);
 
 			// NOTE: matches setup
 			format = format || 'esm';
@@ -140,7 +134,7 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 			}
 
 			if (inline) {
-				outfile = join(argv.cwd, outfile);
+				outfile = join(argv.dest, outfile);
 				let contents = await fs.read(outfile, 'utf8');
 				html += '>' + contents + '</script>';
 			} else {
@@ -161,14 +155,10 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 
 		fs.assert(input, `assets/${src}`);
 
-		let options = { ...opts };
+		let oo = { ...outputOpts };
+		if (output) oo.assetFileNames = output;
 
-		if (output) {
-			options.splitting = false;
-			options.outfile = join(argv.dest, output);
-		}
-
-		Assets[input] = esbuild.prebuild(input, options);
+		Assets[input] = bundler.prebuild(input, { input: { ...inputOpts }, output: oo });
 	}
 
 	blocks.script.setup = function (args: Args.Script) {
@@ -180,11 +170,13 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 
 		fs.assert(input, `assets/${src}`);
 
-		let options = { ...opts };
-		options.target = target || 'es2017';
-		options.format = format || 'esm';
-
-		Assets[input] = esbuild.prebuild(input, options);
+		Assets[input] = bundler.prebuild(input, {
+			input: { ...inputOpts },
+			output: {
+				...outputOpts,
+				format: (format || 'esm') as 'es' | 'cjs',
+			},
+		});
 	}
 
 	let props = ['$site', '$page', '$assets', '$utils'];

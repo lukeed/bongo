@@ -1,10 +1,10 @@
-import { watch as fsw } from 'fs';
-import { promises as fs } from 'fs';
-import { existsSync as exists } from 'fs';
-import { dirname, join } from 'path';
+import { watch as fsw } from 'node:fs';
+import { promises as fs } from 'node:fs';
+import { existsSync as exists } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { throttle } from './index';
 
-import type { FSWatcher } from 'fs';
+import type { FSWatcher } from 'node:fs';
 
 export { exists };
 

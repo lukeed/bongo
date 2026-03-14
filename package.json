@@ -1,13 +1,17 @@
 {
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "build": "node build",
+    "build": "cd build && tsx index.ts",
     "test": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "22.13.14",
     "bump": "1.0.0-next.1",
     "sirv": "1.0.19",
+    "tsx": "^4.21.0",
     "typescript": "5.9.3"
   }
 }

@@ -1,5 +1,5 @@
-import { dirname, join, resolve } from 'path';
-import { transform } from './esbuild';
+import { dirname, join, resolve } from 'node:path';
+import { transform } from './bundler';
 import * as fs from './fs';
 
 import type { Config } from 'bongo';

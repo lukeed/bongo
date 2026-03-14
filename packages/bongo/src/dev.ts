@@ -1,5 +1,5 @@
-import { relative } from 'path';
-import * as esbuild from './utils/esbuild';
+import { relative } from 'node:path';
+import * as bundler from './utils/bundler';
 import * as views from './utils/views';
 import * as http from './utils/http';
 import * as fs from './utils/fs';
@@ -26,7 +26,7 @@ export async function dev(argv: Argv) {
 	], async function (file) {
 		console.log('[ dev ]', relative(flags.cwd, file));
 
-		esbuild.reset();
+		bundler.reset();
 		views.Partials.clear();
 		views.Layouts.clear();
 

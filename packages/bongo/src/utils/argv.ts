@@ -1,4 +1,4 @@
-import { resolve } from 'path';
+import { resolve } from 'node:path';
 import type { Argv } from 'bongo';
 
 export function normalize(argv: Argv): asserts argv is Required<Argv> {

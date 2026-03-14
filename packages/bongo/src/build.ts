@@ -1,4 +1,4 @@
-import { extname, join, relative } from 'path';
+import { extname, join, relative } from 'node:path';
 
 import * as fs from './utils/fs';
 import * as log from './utils/log';
@@ -190,8 +190,8 @@ export async function build(argv: Argv): Promise<void> {
 	});
 
 	if (argv.minify) {
-		const exec = require('util').promisify(
-			require('child_process').exec
+		const exec = require('node:util').promisify(
+			require('node:child_process').exec
 		);
 
 		try {

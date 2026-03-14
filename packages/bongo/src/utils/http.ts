@@ -1,6 +1,6 @@
 import sirv from 'sirv';
-import { createServer } from 'http';
-import type { Server, ServerResponse } from 'http';
+import { createServer } from 'node:http';
+import type { Server, ServerResponse } from 'node:http';
 import type { Argv } from 'bongo';
 
 export const RELOAD = '/~/reload';
