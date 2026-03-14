@@ -1,5 +1,8 @@
 {
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "tsx build/index.ts",
     "test": "tsc --noEmit"

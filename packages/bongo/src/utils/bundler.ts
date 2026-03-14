@@ -9,6 +9,10 @@ let BUNDLERS: Record<Group, Thunk> = {};
 
 let vite: typeof import('vite');
 
+async function loadVite() {
+	return vite = vite || await import('vite');
+}
+
 // rolldown/utils transformSync for config loading
 let oxcTransformSync: Function;
 
@@ -82,8 +86,8 @@ function mergeConfig(base: InlineConfig, override: InlineConfig): InlineConfig {
 }
 
 // TODO: move warning|error handling here
-export function build(group: Group): Thunk {
-	vite = vite || require('vite');
+export async function build(group: Group): Thunk {
+	await loadVite();
 
 	let thunk = BUNDLERS[group];
 	if (thunk) return thunk;
@@ -129,8 +133,8 @@ export function postbuild(entry: string, result: Rollup.RollupOutput): string | 
 }
 
 export async function transform(filename: string) {
-	vite = vite || require('vite');
-	oxcTransformSync = oxcTransformSync || require('rolldown/utils').transformSync;
+	await loadVite();
+	oxcTransformSync = oxcTransformSync || (await import('rolldown/utils')).transformSync;
 
 	require.extensions['.ts'] = require.extensions['.ts'] || function (Module: any, filename: string) {
 		const pitch = Module._compile.bind(Module);

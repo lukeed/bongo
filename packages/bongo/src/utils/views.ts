@@ -1,6 +1,6 @@
 import { parse, join, relative } from 'node:path';
 import * as tempura from './tempura/index';
-import * as bundler from './esbuild';
+import * as bundler from './bundler';
 import * as log from './log';
 import * as fs from './fs';
 
