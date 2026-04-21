@@ -203,9 +203,36 @@ export async function build(argv: Argv): Promise<void> {
 			content += `<script>`;
 			content +=   `var es = new EventSource('${RELOAD}');`;
 			content +=   `es.onopen = () => console.log('[dev] live reload enabled');`;
-			// Phase G will extend this switch for hmr/error/error-clear.
-			// Unknown types are silently ignored for forward-compat.
-			content +=   `es.onmessage = (ev) => { try { var m = JSON.parse(ev.data); if (m.type === 'reload') location.reload(); } catch (e) {} };`;
+			content +=   `es.onmessage = (ev) => {`;
+			content +=     `try {`;
+			content +=       `var m = JSON.parse(ev.data);`;
+			content +=       `if (m.type === 'reload') location.reload();`;
+			content +=       `else if (m.type === 'hmr') console.warn('[dev] HMR not yet implemented; ignoring');`;
+			content +=       `else if (m.type === 'error') __bongo_err(m.errors);`;
+			content +=       `else if (m.type === 'error-clear') __bongo_err_clear();`;
+			content +=     `} catch (e) {}`;
+			content +=   `};`;
+			content +=   `function __bongo_err(errs) {`;
+			content +=     `__bongo_err_clear();`;
+			content +=     `var o = document.createElement('div');`;
+			content +=     `o.id = '__bongo_overlay';`;
+			content +=     `o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(20,20,20,.92);color:#f4f4f4;font:14px/1.5 ui-monospace,monospace;padding:24px;overflow:auto;white-space:pre-wrap';`;
+			content +=     `var html = '<h2 style=\\'margin:0 0 12px;color:#ff6b6b\\'>Build error</h2>';`;
+			content +=     `for (var i=0;i<errs.length;i++) {`;
+			content +=       `var e = errs[i];`;
+			content +=       `html += '<div style=\\'margin-bottom:12px\\'>';`;
+			content +=       `if (e.file) html += '<strong>'+e.file+(e.line?':'+e.line:'')+'</strong>\\n';`;
+			content +=       `html += (e.message||'').replace(/[<>&]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]});`;
+			content +=       `if (e.frame) html += '\\n'+e.frame.replace(/[<>&]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]});`;
+			content +=       `html += '</div>';`;
+			content +=     `}`;
+			content +=     `o.innerHTML = html;`;
+			content +=     `document.body.appendChild(o);`;
+			content +=   `}`;
+			content +=   `function __bongo_err_clear() {`;
+			content +=     `var o = document.getElementById('__bongo_overlay');`;
+			content +=     `if (o) o.remove();`;
+			content +=   `}`;
 			content += `</script>`;
 		}
 

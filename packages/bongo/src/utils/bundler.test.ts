@@ -190,3 +190,22 @@ describe('watch()', () => {
 		}
 	});
 });
+
+describe('hmr()', () => {
+	test('pushes error messages to the registered sender', async () => {
+		let messages: unknown[] = [];
+		bundler.hmr((msg) => { messages.push(msg); });
+		bundler.register('/definitely/not/here.ts', { kind: 'js' });
+		let { outDir } = await tmp({ 'unused.ts': '' });
+		try {
+			let result = await bundler.flush({ outDir });
+			expect(result.errors.length).toBeGreaterThan(0);
+			expect(messages.length).toBeGreaterThan(0);
+			let first = messages[0] as { type: string; errors: unknown[] };
+			expect(first.type).toBe('error');
+			expect(Array.isArray(first.errors)).toBe(true);
+		} finally {
+			await rm(outDir, { recursive: true, force: true });
+		}
+	});
+});

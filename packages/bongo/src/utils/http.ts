@@ -2,14 +2,14 @@ import sirv from 'sirv';
 import { createServer } from 'node:http';
 import type { Server, ServerResponse } from 'node:http';
 import type { Argv } from 'bongo';
+import type { HmrMessage } from './bundler';
 
 export const RELOAD = '/~/reload';
 
-export type ClientMessage =
-	| { type: 'reload' }
-	| { type: 'hmr'; updates: unknown[] }    // Phase G consumer
-	| { type: 'error'; errors: unknown[] }   // Phase G consumer
-	| { type: 'error-clear' };
+// Alias so http consumers can import ClientMessage without knowing about bundler.
+// Structural identity with HmrMessage is intentional — http.send is passed
+// directly to bundler.hmr() in dev.ts.
+export type ClientMessage = HmrMessage;
 
 const clients = new Set<ServerResponse>();
 

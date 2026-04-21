@@ -230,6 +230,17 @@ export async function flush(opts: { outDir: string }): Promise<FlushResult> {
 
 	LAST_OUTPUTS = outputs;
 
+	// Propagate build errors/clears to the browser overlay via HMR sender.
+	if (HMR_SEND) {
+		if (errors.length > 0) {
+			HMR_SEND({ type: 'error', errors });
+			LAST_HAD_ERRORS = true;
+		} else if (LAST_HAD_ERRORS) {
+			HMR_SEND({ type: 'error-clear' });
+			LAST_HAD_ERRORS = false;
+		}
+	}
+
 	// Extend the watch's tracked-file set with any newly discovered deps.
 	if (WATCH && WATCH.active) {
 		for (let info of outputs.values()) {
@@ -302,9 +313,24 @@ export function watch(cb: (diff: WatchDiff) => void): Unsubscribe {
 	};
 }
 
-// Phase G implements real HMR behaviour.
-export function hmr(_send: (msg: HmrMessage) => void): void {
-	// no-op until Phase G
+// ---------------------------------------------------------------------------
+// HMR sender (Phase G)
+// ---------------------------------------------------------------------------
+
+// Rolldown 1.0-rc.9 does not expose a stable standalone HMR client protocol
+// usable from third-party dev servers. `hmr()` stores the sender so that
+// build errors propagate to the browser overlay immediately, and the `hmr`
+// message variant is reserved in the type union for forward compatibility once
+// rolldown ships a stable client transport. Until then, every change that
+// requires a content refresh is communicated as `{ type: 'reload' }` by
+// dev.ts after a successful build; bundler only ever emits `error` and
+// `error-clear` via this sender.
+
+let HMR_SEND: ((msg: HmrMessage) => void) | null = null;
+let LAST_HAD_ERRORS = false;
+
+export function hmr(send: (msg: HmrMessage) => void): void {
+	HMR_SEND = send;
 }
 
 // ---------------------------------------------------------------------------
