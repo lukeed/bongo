@@ -288,3 +288,64 @@ describe('integration: site-tags', () => {
 		}
 	});
 });
+
+describe('build({ only })', () => {
+	test('rewrites only the target page and preserves siblings', async () => {
+		let root = await copyFixture('site-sections');
+		try {
+			// Full build populates public/ with every page.
+			await build({ cwd: root });
+			let out = join(root, 'public');
+			let { stat, writeFile } = await import('node:fs/promises');
+
+			// Pick a content file whose layout embeds $page.content (blog/single.hbs
+			// does; blog/index.hbs renders only $section and doesn't reference it).
+			let targetRel = 'blog/post-1/index.html';
+			let siblingRel = 'blog/post-2/index.html';
+
+			let targetBefore = await readFile(join(out, targetRel), 'utf8');
+			let siblingBefore = await readFile(join(out, siblingRel), 'utf8');
+			let siblingMtimeBefore = (await stat(join(out, siblingRel))).mtimeMs;
+
+			// Edit the target content file so its rendered HTML genuinely changes.
+			let contentFile = join(root, 'content', 'blog', 'post-1.html');
+			let src = await readFile(contentFile, 'utf8');
+			await writeFile(contentFile, src + '\n<p data-bongo-test>narrow</p>\n');
+
+			// Wait a tick so mtime resolution doesn't lie about "same second" writes.
+			await new Promise(r => setTimeout(r, 20));
+
+			// Narrow rebuild.
+			await build({ cwd: root }, { only: 'blog/post-1.html' });
+
+			let targetAfter = await readFile(join(out, targetRel), 'utf8');
+			let siblingAfter = await readFile(join(out, siblingRel), 'utf8');
+			let siblingMtimeAfter = (await stat(join(out, siblingRel))).mtimeMs;
+
+			expect(targetAfter).not.toBe(targetBefore);
+			expect(targetAfter).toContain('data-bongo-test');
+			expect(siblingAfter).toBe(siblingBefore);
+			expect(siblingMtimeAfter).toBe(siblingMtimeBefore);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('unknown `only` paths produce no output and do not clobber public/', async () => {
+		let root = await copyFixture('site-sections');
+		try {
+			await build({ cwd: root });
+			let out = join(root, 'public');
+
+			let before = await readFile(join(out, 'index.html'), 'utf8');
+
+			// Nonexistent rel — nothing should render, nothing should be nuked.
+			await build({ cwd: root }, { only: 'content-that-does-not-exist.md' });
+
+			let after = await readFile(join(out, 'index.html'), 'utf8');
+			expect(after).toBe(before);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});

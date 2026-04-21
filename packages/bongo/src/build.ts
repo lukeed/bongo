@@ -62,7 +62,18 @@ function parseTags(value: unknown): string[] {
 	return [];
 }
 
-export async function build(argv: Argv): Promise<void> {
+export type BuildOptions = {
+	// Narrow the build to a single content file's rel path (e.g. 'blog/post.md').
+	// Walk 1 (scan + registries) still runs over every file so `$pages` / `$section`
+	// / `$tags` stay accurate, but walk 2 renders only the matching page and
+	// `public/` is not wiped. Used by the dev server for content-file edits.
+	// Pass-through asset copies (images etc.) are still re-emitted since walk 1
+	// handles them inline. If `only` doesn't match any content file, nothing is
+	// rendered — call without `only` for a full rebuild in that case.
+	only?: string;
+};
+
+export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> {
 	normalize(argv);
 
 	const config = await load(argv.cwd);
@@ -71,7 +82,7 @@ export async function build(argv: Argv): Promise<void> {
 
 	debug('[build.argv]', argv);
 
-	await fs.rmdir(argv.dest);
+	if (!opts.only) await fs.rmdir(argv.dest);
 
 	config.$assets = {
 		// @ts-ignore -> switcheroo
@@ -250,9 +261,13 @@ export async function build(argv: Argv): Promise<void> {
 	}
 
 	// Walk 2 — render layouts with $pages + $section + $tags context.
+	// If `only` is set, skip rendering every item except the matching one — walk 1
+	// above already populated the registries so sibling awareness stays correct.
 	let pages: CollectedPage[] = [];
 
 	for (let item of scanned) {
+		if (opts.only && item.rel !== opts.only) continue;
+
 		let $page: Template.Page = {
 			path: item.path,
 			params: item.params,
