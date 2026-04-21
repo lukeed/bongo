@@ -146,8 +146,6 @@ export async function build(argv: Argv): Promise<void> {
 			while (prev !== ext) {
 				if (isPage.test(ext)) break;
 
-				// TODO: ASSETS after config
-				// TODO: loader receives utils
 				if (loader = ASSETS[prev = ext]) {
 					let result = await loader(filename, data, loader_utils);
 					filename = result.filename;
@@ -392,9 +390,8 @@ export async function build(argv: Argv): Promise<void> {
 			let { stdout, stderr } = await exec('minify --version');
 			if (stderr.length || stdout.length < 1) throw 1;
 		} catch (err) {
-			// TODO: formatting
-			console.error('You must have `minify` available in your $PATH for `--minify` to work.');
-			console.error('Visit ~https://github.com/tdewolff/minify~ for installation instructions.');
+			log.error('`--minify` requires the `minify` CLI on your $PATH.');
+			log.error('See https://github.com/tdewolff/minify for install instructions.');
 			return process.exit(1);
 		}
 

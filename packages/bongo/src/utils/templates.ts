@@ -8,17 +8,17 @@ import type { Argv, Config, Template } from 'bongo';
 import type { Args } from './tempura/index';
 import type { OutputInfo, Placeholder } from './bundler';
 
-// TODO: revert to `tempura.Compiler` postfix
 type Cache = Map<string, Template.Compiler>;
 
 export const Layouts: Cache = new Map;
 export const Partials: Cache = new Map;
 
-// Remove the extension
-// TODO: normalize path separators
+// Strip the extension and normalise backslashes to forward slashes so partial
+// names are stable across platforms (Windows' `\`-separated `fs.readdir` paths
+// become `/`-separated keys that match layout lookups).
 function toPartialName(file: string): string {
 	let { ext } = parse(file);
-	return file.substring(0, file.length - ext.length);
+	return file.substring(0, file.length - ext.length).replace(/\\/g, '/');
 }
 
 namespace BlockArgs {
@@ -183,7 +183,6 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 	// unknown to satisfy the index signature without using `any`.
 	let options: tempura.Options = { async: true, props, blocks: blocks as unknown as tempura.Blocks };
 
-	// TODO: improv error msg display
 	async function compile(dir: string, rel: string) {
 		try {
 			let file = join(dir, rel);
@@ -191,10 +190,10 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 			return tempura.compile(content, options);
 		} catch (err) {
 			let type = parse(dir).name.slice(0, -1); // strip "s"
-			let tmp = new Error(`Error compiling "${rel}" ${type}!`);
-			if (!(err instanceof SyntaxError)) {
-				tmp.message += '\n\t' + (err as Error).message;
-			}
+			let reason = err instanceof Error ? err.message : String(err);
+			let tmp = new Error(`Error compiling "${rel}" ${type}: ${reason}`, {
+				cause: err,
+			});
 			throw tmp;
 		}
 	}
