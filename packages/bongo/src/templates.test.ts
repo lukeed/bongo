@@ -57,4 +57,46 @@ describe('frontmatter', () => {
 		expect(result.value).toEqual({ title: 'Hello' });
 		expect(result.offset).toBeGreaterThan(0);
 	});
+
+	test('strips double quotes from values', () => {
+		let input = '---\ntitle: "This is a title"\n---\nBody';
+		let result = frontmatter(input);
+		expect(result.value.title).toBe('This is a title');
+	});
+
+	test('strips single quotes from values', () => {
+		let input = "---\nsummary: 'short desc'\n---\nBody";
+		let result = frontmatter(input);
+		expect(result.value.summary).toBe('short desc');
+	});
+
+	test('preserves unquoted values', () => {
+		let input = '---\ntag: demo\n---\nBody';
+		let result = frontmatter(input);
+		expect(result.value.tag).toBe('demo');
+	});
+
+	test('strips quotes from empty string values', () => {
+		let input = '---\nempty: ""\n---\nBody';
+		let result = frontmatter(input);
+		expect(result.value.empty).toBe('');
+	});
+
+	test('preserves mismatched quotes', () => {
+		let input = '---\nweird: "foo\'\n---\nBody';
+		let result = frontmatter(input);
+		expect(result.value.weird).toBe('"foo\'');
+	});
+
+	test('preserves quotes within the value', () => {
+		let input = '---\ntitle: Use "quotes" carefully\n---\nBody';
+		let result = frontmatter(input);
+		expect(result.value.title).toBe('Use "quotes" carefully');
+	});
+
+	test('strips quotes and preserves internal spaces', () => {
+		let input = '---\nphrase: "Hello World"\n---\nBody';
+		let result = frontmatter(input);
+		expect(result.value.phrase).toBe('Hello World');
+	});
 });

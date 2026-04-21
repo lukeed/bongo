@@ -306,6 +306,20 @@ export async function substitute(html: string, opts: SubstituteOptions): Promise
 	return html;
 }
 
+// Strip surrounding matching quotes from a string value.
+// If the string is surrounded by matching `"..."` or `'...'`, remove them.
+// Mismatched or missing quotes are left intact.
+function unquote(raw: string): string {
+	if (raw.length >= 2) {
+		let first = raw.charAt(0);
+		let last = raw.charAt(raw.length - 1);
+		if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+			return raw.slice(1, -1);
+		}
+	}
+	return raw;
+}
+
 export function frontmatter(content: string): {
 	offset: number;
 	value: Template.Params
@@ -321,7 +335,7 @@ export function frontmatter(content: string): {
 
 	match[1].split('\n').forEach(pair => {
 		let [key, ...v] = pair.split(':');
-		value[key.trim()] = v.join(':').trim();
+		value[key.trim()] = unquote(v.join(':').trim());
 	});
 
 	return { offset: match[0].length, value };
