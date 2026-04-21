@@ -212,6 +212,7 @@ export async function build(argv: Argv): Promise<void> {
 			content +=       `else if (m.type === 'error-clear') __bongo_err_clear();`;
 			content +=     `} catch (e) {}`;
 			content +=   `};`;
+			content +=   `function __bongo_esc(s) { return String(s||'').replace(/[<>&]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]}); }`;
 			content +=   `function __bongo_err(errs) {`;
 			content +=     `__bongo_err_clear();`;
 			content +=     `var o = document.createElement('div');`;
@@ -221,9 +222,9 @@ export async function build(argv: Argv): Promise<void> {
 			content +=     `for (var i=0;i<errs.length;i++) {`;
 			content +=       `var e = errs[i];`;
 			content +=       `html += '<div style=\\'margin-bottom:12px\\'>';`;
-			content +=       `if (e.file) html += '<strong>'+e.file+(e.line?':'+e.line:'')+'</strong>\\n';`;
-			content +=       `html += (e.message||'').replace(/[<>&]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]});`;
-			content +=       `if (e.frame) html += '\\n'+e.frame.replace(/[<>&]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]});`;
+			content +=       `if (e.file) html += '<strong>'+__bongo_esc(e.file)+(e.line?':'+__bongo_esc(e.line):'')+'</strong>\\n';`;
+			content +=       `html += __bongo_esc(e.message);`;
+			content +=       `if (e.frame) html += '\\n'+__bongo_esc(e.frame);`;
 			content +=       `html += '</div>';`;
 			content +=     `}`;
 			content +=     `o.innerHTML = html;`;

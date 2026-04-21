@@ -241,8 +241,13 @@ export async function flush(opts: { outDir: string }): Promise<FlushResult> {
 		}
 	}
 
-	// Extend the watch's tracked-file set with any newly discovered deps.
+	// Extend the watch's tracked-file set with every registered entry plus
+	// any newly discovered transitive deps. The entry itself must be tracked
+	// for CSS groups, where lightningcss only reports @import'd files in
+	// `dependencies` — the entry (bare .css with no imports) would otherwise
+	// be invisible to the watcher.
 	if (WATCH && WATCH.active) {
+		for (let reg of REGISTRATIONS.values()) WATCH.files.add(reg.entry);
 		for (let info of outputs.values()) {
 			for (let dep of info.dependencies) WATCH.files.add(dep);
 		}
