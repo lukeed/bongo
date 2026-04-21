@@ -1,6 +1,6 @@
 import { relative } from 'node:path';
 import * as bundler from './utils/bundler';
-import * as views from './utils/views';
+import * as templates from './utils/templates';
 import * as http from './utils/http';
 import * as fs from './utils/fs';
 import { build } from './build';
@@ -27,8 +27,8 @@ export async function dev(argv: Argv) {
 		console.log('[ dev ]', relative(flags.cwd, file));
 
 		bundler.reset();
-		views.Partials.clear();
-		views.Layouts.clear();
+		templates.Partials.clear();
+		templates.Layouts.clear();
 
 		await build(argv);
 		http.reload();

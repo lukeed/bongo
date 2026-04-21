@@ -3,7 +3,7 @@ import { extname, join, relative } from 'node:path';
 import * as fs from './utils/fs';
 import * as log from './utils/log';
 import { load } from './utils/config';
-import * as views from './utils/views';
+import * as templates from './utils/templates';
 import { normalize } from './utils/argv';
 import { RELOAD } from './utils/http';
 
@@ -29,8 +29,8 @@ export async function build(argv: Argv): Promise<void> {
 		}
 	};
 
-	// sets `views` caches
-	await views.collect(argv, config);
+	// sets `templates` caches
+	await templates.collect(argv, config);
 
 	// TODO: save all `$page`|params into URL key
 	// const Pages = new Map<url, info>;
@@ -38,11 +38,11 @@ export async function build(argv: Argv): Promise<void> {
 	// const Tags = new Map<tag, url>;
 
 	const isPage = /(hbs|html?)$/;
-	const { Layouts, Partials } = views;
+	const { Layouts, Partials } = templates;
 	const { dest, content } = argv;
 
 	const loader_utils: Loader.Utilities = {
-		frontmatter: views.frontmatter,
+		frontmatter: templates.frontmatter,
 
 		render(name, ...args) {
 			let view = Partials.get(name);
@@ -74,7 +74,7 @@ export async function build(argv: Argv): Promise<void> {
 		// TODO: collect non-`index` pages for "$section" (?)
 		if (isPage.test(ext)) {
 			content = await fs.read(input, 'utf8');
-			let { offset, value } = views.frontmatter(content);
+			let { offset, value } = templates.frontmatter(content);
 
 			if (offset > 0) {
 				Object.assign(params, value);
