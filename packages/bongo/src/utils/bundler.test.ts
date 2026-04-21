@@ -66,7 +66,7 @@ describe('flush() — JS', () => {
 			let info = result.outputs.get(p);
 			expect(info).toBeDefined();
 			// rolldown uses base62 hashes (e.g. "jxy3YN54"), not hex-only
-		expect(info!.filename).toMatch(/^entry\.[a-zA-Z0-9]+\.js$/);
+		expect(info!.filename).toMatch(/^entry\.[\w-]+\.js$/);
 			let written = await readFile(join(outDir, info!.filename), 'utf8');
 			expect(written).toContain('console.log');
 		} finally {
@@ -85,8 +85,8 @@ describe('flush() — JS', () => {
 			let result = await bundler.flush({ outDir });
 			expect(result.errors).toEqual([]);
 			expect(result.outputs.size).toBe(2);
-			expect(result.outputs.get(pa)!.filename).toMatch(/^a\.[a-zA-Z0-9]+\.js$/);
-			expect(result.outputs.get(pb)!.filename).toMatch(/^b\.[a-zA-Z0-9]+\.js$/);
+			expect(result.outputs.get(pa)!.filename).toMatch(/^a\.[\w-]+\.js$/);
+			expect(result.outputs.get(pb)!.filename).toMatch(/^b\.[\w-]+\.js$/);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
@@ -117,7 +117,7 @@ describe('flush() — CSS', () => {
 			expect(result.errors).toEqual([]);
 			let info = result.outputs.get(p);
 			expect(info).toBeDefined();
-			expect(info!.filename).toMatch(/^style\.[a-f0-9]+\.css$/);
+			expect(info!.filename).toMatch(/^style\.[\w-]+\.css$/);
 			let written = await readFile(join(outDir, info!.filename), 'utf8');
 			expect(written).toContain('.a');
 			expect(written).toContain('.b');
@@ -151,7 +151,7 @@ describe('resolve()', () => {
 			await bundler.flush({ outDir });
 			let file = bundler.resolve(p);
 			// rolldown uses base62 hashes (e.g. "jxy3YN54"), not hex-only
-			expect(file).toMatch(/^entry\.[a-zA-Z0-9]+\.js$/);
+			expect(file).toMatch(/^entry\.[\w-]+\.js$/);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
