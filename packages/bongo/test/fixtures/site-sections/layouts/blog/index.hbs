@@ -1,0 +1,8 @@
+<article>
+<h1>{{ $page.title }}</h1>
+<ul class="posts">
+{{#each $section as (p)}}
+<li data-path="{{ p.path }}"><a href="{{ p.path }}">{{ p.title }}</a></li>
+{{/each}}
+</ul>
+</article>

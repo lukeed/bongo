@@ -202,7 +202,17 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax (Handlebars-li
 {{#partial src="card" title="Hello" }}
 ```
 
-**Template variables:** `$site`, `$page`, `$assets`, `$utils`
+**Template variables:**
+
+- `$site` — global site config (`url`, `title`, `lang`, `menu`, `description`).
+- `$page` — the current page being rendered. Fields: `path`, `url`, `title`, `summary`, `params` (frontmatter), `section` (directory prefix), `tags` (parsed from `params.tags`), `content` (pre-layout rendered body), `scripts`, `styles`.
+- `$pages` — every page in the build, sorted by path ascending. Each entry has `path`, `url`, `title`, `summary`, `section`, `tags`, `params`.
+- `$section` — same shape as `$pages`, scoped to the current page's section directory (includes the section's own `index` page if present).
+- `$tags` — an array of `{ tag, pages }` entries. Iterate with `{{#each $tags as (entry)}}{{#each entry.pages as (p)}}…{{/each}}{{/each}}`.
+- `$assets` — loader map configured via `bongo.config.ts`.
+- `$utils` — helpers (`truncate`, `countwords`, `url.abs`, `date.format`).
+
+Content files ending in `.hbs` are themselves tempura-compiled before layout render, with `$site`, `$assets`, `$utils`, and `params` in scope (no `$page`/`$pages`/`$section`/`$tags` — those belong to the layout pass).
 
 ### CSS
 

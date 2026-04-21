@@ -77,12 +77,29 @@ export namespace Template {
 		url: string;
 		path: string;
 		title: string;
-		params: Params;
 		summary: string;
+		section: string;
+		tags: string[];
+		params: Params;
 		content: string;
 		scripts: string;
 		styles: string;
 	}
+
+	type PageInfo = {
+		path: string;    // URL path (e.g. '/blog/post-1/')
+		url: string;     // absolute URL (e.g. 'https://example.com/blog/post-1/')
+		title: string;
+		summary: string;
+		section: string; // directory prefix (e.g. 'blog', '' for root)
+		tags: string[];  // parsed from frontmatter
+		params: Params;  // full frontmatter
+	};
+
+	type TagEntry = {
+		tag: string;
+		pages: PageInfo[];
+	};
 
 	interface Params {
 		[name: string]: unknown;

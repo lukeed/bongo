@@ -8,17 +8,17 @@ import type { Argv, Config, Template } from 'bongo';
 import type { Args } from './tempura/index';
 import type { OutputInfo, Placeholder } from './bundler';
 
-// TODO: revert to `tempura.Compiler` postfix
 type Cache = Map<string, Template.Compiler>;
 
 export const Layouts: Cache = new Map;
 export const Partials: Cache = new Map;
 
-// Remove the extension
-// TODO: normalize path separators
+// Strip the extension and normalise backslashes to forward slashes so partial
+// names are stable across platforms (Windows' `\`-separated `fs.readdir` paths
+// become `/`-separated keys that match layout lookups).
 function toPartialName(file: string): string {
 	let { ext } = parse(file);
-	return file.substring(0, file.length - ext.length);
+	return file.substring(0, file.length - ext.length).replace(/\\/g, '/');
 }
 
 namespace BlockArgs {
@@ -163,18 +163,30 @@ function makeBlocks(argv: Required<Argv>, config: Required<Config>) {
 	};
 }
 
+// Content is compiled BEFORE walk 2, so `$page`, `$pages`, `$section`, `$tags`
+// aren't available yet — only the page's own `params` plus the site-wide helpers.
+// Consumers who need sibling/tag info should do that work in their LAYOUT, not
+// in their content body.
+export async function compileContent(src: string): Promise<Template.Compiler> {
+	let options: tempura.Options = {
+		async: true,
+		props: ['$site', '$assets', '$utils', 'params'],
+		blocks: blocks as unknown as tempura.Blocks,
+	};
+	return tempura.compile(src, options);
+}
+
 export async function collect(argv: Required<Argv>, config: Required<Config>): Promise<void> {
 	let made = makeBlocks(argv, config);
 
 	// Re-assign onto the exported const so ESM consumers see the new closures.
 	Object.assign(blocks, made);
 
-	let props = ['$site', '$page', '$assets', '$utils'];
+	let props = ['$site', '$page', '$pages', '$section', '$tags', '$assets', '$utils'];
 	// tempura blocks is typed as Blocks (Record<string, Block>); we cast through
 	// unknown to satisfy the index signature without using `any`.
 	let options: tempura.Options = { async: true, props, blocks: blocks as unknown as tempura.Blocks };
 
-	// TODO: improv error msg display
 	async function compile(dir: string, rel: string) {
 		try {
 			let file = join(dir, rel);
@@ -182,10 +194,10 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 			return tempura.compile(content, options);
 		} catch (err) {
 			let type = parse(dir).name.slice(0, -1); // strip "s"
-			let tmp = new Error(`Error compiling "${rel}" ${type}!`);
-			if (!(err instanceof SyntaxError)) {
-				tmp.message += '\n\t' + (err as Error).message;
-			}
+			let reason = err instanceof Error ? err.message : String(err);
+			let tmp = new Error(`Error compiling "${rel}" ${type}: ${reason}`, {
+				cause: err,
+			});
 			throw tmp;
 		}
 	}

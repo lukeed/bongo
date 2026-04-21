@@ -178,3 +178,90 @@ describe('integration: site-build-error', () => {
 		}
 	});
 });
+
+describe('integration: site-hbs-content', () => {
+	test('.hbs content files are compiled with $site + params', async () => {
+		let root = await copyFixture('site-hbs-content');
+		try {
+			await build({ cwd: root });
+
+			let indexHtml = await readFile(join(root, 'public', 'index.html'), 'utf8');
+
+			// params.title came from frontmatter
+			expect(indexHtml).toContain('<h1>Greeting Page</h1>');
+			// params.name + $site.title resolved inline
+			expect(indexHtml).toContain('Hello, World! From HBS Content Fixture.');
+			// Layout still wrapped it
+			expect(indexHtml).toContain('<title>Greeting Page — HBS Content Fixture</title>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('integration: site-sections', () => {
+	test('exposes $pages and $section in templates; sets $page.section', async () => {
+		let root = await copyFixture('site-sections');
+		try {
+			await build({ cwd: root });
+
+			let out = join(root, 'public');
+
+			// Blog index lists siblings via $section iteration.
+			// The index path is '/blog/' (index.* stripping adds no suffix, just strips 'index').
+			let blogIndex = await readFile(join(out, 'blog', 'index.html'), 'utf8');
+			expect(blogIndex).toContain('data-path="/blog/post-1/"');
+			expect(blogIndex).toContain('data-path="/blog/post-2/"');
+			// The index itself is a member of the section — its own path appears too.
+			expect(blogIndex).toContain('data-path="/blog/"');
+
+			// The root layout reads $page.section — blog pages have section='blog'.
+			expect(blogIndex).toContain('data-section="blog"');
+
+			// Home page's section is '' (root).
+			let homeHtml = await readFile(join(out, 'index.html'), 'utf8');
+			expect(homeHtml).toContain('data-section=""');
+
+			// A leaf post renders via single.hbs (fallback chain) with its own content.
+			let post1 = await readFile(join(out, 'blog', 'post-1', 'index.html'), 'utf8');
+			expect(post1).toContain('First Post');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('integration: site-tags', () => {
+	test('exposes $tags in layout and $page.tags per page', async () => {
+		let root = await copyFixture('site-tags');
+		try {
+			await build({ cwd: root });
+
+			let out = join(root, 'public');
+
+			// Post A has tags food + travel.
+			let postA = await readFile(join(out, 'post-a', 'index.html'), 'utf8');
+			expect(postA).toContain('data-tags="food,travel"');
+
+			// Post B has tags travel + tech.
+			let postB = await readFile(join(out, 'post-b', 'index.html'), 'utf8');
+			expect(postB).toContain('data-tags="travel,tech"');
+
+			// Home page sees every tag via $tags.
+			let home = await readFile(join(out, 'index.html'), 'utf8');
+			// Each tag appears as a <li data-tag="…">.
+			for (let tag of ['home', 'meta', 'food', 'travel', 'tech']) {
+				expect(home).toContain(`data-tag="${tag}"`);
+			}
+
+			// The 'travel' tag lists both post-a and post-b via nested iteration.
+			let travelMatch = home.match(/<li data-tag="travel">([\s\S]*?)<\/li>/);
+			expect(travelMatch).not.toBeNull();
+			let travelSection = travelMatch![1];
+			expect(travelSection).toContain('data-path="/post-a/"');
+			expect(travelSection).toContain('data-path="/post-b/"');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});

@@ -21,10 +21,46 @@ function derivePublicPath(siteUrl: string): string {
 	}
 }
 
+// Section = the directory prefix of the page's rel path, using forward slashes.
+// e.g. "blog/post.md" -> "blog", "index.md" -> "", "blog/2025/post.md" -> "blog/2025"
+// Note: index.* stripping only applies to URL path, NOT section derivation.
+function deriveSection(rel: string): string {
+	// Normalize backslashes (Windows) to forward slashes before splitting.
+	let normalized = rel.split(/[\\\/]+/g);
+	// Drop the filename — everything before it is the section.
+	let parts = normalized.slice(0, -1);
+	return parts.join('/');
+}
+
 type CollectedPage = {
 	output: string;   // absolute path to write
 	html: string;     // rendered HTML, may contain placeholders
 };
+
+type ScanItem = {
+	input: string;           // absolute source path
+	rel: string;             // path relative to content/
+	name: string;            // basename with ext
+	ext: string;             // final extension (post-loader chain) — e.g. 'md' -> 'html'
+	content: string;         // compiled-content-ready string (frontmatter stripped, loaders run, .hbs compiled)
+	params: Template.Params;
+	path: string;            // URL path (e.g. '/blog/post-1/')
+	output: string;          // absolute output path
+	section: string;         // derived from rel's dirname
+	title: string;
+	summary: string;
+	tags: string[];          // parsed from frontmatter.tags
+};
+
+function parseTags(value: unknown): string[] {
+	if (Array.isArray(value)) {
+		return value.filter((v): v is string => typeof v === 'string').map(s => s.trim()).filter(Boolean);
+	}
+	if (typeof value === 'string') {
+		return value.split(',').map(s => s.trim()).filter(Boolean);
+	}
+	return [];
+}
 
 export async function build(argv: Argv): Promise<void> {
 	normalize(argv);
@@ -49,11 +85,6 @@ export async function build(argv: Argv): Promise<void> {
 	// sets `templates` caches
 	await templates.collect(argv, config);
 
-	// TODO: save all `$page`|params into URL key
-	// const Pages = new Map<url, info>;
-	// TODO: save all `params.tag` into own cache
-	// const Tags = new Map<tag, url>;
-
 	const isPage = /(hbs|html?)$/;
 	const { Layouts, Partials } = templates;
 	const { dest, content } = argv;
@@ -73,37 +104,36 @@ export async function build(argv: Argv): Promise<void> {
 		},
 	};
 
-	// Pass 1: render every content file. Pages with placeholders collected;
-	// pass-through assets (copies, direct writes) emit to disk immediately.
-	let pages: CollectedPage[] = [];
+	// Walk 1 — scan + loader + collect.
+	// Produces an ordered list of ScanItem records without rendering layouts.
+	// Pass-through assets (copies, direct writes) emit to disk immediately.
+	let scanned: ScanItem[] = [];
 
 	await fs.list(content, async (input, rel, name) => {
 		let idx = rel.lastIndexOf('.');
-		let path = '/' + rel.substring(0, idx);
+		let urlpath = '/' + rel.substring(0, idx);
 		let output = join(dest, rel);
 
 		idx = name.lastIndexOf('.');
 		let ext = name.substring(idx + 1);
 		let basename = name.substring(0, idx);
 		let params: Template.Params = {};
+		let src = '';
 
-		let render: Template.Compiler | void = undefined;
-		let layout='', content='';
-
-		// TODO: run a loop for all `$section` pages first before render
-		// 			-> for `index.*`, menus, sitemap, etc
-		// TODO: collect non-`index` pages for "$section" (?)
 		if (isPage.test(ext)) {
-			content = await fs.read(input, 'utf8');
-			let { offset, value } = templates.frontmatter(content);
+			src = await fs.read(input, 'utf8');
+			let { offset, value } = templates.frontmatter(src);
 
 			if (offset > 0) {
 				Object.assign(params, value);
-				content = content.substring(offset);
+				src = src.substring(offset);
 			}
 
 			if (ext === 'hbs') {
-				debug('[TODO] compile "*.hbs" content');
+				let render = await templates.compileContent(src);
+				src = await render({ params, ...config });
+				// After compiling .hbs content, the output extension is html
+				ext = 'html';
 			}
 		} else if (ASSETS[ext]) {
 			let loader, filename = input;
@@ -116,8 +146,6 @@ export async function build(argv: Argv): Promise<void> {
 			while (prev !== ext) {
 				if (isPage.test(ext)) break;
 
-				// TODO: ASSETS after config
-				// TODO: loader receives utils
 				if (loader = ASSETS[prev = ext]) {
 					let result = await loader(filename, data, loader_utils);
 					filename = result.filename;
@@ -132,7 +160,7 @@ export async function build(argv: Argv): Promise<void> {
 			}
 
 			if (isPage.test(ext)) {
-				content = typeof data === 'string' ? data : new TextDecoder().decode(data);
+				src = typeof data === 'string' ? data : new TextDecoder().decode(data);
 			} else {
 				return fs.write(output, data);
 			}
@@ -142,33 +170,118 @@ export async function build(argv: Argv): Promise<void> {
 		}
 
 		if (typeof params.url === 'string') {
-			path = '/' + params.url.replace(/^.?\/+/, '');
-			if (/^(https?:)?\/\//.test(path)) {
+			urlpath = '/' + params.url.replace(/^.?\/+/, '');
+			if (/^(https?:)?\/\//.test(urlpath)) {
 				throw new Error('Custom `url` must be path only');
 			}
 		}
 
 		if (basename === 'index') {
-			path = path.substring(0, path.length - 5);
-		} else if (!path.endsWith('/')) {
-			path += '/'; // ensure trailing
+			urlpath = urlpath.substring(0, urlpath.length - 5);
+		} else if (!urlpath.endsWith('/')) {
+			urlpath += '/'; // ensure trailing
 		}
 
-		output = join(dest, path, 'index.html');
+		output = join(dest, urlpath, 'index.html');
 
-		let $page: Template.Page = {
-			path, params, content,
-			url: new URL(path, $site.url).href,
-			summary: (params.summary as string) || '',
+		let section = deriveSection(rel);
+
+		scanned.push({
+			input,
+			rel,
+			name,
+			ext,
+			content: src,
+			params,
+			path: urlpath,
+			output,
+			section,
 			title: (params.title as string) || '',
+			summary: (params.summary as string) || '',
+			tags: parseTags(params.tags),
+		});
+	});
+
+	// Between walks — build Pages and Sections registries.
+	let Pages: Template.PageInfo[] = [];
+	let Sections: Map<string, Template.PageInfo[]> = new Map();
+
+	for (let item of scanned) {
+		let info: Template.PageInfo = {
+			path: item.path,
+			url: new URL(item.path, $site.url).href,
+			title: item.title,
+			summary: item.summary,
+			section: item.section,
+			tags: item.tags,
+			params: item.params,
+		};
+		Pages.push(info);
+
+		let list = Sections.get(item.section);
+		if (!list) {
+			list = [];
+			Sections.set(item.section, list);
+		}
+		list.push(info);
+	}
+
+	// Sort each registry by path ascending for stable iteration.
+	Pages.sort((a, b) => a.path.localeCompare(b.path));
+	for (let list of Sections.values()) {
+		list.sort((a, b) => a.path.localeCompare(b.path));
+	}
+
+	// Build Tags registry — group PageInfo entries by tag.
+	// Iterates Pages (already sorted), so each tag list inherits path-ascending order.
+	let TagsMap: Map<string, Template.PageInfo[]> = new Map();
+	for (let info of Pages) {
+		for (let tag of info.tags) {
+			let list = TagsMap.get(tag);
+			if (!list) {
+				list = [];
+				TagsMap.set(tag, list);
+			}
+			list.push(info);
+		}
+	}
+
+	// Tempura iterates arrays only; a plain object keyed by tag would not be
+	// walkable via #each. Expose as [{ tag, pages }].
+	let $tags: Template.TagEntry[] = [];
+	for (let [tag, pages] of TagsMap) {
+		$tags.push({ tag, pages });
+	}
+
+	// Walk 2 — render layouts with $pages + $section + $tags context.
+	let pages: CollectedPage[] = [];
+
+	for (let item of scanned) {
+		let $page: Template.Page = {
+			path: item.path,
+			params: item.params,
+			content: item.content,
+			url: new URL(item.path, $site.url).href,
+			summary: item.summary,
+			title: item.title,
+			section: item.section,
+			tags: item.tags,
 			scripts: '',
 			styles: '',
 		};
 
-		// lookup priority –> need "" for `/layouts/*` root
-		let i=0, dirs = rel.split(/[\\\/]+/g).slice(0, -1).concat('');
+		let $section = Sections.get(item.section) || [];
 
-		if (isPage.test(ext)) {
+		let rendered_content = item.content;
+
+		// lookup priority –> need "" for `/layouts/*` root
+		let i=0, dirs = item.rel.split(/[\\\/]+/g).slice(0, -1).concat('');
+		let basename = item.name.substring(0, item.name.lastIndexOf('.'));
+
+		let render: Template.Compiler | void = undefined;
+		let layout = '';
+
+		if (isPage.test(item.ext)) {
 			let j=0, files = ['index.hbs', 'html.hbs'];
 			if (basename !== 'index') {
 				files.splice(0, 1, `${basename}.hbs`, 'single.hbs');
@@ -177,68 +290,68 @@ export async function build(argv: Argv): Promise<void> {
 			outer: for (; i < dirs.length; i++) {
 				for (j=0; j < files.length; j++) {
 					layout = join(dirs[i], files[j]);
-					debug('[content.layout]', rel, '~>', layout);
+					debug('[content.layout]', item.rel, '~>', layout);
 					if (render = Layouts.get(layout)) break outer;
 				}
 			}
 
 			// Should always be defined as a fallback
 			if (!render) throw new Error('Missing "html.hbs" template');
-			content = await render({ $page, ...config });
+			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...config });
 		}
 
 		if (!layout.endsWith('html.hbs')) {
-			$page.content = content;
+			$page.content = rendered_content;
 			for (i=0; i < dirs.length; i++) {
 				layout = join(dirs[i], 'html.hbs');
-				debug('[content.layout]', rel, '~>', layout);
+				debug('[content.layout]', item.rel, '~>', layout);
 				if (render = Layouts.get(layout)) break;
 			}
 			// Should always be defined as a bare minimum
 			if (!render) throw new Error('Missing "html.hbs" template');
-			content = await render({ $page, ...config });
+			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...config });
 		}
 
 		if (argv.dev) {
-			content += `<script>`;
-			content +=   `var es = new EventSource('${RELOAD}');`;
-			content +=   `es.onopen = () => console.log('[dev] live reload enabled');`;
-			content +=   `es.onmessage = (ev) => {`;
-			content +=     `try {`;
-			content +=       `var m = JSON.parse(ev.data);`;
-			content +=       `if (m.type === 'reload') location.reload();`;
-			content +=       `else if (m.type === 'hmr') console.warn('[dev] HMR not yet implemented; ignoring');`;
-			content +=       `else if (m.type === 'error') __bongo_err(m.errors);`;
-			content +=       `else if (m.type === 'error-clear') __bongo_err_clear();`;
-			content +=     `} catch (e) {}`;
-			content +=   `};`;
-			content +=   `function __bongo_esc(s) { return String(s||'').replace(/[<>&]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]}); }`;
-			content +=   `function __bongo_err(errs) {`;
-			content +=     `__bongo_err_clear();`;
-			content +=     `var o = document.createElement('div');`;
-			content +=     `o.id = '__bongo_overlay';`;
-			content +=     `o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(20,20,20,.92);color:#f4f4f4;font:14px/1.5 ui-monospace,monospace;padding:24px;overflow:auto;white-space:pre-wrap';`;
-			content +=     `var html = '<h2 style=\\'margin:0 0 12px;color:#ff6b6b\\'>Build error</h2>';`;
-			content +=     `for (var i=0;i<errs.length;i++) {`;
-			content +=       `var e = errs[i];`;
-			content +=       `html += '<div style=\\'margin-bottom:12px\\'>';`;
-			content +=       `if (e.file) html += '<strong>'+__bongo_esc(e.file)+(e.line?':'+__bongo_esc(e.line):'')+'</strong>\\n';`;
-			content +=       `html += __bongo_esc(e.message);`;
-			content +=       `if (e.frame) html += '\\n'+__bongo_esc(e.frame);`;
-			content +=       `html += '</div>';`;
-			content +=     `}`;
-			content +=     `o.innerHTML = html;`;
-			content +=     `document.body.appendChild(o);`;
-			content +=   `}`;
-			content +=   `function __bongo_err_clear() {`;
-			content +=     `var o = document.getElementById('__bongo_overlay');`;
-			content +=     `if (o) o.remove();`;
-			content +=   `}`;
-			content += `</script>`;
+			rendered_content += `<script>`;
+			rendered_content +=   `var es = new EventSource('${RELOAD}');`;
+			rendered_content +=   `es.onopen = () => console.log('[dev] live reload enabled');`;
+			rendered_content +=   `es.onmessage = (ev) => {`;
+			rendered_content +=     `try {`;
+			rendered_content +=       `var m = JSON.parse(ev.data);`;
+			rendered_content +=       `if (m.type === 'reload') location.reload();`;
+			rendered_content +=       `else if (m.type === 'hmr') console.warn('[dev] HMR not yet implemented; ignoring');`;
+			rendered_content +=       `else if (m.type === 'error') __bongo_err(m.errors);`;
+			rendered_content +=       `else if (m.type === 'error-clear') __bongo_err_clear();`;
+			rendered_content +=     `} catch (e) {}`;
+			rendered_content +=   `};`;
+			rendered_content +=   `function __bongo_esc(s) { return String(s||'').replace(/[<>&]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]}); }`;
+			rendered_content +=   `function __bongo_err(errs) {`;
+			rendered_content +=     `__bongo_err_clear();`;
+			rendered_content +=     `var o = document.createElement('div');`;
+			rendered_content +=     `o.id = '__bongo_overlay';`;
+			rendered_content +=     `o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(20,20,20,.92);color:#f4f4f4;font:14px/1.5 ui-monospace,monospace;padding:24px;overflow:auto;white-space:pre-wrap';`;
+			rendered_content +=     `var html = '<h2 style=\\'margin:0 0 12px;color:#ff6b6b\\'>Build error</h2>';`;
+			rendered_content +=     `for (var i=0;i<errs.length;i++) {`;
+			rendered_content +=       `var e = errs[i];`;
+			rendered_content +=       `html += '<div style=\\'margin-bottom:12px\\'>';`;
+			rendered_content +=       `if (e.file) html += '<strong>'+__bongo_esc(e.file)+(e.line?':'+__bongo_esc(e.line):'')+'</strong>\\n';`;
+			rendered_content +=       `html += __bongo_esc(e.message);`;
+			rendered_content +=       `if (e.frame) html += '\\n'+__bongo_esc(e.frame);`;
+			rendered_content +=       `html += '</div>';`;
+			rendered_content +=     `}`;
+			rendered_content +=     `o.innerHTML = html;`;
+			rendered_content +=     `document.body.appendChild(o);`;
+			rendered_content +=   `}`;
+			rendered_content +=   `function __bongo_err_clear() {`;
+			rendered_content +=     `var o = document.getElementById('__bongo_overlay');`;
+			rendered_content +=     `if (o) o.remove();`;
+			rendered_content +=   `}`;
+			rendered_content += `</script>`;
 		}
 
-		pages.push({ output, html: content });
-	});
+		pages.push({ output: item.output, html: rendered_content });
+	}
 
 	// Flush: run every bundle group in parallel.
 	let flushResult = await bundler.flush({ outDir: dest });
@@ -277,9 +390,8 @@ export async function build(argv: Argv): Promise<void> {
 			let { stdout, stderr } = await exec('minify --version');
 			if (stderr.length || stdout.length < 1) throw 1;
 		} catch (err) {
-			// TODO: formatting
-			console.error('You must have `minify` available in your $PATH for `--minify` to work.');
-			console.error('Visit ~https://github.com/tdewolff/minify~ for installation instructions.');
+			log.error('`--minify` requires the `minify` CLI on your $PATH.');
+			log.error('See https://github.com/tdewolff/minify for install instructions.');
 			return process.exit(1);
 		}
 
