@@ -82,14 +82,13 @@ describe('loadModule', () => {
 		expect(mod.default.$site.title).toBe('Fixture Site');
 	});
 
-	test('loads a JavaScript config file directly', async () => {
+	test('loads a non-TS config file via direct import', async () => {
 		let file = resolve(
 			import.meta.dirname,
-			'../../test/fixtures/config-ts-basic/bongo.config.ts',
+			'../../test/fixtures/config-mjs-basic/bongo.config.mjs',
 		);
-		// Use the same fixture path but via loadModule; the .ts branch must still work
-		// when the active runtime strips TS natively (bun). Test is identical semantics.
-		let mod = await config.loadModule(file) as { default: { $site: { url: string } } };
+		let mod = await config.loadModule(file) as { default: { $site: { url: string; title: string } } };
 		expect(mod.default.$site.url).toBe('https://example.com');
+		expect(mod.default.$site.title).toBe('MJS Fixture Site');
 	});
 });

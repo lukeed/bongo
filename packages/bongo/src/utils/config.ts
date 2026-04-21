@@ -39,14 +39,16 @@ async function bundleConfigToTemp(file: string): Promise<string> {
 		},
 	});
 
-	await bundle.write({
-		file: outfile,
-		format: 'esm',
-		minify: false,
-		sourcemap: false,
-	});
-
-	await bundle.close();
+	try {
+		await bundle.write({
+			file: outfile,
+			format: 'esm',
+			minify: false,
+			sourcemap: false,
+		});
+	} finally {
+		await bundle.close();
+	}
 	return outfile;
 }
 
@@ -72,11 +74,12 @@ export async function loadModule(file: string): Promise<UnknownModule> {
 		return (await import(url)) as UnknownModule;
 	}
 
-	// Node path: bundle to temp .mjs, then dynamic import
+	// Node path: bundle to temp .mjs, then dynamic import.
+	// Temp file has a random name so the import cache is keyed per-call;
+	// no `?t=` cache-buster needed (Node ignores query strings on file: URLs).
 	let tmp = await bundleConfigToTemp(file);
 	try {
-		let cacheBuster = `?t=${Date.now()}`;
-		return (await import(pathToFileURL(tmp).href + cacheBuster)) as UnknownModule;
+		return (await import(pathToFileURL(tmp).href)) as UnknownModule;
 	} finally {
 		await fs.rm(tmp).catch(() => {});
 	}
