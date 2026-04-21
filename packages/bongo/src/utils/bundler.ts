@@ -126,6 +126,9 @@ async function flushJsGroup(
 		entryByName.set(name, reg);
 	}
 
+	// `target` is an oxc transform option, nested under InputOptions.transform.
+	// Accepts ES-year strings ('es2020') or browserslist arrays. See
+	// https://rolldown.rs/reference/InputOptions.transform#target
 	let bundle = await rd.rolldown({
 		input,
 		resolve: {
@@ -133,6 +136,7 @@ async function flushJsGroup(
 			mainFields: ['browser', 'module', 'jsnext', 'main'],
 			conditionNames: ['browser', 'import', 'production'],
 		},
+		transform: cfg.target ? { target: cfg.target } : undefined,
 	});
 
 	try {
