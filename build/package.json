@@ -1,4 +1,5 @@
 {
+  "name": "build",
   "private": true,
   "type": "module",
   "devDependencies": {

@@ -9,13 +9,17 @@ import type { FSWatcher } from 'node:fs';
 export { exists };
 
 // @ts-ignore - Node 14.4
-const rm = fs.rm || fs.rmdir;
+const _rm = fs.rm || fs.rmdir;
 
 export const ls = fs.readdir;
 export const read = fs.readFile;
 
+export function rm(file: string): Promise<void> {
+	return fs.rm(file, { force: true });
+}
+
 export async function rmdir(path: string): Promise<void> {
-	!exists(path) || await rm(path, { recursive: true });
+	!exists(path) || await _rm(path, { recursive: true });
 }
 
 export async function mkdir(input: string) {

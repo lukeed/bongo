@@ -1,5 +1,0 @@
-packages:
-  - 'build'
-  - 'demo123'
-  - 'packages/**'
-  - '!packages/create-bongo/template'
