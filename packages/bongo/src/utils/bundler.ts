@@ -18,9 +18,6 @@ async function loadRolldown() {
 	return rd = rd || await import('rolldown');
 }
 
-// rolldown/utils transformSync for config loading
-let oxcTransformSync: Function;
-
 let inputDefaults: InputOptions = {
 	resolve: {
 		extensions: ['.ts', '.js', '.cjs', '.mjs', '.css', '.json'],
@@ -116,28 +113,3 @@ export function postbuild(entry: string, result: RolldownOutput): string | never
 	throw new Error(`Missing output for "${entry}" entrypoint`);
 }
 
-export async function transform(filename: string) {
-	oxcTransformSync = oxcTransformSync || (await import('rolldown/utils')).transformSync;
-
-	require.extensions['.ts'] = require.extensions['.ts'] || function (Module: any, filename: string) {
-		const pitch = Module._compile.bind(Module);
-
-		Module._compile = (source: string) => {
-			const result = oxcTransformSync(filename, source, {
-				lang: 'ts',
-				sourcemap: false,
-			});
-
-			(result.warnings || []).forEach((msg: any) => {
-				console.warn(`\noxc warning in ${filename}:`);
-				console.warn(msg.message || msg);
-			});
-
-			return pitch(result.code, filename);
-		};
-
-		require.extensions['.js']!(Module, filename);
-	};
-
-	return require(filename);
-}
