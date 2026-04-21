@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="{{ $site.lang }}">
+<head>
+<title>{{ $page.title }} — {{ $site.title }}</title>
+{{#link rel="stylesheet" href="style.css" }}
+{{#style src="inline.css" }}
+</head>
+<body>
+{{{ $page.content }}}
+{{#partial src="greet" name="world" }}
+{{#script src="main.ts" }}
+{{#script src="boot.ts" inline=true }}
+</body>
+</html>
