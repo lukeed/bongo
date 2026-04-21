@@ -3,7 +3,6 @@ import * as os from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { builtinModules } from 'node:module';
 import { randomBytes } from 'node:crypto';
-import { transform } from './bundler';
 import * as fs from './fs';
 
 import type { Config } from 'bongo';
@@ -172,12 +171,10 @@ export async function load(root: string): Promise<Required<Config>> {
 	let file = await find(root, '.');
 
 	if (file) {
-		let user = /\.ts$/.test(file)
-			? await transform(file)
-			: await fs.load(file);
+		let user = await loadModule(file);
 
 		// TODO: validate $site keys
-		merge(output, user.default || user);
+		merge(output, (user.default as Partial<Config>) || (user as Partial<Config>));
 	} else {
 		throw new Error('Missing configuration file');
 	}
