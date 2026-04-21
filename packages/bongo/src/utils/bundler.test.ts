@@ -182,7 +182,7 @@ describe('watch()', () => {
 		try {
 			bundler.register(join(dir, 'entry.ts'), { kind: 'js' });
 			await bundler.flush({ outDir });
-			let unsub = bundler.watch(() => {});
+			let unsub = await bundler.watch(() => {});
 			expect(typeof unsub).toBe('function');
 			unsub();
 		} finally {

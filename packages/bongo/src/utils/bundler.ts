@@ -279,7 +279,12 @@ let WATCH: WatchState | null = null;
 // the callback.  We therefore collect the unique PARENT directories of all
 // tracked source files, watch those dirs, and filter incoming events against
 // WATCH.files so only relevant changes propagate.
-export function watch(cb: (diff: WatchDiff) => void): Unsubscribe {
+//
+// Async so we can await fs.watch() and capture the disposer before returning
+// the Unsubscribe — this ensures unsub() actually closes the FSWatchers
+// instead of only flipping a flag (critical on Linux where inotify emits an
+// ENOENT error when a watched path is removed before the watcher is closed).
+export async function watch(cb: (diff: WatchDiff) => void): Promise<Unsubscribe> {
 	let state: WatchState = { callback: cb, files: new Set(), active: true };
 	WATCH = state;
 
@@ -292,9 +297,7 @@ export function watch(cb: (diff: WatchDiff) => void): Unsubscribe {
 	// Derive unique parent dirs to pass to fs.watch (dir-based watcher).
 	let dirs = [...new Set([...state.files].map(f => path.dirname(f)))];
 
-	// fs.watch is async (sets up watchers) but we don't need to await — the
-	// watcher starts asynchronously, and any initial build already completed.
-	void fs.watch(dirs, async (file: string) => {
+	let disposer = await fs.watch(dirs, async (file: string) => {
 		if (!WATCH || !WATCH.active) return;
 		if (!WATCH.files.has(file)) return;
 
@@ -315,6 +318,7 @@ export function watch(cb: (diff: WatchDiff) => void): Unsubscribe {
 	return () => {
 		if (WATCH === state) WATCH = null;
 		state.active = false;
+		disposer();
 	};
 }
 
