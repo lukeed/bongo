@@ -198,3 +198,35 @@ describe('integration: site-hbs-content', () => {
 		}
 	});
 });
+
+describe('integration: site-sections', () => {
+	test('exposes $pages and $section in templates; sets $page.section', async () => {
+		let root = await copyFixture('site-sections');
+		try {
+			await build({ cwd: root });
+
+			let out = join(root, 'public');
+
+			// Blog index lists siblings via $section iteration.
+			// The index path is '/blog/' (index.* stripping adds no suffix, just strips 'index').
+			let blogIndex = await readFile(join(out, 'blog', 'index.html'), 'utf8');
+			expect(blogIndex).toContain('data-path="/blog/post-1/"');
+			expect(blogIndex).toContain('data-path="/blog/post-2/"');
+			// The index itself is a member of the section — its own path appears too.
+			expect(blogIndex).toContain('data-path="/blog/"');
+
+			// The root layout reads $page.section — blog pages have section='blog'.
+			expect(blogIndex).toContain('data-section="blog"');
+
+			// Home page's section is '' (root).
+			let homeHtml = await readFile(join(out, 'index.html'), 'utf8');
+			expect(homeHtml).toContain('data-section=""');
+
+			// A leaf post renders via single.hbs (fallback chain) with its own content.
+			let post1 = await readFile(join(out, 'blog', 'post-1', 'index.html'), 'utf8');
+			expect(post1).toContain('First Post');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
