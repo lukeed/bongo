@@ -19,6 +19,7 @@ async function list(dir: string, callback: Caller, prefix = '') {
 
 	await Promise.all(
 		files.map(async dirent => {
+			if (dirent.name === 'node_modules') return;  // skip node_modules entirely
 			let rel = path.join(prefix, dirent.name);
 			let item = path.join(dir, dirent.name);
 			let isDir = dirent.isDirectory();
