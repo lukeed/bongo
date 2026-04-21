@@ -27,6 +27,13 @@
   ],
   "exclude": [
     "node_modules",
-    "packages/bongo/index.js"
+    "**/node_modules",
+    "archive/**",
+    "packages/bongo/index.js",
+    "packages/bongo/bin.js",
+    "packages/plugin.markdown/index.js",
+    "packages/create-bongo/bin.js",
+    "packages/create-bongo/index.js",
+    "packages/create-bongo/template/**"
   ]
 }
