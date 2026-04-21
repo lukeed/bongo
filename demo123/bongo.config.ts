@@ -1,8 +1,6 @@
 import { markdown } from '@bongo/markdown';
 import type { Config } from 'bongo';
 
-console.log('INSIDE TS CONFIG FILE');
-
 const config: Config = {
 	$site: {
 		url: 'https://asd.com/',
@@ -22,7 +20,6 @@ const config: Config = {
 			return 'hello: ' + args.name;
 		},
 		hello(args) {
-			console.log('FOUND HELLO', args);
 			return '<div class="ello">puppet</div>';
 		}
 	},

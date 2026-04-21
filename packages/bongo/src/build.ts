@@ -103,7 +103,7 @@ export async function build(argv: Argv): Promise<void> {
 			}
 
 			if (ext === 'hbs') {
-				console.log('[TODO] compile "*.hbs" content');
+				debug('[TODO] compile "*.hbs" content');
 			}
 		} else if (ASSETS[ext]) {
 			let loader, filename = input;
