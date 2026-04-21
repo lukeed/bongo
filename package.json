@@ -9,6 +9,7 @@
     "node": ">=24"
   },
   "scripts": {
+    "example": "bun -bF 'example'",
     "build": "bun build/index.ts",
     "test": "bun test"
   },
