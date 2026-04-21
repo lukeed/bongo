@@ -331,6 +331,38 @@ describe('build({ only })', () => {
 		}
 	});
 
+	test('promotes to full rebuild when target frontmatter changed', async () => {
+		let root = await copyFixture('site-sections');
+		try {
+			await build({ cwd: root });
+			let out = join(root, 'public');
+			let { stat, writeFile } = await import('node:fs/promises');
+
+			let siblingRel = 'blog/post-2/index.html';
+			let siblingMtimeBefore = (await stat(join(out, siblingRel))).mtimeMs;
+
+			// Edit the target's FRONTMATTER (change title). A body-only edit
+			// would stay narrow; changing `title` shifts what sibling
+			// $pages/$section iterations would render, so the frontmatter-sig
+			// diff should force a full rebuild.
+			let contentFile = join(root, 'content', 'blog', 'post-1.html');
+			let src = await readFile(contentFile, 'utf8');
+			await writeFile(
+				contentFile,
+				src.replace(/title:\s*.*/i, 'title: Renamed Post One'),
+			);
+
+			await new Promise(r => setTimeout(r, 20));
+			await build({ cwd: root }, { only: 'blog/post-1.html' });
+
+			let siblingMtimeAfter = (await stat(join(out, siblingRel))).mtimeMs;
+			// Promoted to full ⇒ every page re-rendered ⇒ sibling mtime changed.
+			expect(siblingMtimeAfter).toBeGreaterThan(siblingMtimeBefore);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('unknown `only` paths produce no output and do not clobber public/', async () => {
 		let root = await copyFixture('site-sections');
 		try {
