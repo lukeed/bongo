@@ -17,9 +17,7 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "bongo": ["./packages/bongo/index.d.ts"],
-      "rolldown": ["./packages/bongo/node_modules/rolldown/dist/index.d.mts"],
-      "rolldown/utils": ["./packages/bongo/node_modules/rolldown/dist/utils-index.d.mts"]
+      "bongo": ["./packages/bongo/index.d.ts"]
     }
   },
   "include": [

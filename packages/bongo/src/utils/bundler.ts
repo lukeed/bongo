@@ -5,18 +5,8 @@ import * as fs from './fs';
 
 let rd: typeof import('rolldown');
 
-// bun test resolves `import('rolldown')` to `index.d.mts` via tsconfig paths
-// (root tsconfig.json maps "rolldown" → dist/index.d.mts for type-checking).
-// Importing the `.d.mts` as a runtime module fails because it references a
-// shared chunk (`logging-C6h4g8dA.mjs`) that is type-only and doesn't exist
-// on disk. Work around by importing the `.mjs` directly via a URL relative to
-// this file, which bun resolves through the filesystem instead of tsconfig
-// paths. See spec C7 caveat.
-const ROLLDOWN_URL = new URL('../../node_modules/rolldown/dist/index.mjs', import.meta.url).href;
-
 async function loadRolldown() {
-	if (rd) return rd;
-	rd = (await import(ROLLDOWN_URL)) as typeof import('rolldown');
+	rd = rd || (await import('rolldown'));
 	return rd;
 }
 
