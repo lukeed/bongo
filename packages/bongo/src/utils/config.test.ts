@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { merge } from './utils/config';
+import * as config from './config';
 
 function makeBase() {
 	return {
@@ -19,7 +19,7 @@ function makeBase() {
 describe('merge', () => {
 	test('merges $site properties', () => {
 		let base = makeBase();
-		merge(base, { $site: { title: 'My Site', url: 'https://example.com' } } as any);
+		config.merge(base, { $site: { title: 'My Site', url: 'https://example.com' } } as any);
 
 		expect(base.$site.title).toBe('My Site');
 		expect(base.$site.url).toBe('https://example.com');
@@ -29,7 +29,7 @@ describe('merge', () => {
 	test('merges $assets loaders', () => {
 		let base = makeBase();
 		let loader = () => ({});
-		merge(base, { $assets: { md: loader } } as any);
+		config.merge(base, { $assets: { md: loader } } as any);
 
 		expect(base.$assets.md).toBe(loader);
 	});
@@ -37,7 +37,7 @@ describe('merge', () => {
 	test('merges $utils with nested objects', () => {
 		let base = makeBase();
 		let customAbs = (to: string) => '/custom' + to;
-		merge(base, { $utils: { url: { abs: customAbs } } } as any);
+		config.merge(base, { $utils: { url: { abs: customAbs } } } as any);
 
 		expect(base.$utils.url.abs).toBe(customAbs);
 	});
@@ -45,7 +45,7 @@ describe('merge', () => {
 	test('merges $utils scalar values', () => {
 		let base = makeBase();
 		let customTruncate = (t: string, l: number) => t.slice(0, l) + '...';
-		merge(base, { $utils: { truncate: customTruncate } } as any);
+		config.merge(base, { $utils: { truncate: customTruncate } } as any);
 
 		expect(base.$utils.truncate).toBe(customTruncate);
 	});
@@ -55,7 +55,7 @@ describe('merge', () => {
 		let plugin = {
 			$site: { lang: 'en' },
 		};
-		merge(base, { plugins: [plugin] } as any);
+		config.merge(base, { plugins: [plugin] } as any);
 
 		expect(base.$site.lang).toBe('en');
 	});
@@ -63,7 +63,7 @@ describe('merge', () => {
 	test('merges $partials', () => {
 		let base = makeBase();
 		let partial = () => 'rendered';
-		merge(base, { $partials: { header: partial } } as any);
+		config.merge(base, { $partials: { header: partial } } as any);
 
 		expect(base.$partials.header).toBe(partial);
 	});
