@@ -1,0 +1,8 @@
+---
+title: Post A
+tags: alpha, demo
+---
+<article data-tags="{{#each $page.tags as (t, i)}}{{#if i}},{{/if}}{{ t }}{{/each}}">
+	<h1>{{ $page.title }}</h1>
+	<p>This page has {{ $page.tags.length }} tags.</p>
+</article>

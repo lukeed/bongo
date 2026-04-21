@@ -41,8 +41,8 @@ type ScanItem = {
 	input: string;           // absolute source path
 	rel: string;             // path relative to content/
 	name: string;            // basename with ext
-	ext: string;             // final extension (post-loader chain) — e.g. 'md' -> 'html'
-	content: string;         // compiled-content-ready string (frontmatter stripped, loaders run, .hbs compiled)
+	ext: string;             // final extension (post-loader chain) — 'hbs'|'html'|'htm'
+	body: string;            // frontmatter stripped, loaders run; `.hbs` still raw for walk-2 compile
 	params: Template.Params;
 	path: string;            // URL path (e.g. '/blog/post-1/')
 	output: string;          // absolute output path
@@ -129,12 +129,8 @@ export async function build(argv: Argv): Promise<void> {
 				src = src.substring(offset);
 			}
 
-			if (ext === 'hbs') {
-				let render = await templates.compileContent(src);
-				src = await render({ params, ...config });
-				// After compiling .hbs content, the output extension is html
-				ext = 'html';
-			}
+			// `.hbs` content is compiled in walk 2, once Pages/Sections/Tags
+			// registries exist. `ext` stays 'hbs' through walk 1.
 		} else if (ASSETS[ext]) {
 			let loader, filename = input;
 			let prev, data = new Uint8Array(
@@ -191,7 +187,7 @@ export async function build(argv: Argv): Promise<void> {
 			rel,
 			name,
 			ext,
-			content: src,
+			body: src,
 			params,
 			path: urlpath,
 			output,
@@ -260,7 +256,7 @@ export async function build(argv: Argv): Promise<void> {
 		let $page: Template.Page = {
 			path: item.path,
 			params: item.params,
-			content: item.content,
+			content: '',                       // filled below (and again after layout)
 			url: new URL(item.path, $site.url).href,
 			summary: item.summary,
 			title: item.title,
@@ -272,7 +268,15 @@ export async function build(argv: Argv): Promise<void> {
 
 		let $section = Sections.get(item.section) || [];
 
-		let rendered_content = item.content;
+		// `.hbs` content is compiled here, with full walk-2 context —
+		// `$page`, `$pages`, `$section`, `$tags` are all available to the
+		// body. Non-`.hbs` content bodies pass through raw.
+		let rendered_content = item.ext === 'hbs'
+			? await (await templates.compileContent(item.body))(
+				{ $page, $pages: Pages, $section, $tags, params: item.params, ...config }
+			)
+			: item.body;
+		$page.content = rendered_content;
 
 		// lookup priority –> need "" for `/layouts/*` root
 		let i=0, dirs = item.rel.split(/[\\\/]+/g).slice(0, -1).concat('');
