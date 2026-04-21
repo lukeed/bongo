@@ -2,18 +2,35 @@ import { extname, join, relative } from 'node:path';
 
 import * as fs from './utils/fs';
 import * as log from './utils/log';
+import * as bundler from './utils/bundler';
 import { load } from './utils/config';
-import * as views from './utils/views';
+import * as templates from './utils/templates';
 import { normalize } from './utils/argv';
 import { RELOAD } from './utils/http';
 
 import type { Argv, Loader, Template } from 'bongo';
 
+function derivePublicPath(siteUrl: string): string {
+	if (!siteUrl) return '/';
+	try {
+		let u = new URL(siteUrl);
+		let p = u.pathname;
+		return p.endsWith('/') ? p : p + '/';
+	} catch {
+		return '/';
+	}
+}
+
+type CollectedPage = {
+	output: string;   // absolute path to write
+	html: string;     // rendered HTML, may contain placeholders
+};
+
 export async function build(argv: Argv): Promise<void> {
 	normalize(argv);
 
 	const config = await load(argv.cwd);
-	const { $site, $assets:ASSETS } = config;
+	const { $site, $assets: ASSETS } = config;
 	const debug = argv.debug ? log.debug : () => {};
 
 	debug('[build.argv]', argv);
@@ -29,8 +46,8 @@ export async function build(argv: Argv): Promise<void> {
 		}
 	};
 
-	// sets `views` caches
-	await views.collect(argv, config);
+	// sets `templates` caches
+	await templates.collect(argv, config);
 
 	// TODO: save all `$page`|params into URL key
 	// const Pages = new Map<url, info>;
@@ -38,11 +55,11 @@ export async function build(argv: Argv): Promise<void> {
 	// const Tags = new Map<tag, url>;
 
 	const isPage = /(hbs|html?)$/;
-	const { Layouts, Partials } = views;
+	const { Layouts, Partials } = templates;
 	const { dest, content } = argv;
 
 	const loader_utils: Loader.Utilities = {
-		frontmatter: views.frontmatter,
+		frontmatter: templates.frontmatter,
 
 		render(name, ...args) {
 			let view = Partials.get(name);
@@ -55,6 +72,10 @@ export async function build(argv: Argv): Promise<void> {
 			return new TextDecoder().decode(input);
 		},
 	};
+
+	// Pass 1: render every content file. Pages with placeholders collected;
+	// pass-through assets (copies, direct writes) emit to disk immediately.
+	let pages: CollectedPage[] = [];
 
 	await fs.list(content, async (input, rel, name) => {
 		let idx = rel.lastIndexOf('.');
@@ -74,7 +95,7 @@ export async function build(argv: Argv): Promise<void> {
 		// TODO: collect non-`index` pages for "$section" (?)
 		if (isPage.test(ext)) {
 			content = await fs.read(input, 'utf8');
-			let { offset, value } = views.frontmatter(content);
+			let { offset, value } = templates.frontmatter(content);
 
 			if (offset > 0) {
 				Object.assign(params, value);
@@ -182,12 +203,70 @@ export async function build(argv: Argv): Promise<void> {
 			content += `<script>`;
 			content +=   `var es = new EventSource('${RELOAD}');`;
 			content +=   `es.onopen = () => console.log('[dev] live reload enabled');`;
-			content +=   `es.onmessage = () => location.reload();`;
+			content +=   `es.onmessage = (ev) => {`;
+			content +=     `try {`;
+			content +=       `var m = JSON.parse(ev.data);`;
+			content +=       `if (m.type === 'reload') location.reload();`;
+			content +=       `else if (m.type === 'hmr') console.warn('[dev] HMR not yet implemented; ignoring');`;
+			content +=       `else if (m.type === 'error') __bongo_err(m.errors);`;
+			content +=       `else if (m.type === 'error-clear') __bongo_err_clear();`;
+			content +=     `} catch (e) {}`;
+			content +=   `};`;
+			content +=   `function __bongo_esc(s) { return String(s||'').replace(/[<>&]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]}); }`;
+			content +=   `function __bongo_err(errs) {`;
+			content +=     `__bongo_err_clear();`;
+			content +=     `var o = document.createElement('div');`;
+			content +=     `o.id = '__bongo_overlay';`;
+			content +=     `o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(20,20,20,.92);color:#f4f4f4;font:14px/1.5 ui-monospace,monospace;padding:24px;overflow:auto;white-space:pre-wrap';`;
+			content +=     `var html = '<h2 style=\\'margin:0 0 12px;color:#ff6b6b\\'>Build error</h2>';`;
+			content +=     `for (var i=0;i<errs.length;i++) {`;
+			content +=       `var e = errs[i];`;
+			content +=       `html += '<div style=\\'margin-bottom:12px\\'>';`;
+			content +=       `if (e.file) html += '<strong>'+__bongo_esc(e.file)+(e.line?':'+__bongo_esc(e.line):'')+'</strong>\\n';`;
+			content +=       `html += __bongo_esc(e.message);`;
+			content +=       `if (e.frame) html += '\\n'+__bongo_esc(e.frame);`;
+			content +=       `html += '</div>';`;
+			content +=     `}`;
+			content +=     `o.innerHTML = html;`;
+			content +=     `document.body.appendChild(o);`;
+			content +=   `}`;
+			content +=   `function __bongo_err_clear() {`;
+			content +=     `var o = document.getElementById('__bongo_overlay');`;
+			content +=     `if (o) o.remove();`;
+			content +=   `}`;
 			content += `</script>`;
 		}
 
-		await fs.write(output, content);
+		pages.push({ output, html: content });
 	});
+
+	// Flush: run every bundle group in parallel.
+	let flushResult = await bundler.flush({ outDir: dest });
+
+	if (flushResult.errors.length > 0) {
+		for (let err of flushResult.errors) {
+			log.error(err.message);
+			if (err.file) log.error('  in ' + err.file);
+		}
+		throw new Error(`Build failed: ${flushResult.errors.length} bundler error(s)`);
+	}
+
+	for (let w of flushResult.warnings) {
+		debug('[bundler.warning]', w.message);
+	}
+
+	// Pass 2: substitute placeholders and write pages.
+	let publicPath = derivePublicPath($site.url);
+	let readOutput = (filename: string) => fs.read(join(dest, filename), 'utf8');
+
+	await Promise.all(pages.map(async page => {
+		let html = await templates.substitute(page.html, {
+			outputs: flushResult.outputs,
+			publicPath,
+			readFile: readOutput,
+		});
+		await fs.write(page.output, html);
+	}));
 
 	if (argv.minify) {
 		const exec = require('node:util').promisify(

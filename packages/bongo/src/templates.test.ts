@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { frontmatter } from './utils/views';
+import { frontmatter } from './utils/templates';
 
 describe('frontmatter', () => {
 	test('returns empty value and zero offset for content without frontmatter', () => {

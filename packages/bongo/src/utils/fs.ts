@@ -84,16 +84,25 @@ type Handler = (dir: string, type: string, filename: string | null) => any;
 async function setup(dir: string, onChange: Handler) {
 	let output: Record<string, FSWatcher> = {};
 
+	let attach = (watcher: FSWatcher) => {
+		watcher.on('error', (err) => {
+			// Ignore ENOENT on removed paths — nothing to propagate.
+			let e = err as { code?: string };
+			if (e.code !== 'ENOENT') throw err;
+		});
+		return watcher;
+	};
+
 	try {
-		output[dir] = fsw(dir, { recursive: true }, onChange.bind(0, dir));
+		output[dir] = attach(fsw(dir, { recursive: true }, onChange.bind(0, dir)));
 	} catch (err: any) {
 		if (err.code !== 'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM') {
 			throw err;
 		}
 
-		output[dir] = fsw(dir, onChange.bind(0, dir));
+		output[dir] = attach(fsw(dir, onChange.bind(0, dir)));
 		await list(dir, (rel, abs) => {
-			output[abs] = fsw(abs, onChange.bind(0, abs));
+			output[abs] = attach(fsw(abs, onChange.bind(0, abs)));
 		});
 	}
 
@@ -102,7 +111,8 @@ async function setup(dir: string, onChange: Handler) {
 
 // @modified lukeed/watchlist
 type Callback = (filename: string) => any;
-export async function watch(list: string[], callback: Callback) {
+export type WatchDisposer = () => void;
+export async function watch(list: string[], callback: Callback): Promise<WatchDisposer> {
 	const dirs = new Set(
 		list.filter(exists)
 	);
@@ -131,4 +141,11 @@ export async function watch(list: string[], callback: Callback) {
 			Watchers.set(key, output[key]);
 		}
 	}
+
+	return () => {
+		for (let w of Watchers.values()) {
+			try { w.close(); } catch { /* already closed */ }
+		}
+		Watchers.clear();
+	};
 }

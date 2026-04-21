@@ -2,14 +2,16 @@ import sirv from 'sirv';
 import { createServer } from 'node:http';
 import type { Server, ServerResponse } from 'node:http';
 import type { Argv } from 'bongo';
+import type { HmrMessage } from './bundler';
 
 export const RELOAD = '/~/reload';
 
 const clients = new Set<ServerResponse>();
 
-export function reload() {
+export function send(msg: HmrMessage): void {
+	let data = JSON.stringify(msg);
 	for (let res of clients) {
-		res.write('data: refresh\n\n');
+		res.write(`data: ${data}\n\n`);
 	}
 }
 
