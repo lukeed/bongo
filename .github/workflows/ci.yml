@@ -6,13 +6,11 @@ on:
     paths-ignore:
       - 'archive/**'
       - 'docs/**'
-      - 'example/**'
       - '*.md'
   pull_request:
     paths-ignore:
       - 'archive/**'
       - 'docs/**'
-      - 'example/**'
       - '*.md'
 
 concurrency:
@@ -40,3 +38,20 @@ jobs:
 
       - name: Test
         run: bun test
+
+      - name: (example) build
+        run: bun example build
+
+      - name: (example) smoke test
+        run: |
+          if [ ! -f example/public/index.html ]; then
+            echo "::error::example/public/index.html missing — build did not produce expected output"
+            exit 1
+          fi
+          if grep -rq "__BONGO_BUNDLE" example/public/; then
+            echo "::error::unresolved placeholder tokens in example/public/"
+            grep -rn "__BONGO_BUNDLE" example/public/
+            exit 1
+          fi
+          pages=$(find example/public -name '*.html' | wc -l | tr -d ' ')
+          echo "Example built cleanly: $pages HTML pages emitted."
