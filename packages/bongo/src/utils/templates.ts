@@ -178,7 +178,7 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 	// Re-assign onto the exported const so ESM consumers see the new closures.
 	Object.assign(blocks, made);
 
-	let props = ['$site', '$page', '$pages', '$section', '$assets', '$utils'];
+	let props = ['$site', '$page', '$pages', '$section', '$tags', '$assets', '$utils'];
 	// tempura blocks is typed as Blocks (Record<string, Block>); we cast through
 	// unknown to satisfy the index signature without using `any`.
 	let options: tempura.Options = { async: true, props, blocks: blocks as unknown as tempura.Blocks };

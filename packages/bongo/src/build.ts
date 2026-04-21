@@ -49,7 +49,18 @@ type ScanItem = {
 	section: string;         // derived from rel's dirname
 	title: string;
 	summary: string;
+	tags: string[];          // parsed from frontmatter.tags
 };
+
+function parseTags(value: unknown): string[] {
+	if (Array.isArray(value)) {
+		return value.filter((v): v is string => typeof v === 'string').map(s => s.trim()).filter(Boolean);
+	}
+	if (typeof value === 'string') {
+		return value.split(',').map(s => s.trim()).filter(Boolean);
+	}
+	return [];
+}
 
 export async function build(argv: Argv): Promise<void> {
 	normalize(argv);
@@ -189,6 +200,7 @@ export async function build(argv: Argv): Promise<void> {
 			section,
 			title: (params.title as string) || '',
 			summary: (params.summary as string) || '',
+			tags: parseTags(params.tags),
 		});
 	});
 
@@ -203,6 +215,7 @@ export async function build(argv: Argv): Promise<void> {
 			title: item.title,
 			summary: item.summary,
 			section: item.section,
+			tags: item.tags,
 			params: item.params,
 		};
 		Pages.push(info);
@@ -221,7 +234,30 @@ export async function build(argv: Argv): Promise<void> {
 		list.sort((a, b) => a.path.localeCompare(b.path));
 	}
 
-	// Walk 2 — render layouts with $pages + $section context.
+	// Build Tags registry — group PageInfo entries by tag.
+	// Iterates Pages (already sorted), so each tag list inherits path-ascending order.
+	let TagsMap: Map<string, Template.PageInfo[]> = new Map();
+	for (let info of Pages) {
+		for (let tag of info.tags) {
+			let list = TagsMap.get(tag);
+			if (!list) {
+				list = [];
+				TagsMap.set(tag, list);
+			}
+			list.push(info);
+		}
+	}
+
+	// Convert to an array of {tag, pages, pathsCsv} entries for tempura #each compatibility.
+	// (Tempura iterates arrays only; plain object keys are not iterable via #each.)
+	// pathsCsv is a convenience field: page paths joined with ',' for templates that
+	// cannot use nested #each (tempura shares $$a across nesting levels).
+	let $tags: Template.TagEntry[] = [];
+	for (let [tag, pages] of TagsMap) {
+		$tags.push({ tag, pages, pathsCsv: pages.map(p => p.path).join(',') });
+	}
+
+	// Walk 2 — render layouts with $pages + $section + $tags context.
 	let pages: CollectedPage[] = [];
 
 	for (let item of scanned) {
@@ -233,6 +269,7 @@ export async function build(argv: Argv): Promise<void> {
 			summary: item.summary,
 			title: item.title,
 			section: item.section,
+			tags: item.tags,
 			scripts: '',
 			styles: '',
 		};
@@ -264,7 +301,7 @@ export async function build(argv: Argv): Promise<void> {
 
 			// Should always be defined as a fallback
 			if (!render) throw new Error('Missing "html.hbs" template');
-			rendered_content = await render({ $page, $pages: Pages, $section, ...config });
+			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...config });
 		}
 
 		if (!layout.endsWith('html.hbs')) {
@@ -276,7 +313,7 @@ export async function build(argv: Argv): Promise<void> {
 			}
 			// Should always be defined as a bare minimum
 			if (!render) throw new Error('Missing "html.hbs" template');
-			rendered_content = await render({ $page, $pages: Pages, $section, ...config });
+			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...config });
 		}
 
 		if (argv.dev) {

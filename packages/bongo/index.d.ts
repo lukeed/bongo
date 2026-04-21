@@ -79,6 +79,7 @@ export namespace Template {
 		title: string;
 		summary: string;
 		section: string;
+		tags: string[];
 		params: Params;
 		content: string;
 		scripts: string;
@@ -91,7 +92,15 @@ export namespace Template {
 		title: string;
 		summary: string;
 		section: string; // directory prefix (e.g. 'blog', '' for root)
+		tags: string[];  // parsed from frontmatter
 		params: Params;  // full frontmatter
+	};
+
+	type TagEntry = {
+		tag: string;
+		pages: PageInfo[];
+		// Convenience: page paths joined with ',' for use in templates where nested #each is not available.
+		pathsCsv: string;
 	};
 
 	interface Params {
