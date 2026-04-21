@@ -58,6 +58,11 @@ function gen(input, options) {
 			} else if (action === 'each') {
 				// Per-depth accumulator + index vars so nested `#each` doesn't
 				// clobber the outer loop's `$$a` / `i`.
+				// NOTE: the bare `{{#each items}}…{{/each}}` form (no `as (...)`)
+				// used to leak an implicit `i` into the body. It now emits
+				// `$$i` / `$$i1` / `$$i2` instead — undocumented, intentionally
+				// dropped; use `{{#each items as (item, i)}}…{{/each}}` to name
+				// an explicit index variable.
 				num = inner.indexOf(' as ');
 				let depth = stack.reduce((n, s) => s === 'each' ? n + 1 : n, 0);
 				let acc = `$$a${depth || ''}`;

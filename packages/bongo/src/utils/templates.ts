@@ -163,6 +163,10 @@ function makeBlocks(argv: Required<Argv>, config: Required<Config>) {
 	};
 }
 
+// Content is compiled BEFORE walk 2, so `$page`, `$pages`, `$section`, `$tags`
+// aren't available yet — only the page's own `params` plus the site-wide helpers.
+// Consumers who need sibling/tag info should do that work in their LAYOUT, not
+// in their content body.
 export async function compileContent(src: string): Promise<Template.Compiler> {
 	let options: tempura.Options = {
 		async: true,
