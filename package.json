@@ -2,7 +2,7 @@
   "private": true,
   "workspaces": [
     "build",
-    "demo123",
+    "example",
     "packages/*"
   ],
   "engines": {

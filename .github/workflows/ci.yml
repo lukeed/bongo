@@ -7,14 +7,12 @@ on:
       - 'archive/**'
       - 'docs/**'
       - 'example/**'
-      - 'demo123/**'
       - '*.md'
   pull_request:
     paths-ignore:
       - 'archive/**'
       - 'docs/**'
       - 'example/**'
-      - 'demo123/**'
       - '*.md'
 
 concurrency:

@@ -1,8 +1,8 @@
-// Benchmark `bongo build` end-to-end against the `demo123` fixture.
+// Benchmark `bongo build` end-to-end against the `example` fixture.
 //
 // Run:  bun packages/bongo/bench/build.bench.ts
 //
-// The bench builds demo123 in place (`demo123/public/` is gitignored). Each
+// The bench builds example in place (`example/public/` is gitignored). Each
 // sample calls `bundler.reset()` + clears template caches so prior state
 // doesn't leak between runs.
 
@@ -13,7 +13,7 @@ import { build } from '../src/build';
 import * as bundler from '../src/utils/bundler';
 import * as templates from '../src/utils/templates';
 
-const DEMO = resolve(import.meta.dirname, '../../../demo123');
+const DEMO = resolve(import.meta.dirname, '../../../example');
 
 function resetState(): void {
 	bundler.reset();
@@ -28,7 +28,7 @@ await (async () => {
 	await build({ cwd: DEMO });
 })();
 
-bench('build demo123', async () => {
+bench('build example', async () => {
 	resetState();
 	await build({ cwd: DEMO });
 });
