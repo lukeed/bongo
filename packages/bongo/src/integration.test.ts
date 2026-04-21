@@ -9,7 +9,8 @@ import { build } from './build';
 import * as bundler from './utils/bundler';
 import * as templates from './utils/templates';
 
-const FIXTURE_ROOT = join(import.meta.dirname, '../test/fixtures/site-basic');
+const FIXTURES = join(import.meta.dirname, '../test/fixtures');
+const FIXTURE_ROOT = join(FIXTURES, 'site-basic');
 
 // Reset module-level state between tests so each build starts clean.
 beforeEach(() => {
@@ -18,15 +19,18 @@ beforeEach(() => {
 	templates.Partials.clear();
 });
 
-async function runBuild(): Promise<string> {
+async function copyFixture(name: string): Promise<string> {
 	// Copy the fixture into a temp dir so tests are isolated from each other
 	// and from any stale `public/` the fixture may accrue.
 	let target = join(tmpdir(), `bongo-it-${randomBytes(6).toString('hex')}`);
 	await mkdir(target, { recursive: true });
-	await cp(FIXTURE_ROOT, target, { recursive: true });
+	await cp(join(FIXTURES, name), target, { recursive: true });
+	return target;
+}
 
+async function runBuild(): Promise<string> {
+	let target = await copyFixture('site-basic');
 	await build({ cwd: target });
-
 	return target;
 }
 
@@ -105,6 +109,70 @@ describe('integration: site-basic', () => {
 			// don't pin counts tightly.
 			expect(hashedCss.length).toBeGreaterThanOrEqual(1);
 			expect(hashedJs.length).toBeGreaterThanOrEqual(1);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('integration: site-css-modules', () => {
+	test('hashes class names in *.module.css output', async () => {
+		let root = await copyFixture('site-css-modules');
+		try {
+			await build({ cwd: root });
+
+			let out = join(root, 'public');
+			let files = await readdir(out);
+
+			// One hashed CSS output from theme.module.css.
+			// Filename is "theme.module.<hash>.css" — the input basename includes
+			// a dot so the hash lands between "module" and the extension.
+			let cssFiles = files.filter(f => /^theme\.module\.[\w-]+\.css$/.test(f));
+			expect(cssFiles.length).toBe(1);
+
+			let css = await readFile(join(out, cssFiles[0]), 'utf8');
+
+			// Original class names are scoped/hashed by lightningcss, so the raw
+			// selectors `.red` and `.blue` should NOT appear as-is in the emitted
+			// bundle.
+			expect(css).not.toMatch(/\.red\s*\{/);
+			expect(css).not.toMatch(/\.blue\s*\{/);
+			// Two hashed selectors in the output, one per source class.
+			let selectors = css.match(/\.[a-zA-Z0-9_-]+_red\b/g);
+			expect(selectors).not.toBeNull();
+			expect(selectors!.length).toBeGreaterThan(0);
+			let blueSelectors = css.match(/\.[a-zA-Z0-9_-]+_blue\b/g);
+			expect(blueSelectors).not.toBeNull();
+			// Font-weight rule is preserved verbatim (lightningcss may minify
+			// color values like `blue` → `#00f` so we don't check those).
+			expect(css).toContain('font-weight: bold');
+
+			// HTML link still points at the hashed CSS file.
+			let indexHtml = await readFile(join(out, 'index.html'), 'utf8');
+			expect(indexHtml).not.toContain('__BONGO_BUNDLE');
+			let linkMatch = indexHtml.match(/<link rel="stylesheet" href="([^"]+)"/);
+			expect(linkMatch).not.toBeNull();
+			expect(linkMatch![1]).toMatch(/^\/theme\.module\.[\w-]+\.css$/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('integration: site-build-error', () => {
+	test('surfaces bundler errors with a useful message', async () => {
+		let root = await copyFixture('site-build-error');
+		let err: Error | null = null;
+		try {
+			try {
+				await build({ cwd: root });
+			} catch (e) {
+				err = e as Error;
+			}
+
+			expect(err).not.toBeNull();
+			// Top-level throw carries the count summary emitted by build.ts.
+			expect(err!.message).toMatch(/Build failed/);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
