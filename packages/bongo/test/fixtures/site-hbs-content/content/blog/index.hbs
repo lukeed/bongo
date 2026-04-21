@@ -1,0 +1,11 @@
+---
+title: Blog
+---
+<article data-section="{{ $page.section }}">
+	<h1>{{ $page.title }}</h1>
+	<ul class="siblings">
+	{{#each $section as (p)}}
+	<li data-path="{{ p.path }}">{{ p.title }}</li>
+	{{/each}}
+	</ul>
+</article>

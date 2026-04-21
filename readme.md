@@ -212,7 +212,9 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax (Handlebars-li
 - `$assets` — loader map configured via `bongo.config.ts`.
 - `$utils` — helpers (`truncate`, `countwords`, `url.abs`, `date.format`).
 
-Content files ending in `.hbs` are themselves tempura-compiled before layout render, with `$site`, `$assets`, `$utils`, and `params` in scope (no `$page`/`$pages`/`$section`/`$tags` — those belong to the layout pass).
+Content files ending in `.hbs` are themselves tempura-compiled, with the same context as layouts: `$site`, `$page`, `$pages`, `$section`, `$tags`, `$assets`, `$utils`, plus `params` (alias for `$page.params`, kept for ergonomics). A content body can therefore list sibling posts, read `$page.tags`, or reference any other page in the build — not just its own frontmatter.
+
+One caveat: the current page's own `$page.content` is the empty string during its body's compile (it IS what the compile produces). Referencing it inside the body is nonsensical.
 
 ### CSS
 

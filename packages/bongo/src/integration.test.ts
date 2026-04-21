@@ -197,6 +197,29 @@ describe('integration: site-hbs-content', () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test('.hbs content bodies can read $page, $section, and $page.tags', async () => {
+		let root = await copyFixture('site-hbs-content');
+		try {
+			await build({ cwd: root });
+			let out = join(root, 'public');
+
+			// Blog index's body iterates $section — should list all three blog pages.
+			let blogIndex = await readFile(join(out, 'blog', 'index.html'), 'utf8');
+			expect(blogIndex).toContain('data-section="blog"');
+			expect(blogIndex).toContain('data-path="/blog/"');
+			expect(blogIndex).toContain('data-path="/blog/post-a/"');
+			expect(blogIndex).toContain('data-path="/blog/post-b/"');
+
+			// Post A's body reads $page.tags to derive a data-tags attribute
+			// and $page.tags.length.
+			let postA = await readFile(join(out, 'blog', 'post-a', 'index.html'), 'utf8');
+			expect(postA).toContain('data-tags="alpha,demo"');
+			expect(postA).toContain('This page has 2 tags.');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });
 
 describe('integration: site-sections', () => {

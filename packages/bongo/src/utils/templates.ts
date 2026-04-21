@@ -163,14 +163,17 @@ function makeBlocks(argv: Required<Argv>, config: Required<Config>) {
 	};
 }
 
-// Content is compiled BEFORE walk 2, so `$page`, `$pages`, `$section`, `$tags`
-// aren't available yet — only the page's own `params` plus the site-wide helpers.
-// Consumers who need sibling/tag info should do that work in their LAYOUT, not
-// in their content body.
+// Content compiles in walk 2 with the same context layouts see — `$page`,
+// `$pages`, `$section`, `$tags` are all available. One caveat: the current
+// page's own `$page.content` is the empty string during its own body's
+// compile (it IS what this compile is about to produce). Referencing it
+// inside the body would be nonsensical anyway.
 export async function compileContent(src: string): Promise<Template.Compiler> {
 	let options: tempura.Options = {
 		async: true,
-		props: ['$site', '$assets', '$utils', 'params'],
+		// `params` remains a top-level var (an alias to `$page.params`) so
+		// existing `.hbs` templates using `{{ params.title }}` keep working.
+		props: ['$site', '$page', '$pages', '$section', '$tags', '$assets', '$utils', 'params'],
 		blocks: blocks as unknown as tempura.Blocks,
 	};
 	return tempura.compile(src, options);
