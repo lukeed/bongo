@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'bun:test';
 import { normalize } from './utils/argv';
 import { resolve } from 'node:path';
 
