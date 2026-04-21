@@ -66,7 +66,7 @@ export const blocks: {
 	},
 };
 
-function makeBlocks(argv: Required<Argv>) {
+function makeBlocks(argv: Required<Argv>, config: Required<Config>) {
 	return {
 		/**
 		 * Alternative partial format
@@ -95,7 +95,10 @@ function makeBlocks(argv: Required<Argv>) {
 			let entry = join(argv.assets, src);
 			fs.assert(entry, `assets/${src}`);
 
-			let placeholder = bundler.register(entry, { kind: 'css' });
+			let placeholder = bundler.register(entry, {
+				kind: 'css',
+				targets: config.$build.target,
+			});
 
 			// Inline by the rule: <style> tags with a src= become inline <style>…</style>.
 			// Preload is meaningless for inline (content is in the HTML already).
@@ -119,7 +122,10 @@ function makeBlocks(argv: Required<Argv>) {
 			let entry = join(argv.assets, href);
 			fs.assert(entry, `assets/${href}`);
 
-			let placeholder = bundler.register(entry, { kind: 'css' });
+			let placeholder = bundler.register(entry, {
+				kind: 'css',
+				targets: config.$build.target,
+			});
 			return `<link rel="stylesheet" href="${placeholder}"/>`;
 		},
 
@@ -139,7 +145,8 @@ function makeBlocks(argv: Required<Argv>) {
 			let placeholder = bundler.register(entry, {
 				kind: 'js',
 				format: format === 'cjs' ? 'cjs' : 'esm',
-				target: target,
+				// Explicit block arg wins; fall back to config.$build.target.
+				target: target ?? config.$build.target,
 			});
 
 			if (inline) {
@@ -157,7 +164,7 @@ function makeBlocks(argv: Required<Argv>) {
 }
 
 export async function collect(argv: Required<Argv>, config: Required<Config>): Promise<void> {
-	let made = makeBlocks(argv);
+	let made = makeBlocks(argv, config);
 
 	// Re-assign onto the exported const so ESM consumers see the new closures.
 	Object.assign(blocks, made);

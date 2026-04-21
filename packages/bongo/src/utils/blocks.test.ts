@@ -52,6 +52,7 @@ function makeConfig(): Required<Config> {
 		},
 		$assets: {},
 		$partials: {},
+		$build: {},
 		plugins: [],
 	} as Required<Config>;
 }
@@ -184,6 +185,57 @@ describe('idempotent registration', () => {
 			let h1 = await templates.blocks.style({ src: 'a.css' });
 			let h2 = await templates.blocks.style({ src: 'a.css' });
 			expect(h1).toBe(h2);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('<style src> with $build.target', () => {
+	test('passes target through to the bundler config', async () => {
+		// The placeholder is deterministic from (entry, cfg). If we register the same
+		// entry with different cfgs (target present vs absent), the placeholders differ.
+		let dir = await tmpProject({ 'assets/a.css': '.a { color: red; }' });
+		try {
+			let argv = makeArgv(dir);
+			let configA = makeConfig();
+			await templates.collect(argv, configA);
+			let hNoTarget = await templates.blocks.style({ src: 'a.css' });
+
+			bundler.reset();
+			let configB = makeConfig();
+			configB.$build = { target: 'last 2 versions' };
+			await templates.collect(argv, configB);
+			let hWithTarget = await templates.blocks.style({ src: 'a.css' });
+
+			// Different cfgs → different placeholder tokens.
+			let tokenA = hNoTarget.match(/__BONGO_BUNDLE:[a-f0-9]{16}__/)![0];
+			let tokenB = hWithTarget.match(/__BONGO_BUNDLE:[a-f0-9]{16}__/)![0];
+			expect(tokenA).not.toBe(tokenB);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('<script src> with $build.target', () => {
+	test('passes target through to the bundler config', async () => {
+		let dir = await tmpProject({ 'assets/a.ts': 'export const x = 1;' });
+		try {
+			let argv = makeArgv(dir);
+			let configA = makeConfig();
+			await templates.collect(argv, configA);
+			let hNoTarget = await templates.blocks.script({ src: 'a.ts' });
+
+			bundler.reset();
+			let configB = makeConfig();
+			configB.$build = { target: 'es2020' };
+			await templates.collect(argv, configB);
+			let hWithTarget = await templates.blocks.script({ src: 'a.ts' });
+
+			let tokenA = hNoTarget.match(/__BONGO_BUNDLE:[a-f0-9]{16}__/)![0];
+			let tokenB = hWithTarget.match(/__BONGO_BUNDLE:[a-f0-9]{16}__/)![0];
+			expect(tokenA).not.toBe(tokenB);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}

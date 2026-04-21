@@ -115,6 +115,9 @@ export interface Config {
 		[extension: string]: Loader;
 	};
 	$partials?: Template.Partials;
+	$build?: {
+		target?: string | string[];  // browserslist query or array of queries
+	};
 	plugins?: Partial<Config>[];
 }
 
