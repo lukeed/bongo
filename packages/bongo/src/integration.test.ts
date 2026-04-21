@@ -230,3 +230,40 @@ describe('integration: site-sections', () => {
 		}
 	});
 });
+
+describe('integration: site-tags', () => {
+	test('exposes $tags in layout and $page.tags per page', async () => {
+		let root = await copyFixture('site-tags');
+		try {
+			await build({ cwd: root });
+
+			let out = join(root, 'public');
+
+			// Post A has tags food + travel.
+			let postA = await readFile(join(out, 'post-a', 'index.html'), 'utf8');
+			expect(postA).toContain('data-tags="food,travel"');
+
+			// Post B has tags travel + tech.
+			let postB = await readFile(join(out, 'post-b', 'index.html'), 'utf8');
+			expect(postB).toContain('data-tags="travel,tech"');
+
+			// Home page sees every tag via $tags.
+			let home = await readFile(join(out, 'index.html'), 'utf8');
+			// Each tag appears as a <li data-tag="…">.
+			for (let tag of ['home', 'meta', 'food', 'travel', 'tech']) {
+				expect(home).toContain(`data-tag="${tag}"`);
+			}
+
+			// The 'travel' tag lists both post-a and post-b via pathsCsv.
+			// (Nested #each in tempura shares $$a across levels, so we use the
+			// pre-computed pathsCsv attribute instead of nested iteration.)
+			let travelMatch = home.match(/data-tag="travel"\s+data-paths="([^"]*)"/);
+			expect(travelMatch).not.toBeNull();
+			let travelPaths = travelMatch![1];
+			expect(travelPaths).toContain('/post-a/');
+			expect(travelPaths).toContain('/post-b/');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});

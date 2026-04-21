@@ -1,0 +1,14 @@
+<!doctype html>
+<html>
+<head><title>{{ $page.title }}</title></head>
+<body>
+<section data-tags="{{#each $page.tags as (t, i)}}{{#if i}},{{/if}}{{ t }}{{/each}}">
+{{{ $page.content }}}
+</section>
+<ul class="tag-pages">
+{{#each $tags as (entry, ti)}}
+<li data-tag="{{ entry.tag }}" data-paths="{{ entry.pathsCsv }}"></li>
+{{/each}}
+</ul>
+</body>
+</html>
