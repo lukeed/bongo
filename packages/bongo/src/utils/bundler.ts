@@ -246,12 +246,6 @@ export async function flush(opts: { outDir: string }): Promise<FlushResult> {
 	return { outputs, warnings, errors };
 }
 
-export function resolve(p: Placeholder): string {
-	let info = LAST_OUTPUTS.get(p);
-	if (!info) throw new Error(`Placeholder ${p} was not in the last flush()`);
-	return info.filename;
-}
-
 // ---------------------------------------------------------------------------
 // Watch state (Phase F)
 // ---------------------------------------------------------------------------

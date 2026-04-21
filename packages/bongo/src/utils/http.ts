@@ -6,23 +6,13 @@ import type { HmrMessage } from './bundler';
 
 export const RELOAD = '/~/reload';
 
-// Alias so http consumers can import ClientMessage without knowing about bundler.
-// Structural identity with HmrMessage is intentional — http.send is passed
-// directly to bundler.hmr() in dev.ts.
-export type ClientMessage = HmrMessage;
-
 const clients = new Set<ServerResponse>();
 
-export function send(msg: ClientMessage): void {
+export function send(msg: HmrMessage): void {
 	let data = JSON.stringify(msg);
 	for (let res of clients) {
 		res.write(`data: ${data}\n\n`);
 	}
-}
-
-// Backward-compat shim — callers that already use reload() continue to work.
-export function reload(): void {
-	send({ type: 'reload' });
 }
 
 // TODO: port detect?

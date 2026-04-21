@@ -143,33 +143,16 @@ describe('flush() — CSS', () => {
 	});
 });
 
-describe('resolve()', () => {
-	test('returns the filename for a placeholder from the last flush', async () => {
-		let { dir, outDir } = await tmp({ 'entry.ts': 'export const x = 1;' });
-		try {
-			let p = bundler.register(join(dir, 'entry.ts'), { kind: 'js' });
-			await bundler.flush({ outDir });
-			let file = bundler.resolve(p);
-			// rolldown uses base62 hashes (e.g. "jxy3YN54"), not hex-only
-			expect(file).toMatch(/^entry\.[\w-]+\.js$/);
-		} finally {
-			await rm(dir, { recursive: true, force: true });
-		}
-	});
-
-	test('throws for a placeholder that was not in the last flush', () => {
-		expect(() => bundler.resolve('__BONGO_BUNDLE:ffffffffffffffff__' as never)).toThrow();
-	});
-});
-
 describe('reset()', () => {
 	test('clears registrations and outputs', async () => {
 		let { dir, outDir } = await tmp({ 'entry.ts': 'export const x = 1;' });
 		try {
 			let p = bundler.register(join(dir, 'entry.ts'), { kind: 'js' });
-			await bundler.flush({ outDir });
+			let before = await bundler.flush({ outDir });
+			expect(before.outputs.get(p)).toBeDefined();
 			bundler.reset();
-			expect(() => bundler.resolve(p)).toThrow();
+			let after = await bundler.flush({ outDir });
+			expect(after.outputs.size).toBe(0);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}

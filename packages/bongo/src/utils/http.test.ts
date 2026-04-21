@@ -6,9 +6,3 @@ describe('send', () => {
 		expect(typeof http.send).toBe('function');
 	});
 });
-
-describe('reload (shim)', () => {
-	test('is still callable', () => {
-		expect(typeof http.reload).toBe('function');
-	});
-});

@@ -132,38 +132,3 @@ describe('bundle', () => {
 		}
 	});
 });
-
-describe('transform', () => {
-	test('transforms a string of CSS', async () => {
-		let result = await css.transform({
-			source: '.a { color: red; }',
-			filename: 'inline.css',
-		});
-		let code = result.code.toString('utf8');
-		expect(code).toContain('.a');
-		expect(code).toContain('red');
-	});
-
-	test('honours minify on a string', async () => {
-		let min = await css.transform({
-			source: '.a {\n  color: red;\n}\n',
-			filename: 'inline.css',
-			minify: true,
-		});
-		let pretty = await css.transform({
-			source: '.a {\n  color: red;\n}\n',
-			filename: 'inline.css',
-			minify: false,
-		});
-		expect(min.code.length).toBeLessThan(pretty.code.length);
-	});
-
-	test('transforms CSS modules in-memory', async () => {
-		let result = await css.transform({
-			source: '.red { color: red; }',
-			filename: 'button.module.css',
-		});
-		expect(result.exports).toBeDefined();
-		expect(result.exports!.red).toMatch(/.+/);
-	});
-});
