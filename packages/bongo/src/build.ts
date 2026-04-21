@@ -203,7 +203,9 @@ export async function build(argv: Argv): Promise<void> {
 			content += `<script>`;
 			content +=   `var es = new EventSource('${RELOAD}');`;
 			content +=   `es.onopen = () => console.log('[dev] live reload enabled');`;
-			content +=   `es.onmessage = () => location.reload();`;
+			// Phase G will extend this switch for hmr/error/error-clear.
+			// Unknown types are silently ignored for forward-compat.
+			content +=   `es.onmessage = (ev) => { try { var m = JSON.parse(ev.data); if (m.type === 'reload') location.reload(); } catch (e) {} };`;
 			content += `</script>`;
 		}
 

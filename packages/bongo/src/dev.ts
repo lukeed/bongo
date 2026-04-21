@@ -31,6 +31,9 @@ export async function dev(argv: Argv) {
 		templates.Layouts.clear();
 
 		await build(argv);
-		http.reload();
+		// bundler.watch() is wired but not consumed here yet — Phase G layers
+		// HMR on top. Full-rebuild via bundler.reset() + build() handles
+		// asset-graph invalidation for now.
+		http.send({ type: 'reload' });
 	});
 }
