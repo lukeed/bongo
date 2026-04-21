@@ -1,11 +1,10 @@
-import { parse, join, relative } from 'node:path';
+import { parse, join } from 'node:path';
 import * as tempura from './tempura/index';
 import * as bundler from './bundler';
 import * as log from './log';
 import * as fs from './fs';
 
 import type { Argv, Config, Template } from 'bongo';
-import type { InputOptions, OutputOptions } from 'rolldown';
 import type { Args } from './tempura/index';
 
 // TODO: revert to `tempura.Compiler` postfix
@@ -14,10 +13,6 @@ type Cache = Map<string, Template.Compiler>;
 export const Layouts: Cache = new Map;
 export const Partials: Cache = new Map;
 
-const Assets: {
-	[input: string]: bundler.Group
-} = {};
-
 // Remove the extension
 // TODO: normalize path separators
 function toPartialName(file: string): string {
@@ -25,162 +20,151 @@ function toPartialName(file: string): string {
 	return file.substring(0, file.length - ext.length);
 }
 
-namespace Args {
-	export interface Script {
+namespace BlockArgs {
+	export type Script = {
 		src?: string;
-		defer?: boolean;
-		target?: string;
-		inline?: boolean;
-		format?: string;
 		async?: boolean;
-	}
-
-	export interface Style {
-		src?: string;
-		// TODO: outfile vs bundle vs ...
-		output?: string;
-		// TODO: enum
-		preload?: boolean;
+		defer?: boolean;
 		inline?: boolean;
-	}
-}
-
-export async function collect(argv: Required<Argv>, config: Required<Config>): Promise<void> {
-	let inputOpts: InputOptions = {};
-	let outputOpts: OutputOptions = {
-		dir: argv.dest,
-		minify: !!argv.minify,
+		format?: 'esm' | 'cjs';
+		target?: string;
 	};
 
-	// output fileName is relative to outDir (dest)
-	let toOutfile = (file: string) => {
-		return config.$utils.url.abs(file);
-	}
+	export type Style = {
+		src?: string;
+		preload?: boolean;
+	};
 
-	let blocks: Template.Partials = {
+	export type Link = {
+		href?: string;
+		rel?: string;
+	};
+}
+
+// Module-level blocks object; collect() reassigns its contents via Object.assign
+// so that ESM re-exports see mutations (Bun ESM is quirky about let re-exports).
+export const blocks: {
+	style(args: Record<string, unknown>): Promise<string>;
+	link(args: Record<string, unknown>): Promise<string>;
+	script(args: Record<string, unknown>): Promise<string>;
+	partial(args: Record<string, unknown>): Promise<string> | string;
+	[key: string]: unknown;
+} = {
+	// Placeholders replaced by collect() — calling before collect() throws.
+	style(_args) {
+		return Promise.reject(new Error('blocks.style called before collect()'));
+	},
+	link(_args) {
+		return Promise.reject(new Error('blocks.link called before collect()'));
+	},
+	script(_args) {
+		return Promise.reject(new Error('blocks.script called before collect()'));
+	},
+	partial(_args) {
+		throw new Error('blocks.partial called before collect()');
+	},
+};
+
+function makeBlocks(argv: Required<Argv>) {
+	return {
 		/**
 		 * Alternative partial format
 		 * @note Partials do not have `$page` info
 		 * @example {{#partial src="minutes" text="hello world" }}
 		 * @example {{#partial src="minutes.hbs" text="hello world" }}
 		 */
-		partial(args) {
-			let { src, ...rest } = args;
+		partial(args: Record<string, unknown>): Promise<string> | string {
+			let { src, ...rest } = args as { src?: string } & Record<string, unknown>;
+			if (!src) throw new Error('<partial src="..."> missing "src"');
 			let key = toPartialName(src);
 			let render = Partials.get(key);
-			if (render) return render(rest);
+			if (render) return render(rest as Args);
 			throw new Error(`Unknown "${key}" partial!`);
 		},
 
 		/**
-		 * @todo
+		 * Inline-by-default stylesheet block. Registers a CSS entry and emits a
+		 * placeholder that pass 2 (build.ts) will replace with inlined <style> contents.
 		 * @example {{#style src="index.css"}}
 		 */
-		async style(args: Args.Style) {
-			// TODO: figure out output="" for bundle vs ...
-			let { src, preload, inline } = args;
-			let input = join(argv.assets, src!);
+		async style(args: Record<string, unknown>): Promise<string> {
+			let { src } = args as BlockArgs.Style;
+			if (!src) throw new Error('<style src="..."> missing "src" attribute');
 
-			// NOTE: already setup()
-			let group = Assets[input]!;
-			let result = await bundler.build(group);
+			let entry = join(argv.assets, src);
+			fs.assert(entry, `assets/${src}`);
 
-			let outfile = bundler.postbuild(input, result);
+			let placeholder = bundler.register(entry, { kind: 'css' });
 
-			if (inline) {
-				outfile = join(argv.dest, outfile);
-				let contents = await fs.read(outfile, 'utf8');
-				return `<style>${contents}</style>`;
-			}
-
-			// ~> "/foo.[hash].css"
-			outfile = toOutfile(outfile);
-
-			let plain = `<link rel="stylesheet" href="${outfile}"/>`;
-			if (!preload) return plain;
-
-			let html = `<link rel="preload" href="${outfile}" as="style"`;
-			html += ` onload="this.onload=null;this.rel='stylesheet'"/>`;
-			html += `<noscript>${plain}</noscript>`;
-
-			return html;
+			// Inline by the rule: <style> tags with a src= become inline <style>…</style>.
+			// Preload is meaningless for inline (content is in the HTML already).
+			return `<style data-bongo-inline="${placeholder}"></style>`;
 		},
 
 		/**
-		 * Process/bundle a script file.
+		 * External stylesheet block. Registers a CSS entry and emits a placeholder
+		 * in the href attribute that pass 2 replaces with the hashed public URL.
+		 * Non-stylesheet rels are passed through unchanged.
+		 * @example {{#link rel="stylesheet" href="index.css"}}
+		 */
+		async link(args: Record<string, unknown>): Promise<string> {
+			let { href, rel } = args as BlockArgs.Link;
+			if (!href) throw new Error('<link href="..."> missing "href" attribute');
+			if (rel !== 'stylesheet') {
+				// Only rel=stylesheet is a bundling concern — pass others through.
+				return `<link${rel ? ` rel="${rel}"` : ''} href="${href}"/>`;
+			}
+
+			let entry = join(argv.assets, href);
+			fs.assert(entry, `assets/${href}`);
+
+			let placeholder = bundler.register(entry, { kind: 'css' });
+			return `<link rel="stylesheet" href="${placeholder}"/>`;
+		},
+
+		/**
+		 * Process/bundle a script file. Emits a placeholder in src (external) or
+		 * in data-bongo-inline (inline); pass 2 resolves and substitutes.
 		 * @example {{#script src="main.ts" target="es2019" format="esm" async=true }}
 		 * @example {{#script src="demo.mjs" inline=true }}
 		 */
-		async script(args: Args.Script) {
-			let { src, format, async, defer, inline } = args;
-			let input = join(argv.assets, src!);
+		async script(args: Record<string, unknown>): Promise<string> {
+			let { src, async: isAsync, defer, inline, format, target } = args as BlockArgs.Script;
+			if (!src) throw new Error('<script src="..."> missing "src" attribute');
 
-			// NOTE: already setup()
-			let group = Assets[input]!;
+			let entry = join(argv.assets, src);
+			fs.assert(entry, `assets/${src}`);
 
-			let result = await bundler.build(group);
-			let outfile = bundler.postbuild(input, result);
-
-			// NOTE: matches setup
-			format = format || 'esm';
-
-			// begin construction
-			let html = '<script';
-			if (async) html += ' async';
-			if (format === 'esm') {
-				html += ' type=module';
-			} else if (defer) {
-				html += ' defer';
-			}
+			let placeholder = bundler.register(entry, {
+				kind: 'js',
+				format: format === 'cjs' ? 'cjs' : 'esm',
+				target: target,
+			});
 
 			if (inline) {
-				outfile = join(argv.dest, outfile);
-				let contents = await fs.read(outfile, 'utf8');
-				html += '>' + contents + '</script>';
-			} else {
-				outfile = toOutfile(outfile);
-				html += ` src="${outfile}"></script>`;
+				return `<script data-bongo-inline="${placeholder}"></script>`;
 			}
 
-			return html;
-		}
+			// External: normal HTML script tag with placeholder in src.
+			let attrs = '';
+			if (isAsync) attrs += ' async';
+			if (format !== 'cjs') attrs += ' type="module"';
+			else if (defer) attrs += ' defer';
+			return `<script${attrs} src="${placeholder}"></script>`;
+		},
 	};
+}
 
-	blocks.style.setup = function (args: Args.Style) {
-		let { src, output } = args;
-		if (!src) throw new Error('Missing "src" argument');
+export async function collect(argv: Required<Argv>, config: Required<Config>): Promise<void> {
+	let made = makeBlocks(argv);
 
-		let input = join(argv.assets, src);
-		if (Assets[input]) return;
-
-		fs.assert(input, `assets/${src}`);
-
-		let oo = { ...outputOpts };
-		if (output) oo.assetFileNames = output;
-
-		Assets[input] = bundler.prebuild(input, { input: { ...inputOpts }, output: oo });
-	}
-
-	blocks.script.setup = function (args: Args.Script) {
-		let { src, target, format } = args;
-		if (!src) throw new Error('Missing "src" argument');
-
-		let input = join(argv.assets, src);
-		if (Assets[input]) return;
-
-		fs.assert(input, `assets/${src}`);
-
-		Assets[input] = bundler.prebuild(input, {
-			input: { ...inputOpts },
-			output: {
-				...outputOpts,
-				format: (format || 'esm') as 'es' | 'cjs',
-			},
-		});
-	}
+	// Re-assign onto the exported const so ESM consumers see the new closures.
+	Object.assign(blocks, made);
 
 	let props = ['$site', '$page', '$assets', '$utils'];
-	let options: tempura.Options = { async: true, props, blocks };
+	// tempura blocks is typed as Blocks (Record<string, Block>); we cast through
+	// unknown to satisfy the index signature without using `any`.
+	let options: tempura.Options = { async: true, props, blocks: blocks as unknown as tempura.Blocks };
 
 	// TODO: improv error msg display
 	async function compile(dir: string, rel: string) {
@@ -222,7 +206,7 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 			render = render.default || render;
 
 			// NOTE: Partials do NOT have access to `$page` var
-			let compiler = (x: Args) => render({ ...x, ...config }, blocks);
+			let compiler = (x: Args) => render({ ...x, ...config }, blocks as unknown as tempura.Blocks);
 			Partials.set(key, blocks[key] = compiler);
 		}
 	}
