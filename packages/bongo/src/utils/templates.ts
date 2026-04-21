@@ -97,7 +97,7 @@ function makeBlocks(argv: Required<Argv>, config: Required<Config>) {
 
 			let placeholder = bundler.register(entry, {
 				kind: 'css',
-				targets: config.$build.targets,
+				targets: config.$build.target,
 			});
 
 			// Inline by the rule: <style> tags with a src= become inline <style>…</style>.
@@ -124,7 +124,7 @@ function makeBlocks(argv: Required<Argv>, config: Required<Config>) {
 
 			let placeholder = bundler.register(entry, {
 				kind: 'css',
-				targets: config.$build.targets,
+				targets: config.$build.target,
 			});
 			return `<link rel="stylesheet" href="${placeholder}"/>`;
 		},
@@ -145,7 +145,8 @@ function makeBlocks(argv: Required<Argv>, config: Required<Config>) {
 			let placeholder = bundler.register(entry, {
 				kind: 'js',
 				format: format === 'cjs' ? 'cjs' : 'esm',
-				target: target,
+				// Explicit block arg wins; fall back to config.$build.target.
+				target: target ?? config.$build.target,
 			});
 
 			if (inline) {
