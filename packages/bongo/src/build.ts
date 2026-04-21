@@ -2,6 +2,7 @@ import { extname, join, relative } from 'node:path';
 
 import * as fs from './utils/fs';
 import * as log from './utils/log';
+import * as bundler from './utils/bundler';
 import { load } from './utils/config';
 import * as templates from './utils/templates';
 import { normalize } from './utils/argv';
@@ -9,11 +10,27 @@ import { RELOAD } from './utils/http';
 
 import type { Argv, Loader, Template } from 'bongo';
 
+function derivePublicPath(siteUrl: string): string {
+	if (!siteUrl) return '/';
+	try {
+		let u = new URL(siteUrl);
+		let p = u.pathname;
+		return p.endsWith('/') ? p : p + '/';
+	} catch {
+		return '/';
+	}
+}
+
+type CollectedPage = {
+	output: string;   // absolute path to write
+	html: string;     // rendered HTML, may contain placeholders
+};
+
 export async function build(argv: Argv): Promise<void> {
 	normalize(argv);
 
 	const config = await load(argv.cwd);
-	const { $site, $assets:ASSETS } = config;
+	const { $site, $assets: ASSETS } = config;
 	const debug = argv.debug ? log.debug : () => {};
 
 	debug('[build.argv]', argv);
@@ -55,6 +72,10 @@ export async function build(argv: Argv): Promise<void> {
 			return new TextDecoder().decode(input);
 		},
 	};
+
+	// Pass 1: render every content file. Pages with placeholders collected;
+	// pass-through assets (copies, direct writes) emit to disk immediately.
+	let pages: CollectedPage[] = [];
 
 	await fs.list(content, async (input, rel, name) => {
 		let idx = rel.lastIndexOf('.');
@@ -186,8 +207,36 @@ export async function build(argv: Argv): Promise<void> {
 			content += `</script>`;
 		}
 
-		await fs.write(output, content);
+		pages.push({ output, html: content });
 	});
+
+	// Flush: run every bundle group in parallel.
+	let flushResult = await bundler.flush({ outDir: dest });
+
+	if (flushResult.errors.length > 0) {
+		for (let err of flushResult.errors) {
+			log.error(err.message);
+			if (err.file) log.error('  in ' + err.file);
+		}
+		throw new Error(`Build failed: ${flushResult.errors.length} bundler error(s)`);
+	}
+
+	for (let w of flushResult.warnings) {
+		debug('[bundler.warning]', w.message);
+	}
+
+	// Pass 2: substitute placeholders and write pages.
+	let publicPath = derivePublicPath($site.url);
+	let readOutput = (filename: string) => fs.read(join(dest, filename), 'utf8');
+
+	await Promise.all(pages.map(async page => {
+		let html = await templates.substitute(page.html, {
+			outputs: flushResult.outputs,
+			publicPath,
+			readFile: readOutput,
+		});
+		await fs.write(page.output, html);
+	}));
 
 	if (argv.minify) {
 		const exec = require('node:util').promisify(

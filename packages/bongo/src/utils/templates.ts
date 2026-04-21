@@ -6,6 +6,7 @@ import * as fs from './fs';
 
 import type { Argv, Config, Template } from 'bongo';
 import type { Args } from './tempura/index';
+import type { OutputInfo, Placeholder } from './bundler';
 
 // TODO: revert to `tempura.Compiler` postfix
 type Cache = Map<string, Template.Compiler>;
@@ -224,6 +225,63 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 			Layouts.set(rel, await compile(layouts, rel));
 		}
 	});
+}
+
+export type SubstituteOptions = {
+	outputs: Map<Placeholder, OutputInfo>;
+	publicPath: string;                   // e.g. '/' or '/blog/'
+	readFile: (filename: string) => Promise<string>;
+};
+
+const PLACEHOLDER_RE = /__BONGO_BUNDLE:[a-f0-9]{16}__/g;
+const INLINE_STYLE_RE = /<style data-bongo-inline="(__BONGO_BUNDLE:[a-f0-9]{16}__)"><\/style>/g;
+const INLINE_SCRIPT_RE = /<script([^>]*)data-bongo-inline="(__BONGO_BUNDLE:[a-f0-9]{16}__)"([^>]*)><\/script>/g;
+
+export async function substitute(html: string, opts: SubstituteOptions): Promise<string> {
+	let { outputs, publicPath, readFile } = opts;
+
+	// Pass 2a: inline <style> — replace element entirely.
+	let inlineStyleTasks: Promise<[string, string]>[] = [];
+	html.replace(INLINE_STYLE_RE, (_match, token) => {
+		let p = token as Placeholder;
+		let info = outputs.get(p);
+		if (!info) throw new Error(`Unresolved inline style placeholder: ${token}`);
+		inlineStyleTasks.push(readFile(info.filename).then(contents => [_match, `<style>${contents}</style>`]));
+		return _match;
+	});
+
+	let inlineStyles = await Promise.all(inlineStyleTasks);
+	for (let [match, replacement] of inlineStyles) {
+		html = html.replace(match, replacement);
+	}
+
+	// Pass 2b: inline <script> — replace element entirely, preserving other attrs.
+	let inlineScriptTasks: Promise<[string, string]>[] = [];
+	html.replace(INLINE_SCRIPT_RE, (_match, attrsBefore, token, attrsAfter) => {
+		let p = token as Placeholder;
+		let info = outputs.get(p);
+		if (!info) throw new Error(`Unresolved inline script placeholder: ${token}`);
+		// Drop the data-bongo-inline attribute; keep any other attrs.
+		let otherAttrs = (attrsBefore + ' ' + attrsAfter).replace(/\s+/g, ' ').trim();
+		let attrPart = otherAttrs ? ' ' + otherAttrs : '';
+		inlineScriptTasks.push(readFile(info.filename).then(contents => [_match, `<script${attrPart}>${contents}</script>`]));
+		return _match;
+	});
+
+	let inlineScripts = await Promise.all(inlineScriptTasks);
+	for (let [match, replacement] of inlineScripts) {
+		html = html.replace(match, replacement);
+	}
+
+	// Pass 2c: external placeholders in href/src — swap in {publicPath}{filename}.
+	html = html.replace(PLACEHOLDER_RE, (token) => {
+		let p = token as Placeholder;
+		let info = outputs.get(p);
+		if (!info) throw new Error(`Unresolved external placeholder: ${token}`);
+		return publicPath + info.filename;
+	});
+
+	return html;
 }
 
 export function frontmatter(content: string): {
