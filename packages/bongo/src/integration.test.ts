@@ -178,3 +178,23 @@ describe('integration: site-build-error', () => {
 		}
 	});
 });
+
+describe('integration: site-hbs-content', () => {
+	test('.hbs content files are compiled with $site + params', async () => {
+		let root = await copyFixture('site-hbs-content');
+		try {
+			await build({ cwd: root });
+
+			let indexHtml = await readFile(join(root, 'public', 'index.html'), 'utf8');
+
+			// params.title came from frontmatter
+			expect(indexHtml).toContain('<h1>Greeting Page</h1>');
+			// params.name + $site.title resolved inline
+			expect(indexHtml).toContain('Hello, World! From HBS Content Fixture.');
+			// Layout still wrapped it
+			expect(indexHtml).toContain('<title>Greeting Page — HBS Content Fixture</title>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});

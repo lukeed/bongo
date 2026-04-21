@@ -163,6 +163,15 @@ function makeBlocks(argv: Required<Argv>, config: Required<Config>) {
 	};
 }
 
+export async function compileContent(src: string): Promise<Template.Compiler> {
+	let options: tempura.Options = {
+		async: true,
+		props: ['$site', '$assets', '$utils', 'params'],
+		blocks: blocks as unknown as tempura.Blocks,
+	};
+	return tempura.compile(src, options);
+}
+
 export async function collect(argv: Required<Argv>, config: Required<Config>): Promise<void> {
 	let made = makeBlocks(argv, config);
 
