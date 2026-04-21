@@ -32,6 +32,10 @@ async function list(dir: string, callback: Caller, prefix = '') {
 async function copy(src: string, dest: string) {
 	// "foo/_gitignore" => "foo/.gitignore"
 	dest = dest.replace(/([\\/]+)_/, '$1.');
+	// "package.template.json" => "package.json"
+	// (the template's manifest is shipped under this name so bun workspaces
+	// don't pick it up; restore the real name on scaffold.)
+	dest = dest.replace(/([\\/]+)package\.template\.json$/, '$1package.json');
 	await fs.promises.copyFile(src, dest);
 }
 
