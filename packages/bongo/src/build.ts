@@ -1,4 +1,5 @@
 import { extname, join, relative } from 'node:path';
+import { createHash } from 'node:crypto';
 
 import * as fs from './utils/fs';
 import * as log from './utils/log';
@@ -9,6 +10,20 @@ import { normalize } from './utils/argv';
 import { RELOAD } from './utils/http';
 
 import type { Argv, Loader, Template } from 'bongo';
+
+// Per-page frontmatter signatures from the last completed build. A narrow
+// rebuild (`opts.only`) compares the target's current frontmatter hash against
+// this snapshot. If they differ, the file's frontmatter changed — which may
+// have shifted `tags` / `section` / `title` / anything else sibling pages
+// render via `$pages` / `$section` / `$tags` — so we promote to a full rebuild
+// to keep sibling output accurate. Body-only edits keep the narrow path.
+let FRONTMATTER_SIG: Map<string, string> = new Map();
+
+function frontmatterSig(raw: string): string {
+	let { offset } = templates.frontmatter(raw);
+	let block = offset > 0 ? raw.substring(0, offset) : '';
+	return createHash('sha256').update(block).digest('hex').slice(0, 16);
+}
 
 function derivePublicPath(siteUrl: string): string {
 	if (!siteUrl) return '/';
@@ -50,6 +65,7 @@ type ScanItem = {
 	title: string;
 	summary: string;
 	tags: string[];          // parsed from frontmatter.tags
+	sig: string;             // sha256 of the raw frontmatter block (empty block ⇒ constant hash)
 };
 
 function parseTags(value: unknown): string[] {
@@ -62,7 +78,18 @@ function parseTags(value: unknown): string[] {
 	return [];
 }
 
-export async function build(argv: Argv): Promise<void> {
+export type BuildOptions = {
+	// Narrow the build to a single content file's rel path (e.g. 'blog/post.md').
+	// Walk 1 (scan + registries) still runs over every file so `$pages` / `$section`
+	// / `$tags` stay accurate, but walk 2 renders only the matching page and
+	// `public/` is not wiped. Used by the dev server for content-file edits.
+	// Pass-through asset copies (images etc.) are still re-emitted since walk 1
+	// handles them inline. If `only` doesn't match any content file, nothing is
+	// rendered — call without `only` for a full rebuild in that case.
+	only?: string;
+};
+
+export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> {
 	normalize(argv);
 
 	const config = await load(argv.cwd);
@@ -71,7 +98,7 @@ export async function build(argv: Argv): Promise<void> {
 
 	debug('[build.argv]', argv);
 
-	await fs.rmdir(argv.dest);
+	if (!opts.only) await fs.rmdir(argv.dest);
 
 	config.$assets = {
 		// @ts-ignore -> switcheroo
@@ -119,9 +146,11 @@ export async function build(argv: Argv): Promise<void> {
 		let basename = name.substring(0, idx);
 		let params: Template.Params = {};
 		let src = '';
+		let raw = '';
 
 		if (isPage.test(ext)) {
 			src = await fs.read(input, 'utf8');
+			raw = src;
 			let { offset, value } = templates.frontmatter(src);
 
 			if (offset > 0) {
@@ -136,6 +165,10 @@ export async function build(argv: Argv): Promise<void> {
 			let prev, data = new Uint8Array(
 				await fs.read(input)
 			) as Uint8Array | string;
+
+			// Capture raw file text before loaders transform it, so the
+			// frontmatter signature below is computed on the untouched source.
+			raw = new TextDecoder().decode(data as Uint8Array);
 
 			debug('[content.loader]', ext, '~> found');
 
@@ -195,8 +228,23 @@ export async function build(argv: Argv): Promise<void> {
 			title: (params.title as string) || '',
 			summary: (params.summary as string) || '',
 			tags: parseTags(params.tags),
+			sig: frontmatterSig(raw),
 		});
 	});
+
+	// Narrow-rebuild safety: if opts.only was set but the target's frontmatter
+	// hash diverges from the last build's snapshot (or the target no longer
+	// scans as a page), promote to a full rebuild so sibling pages don't keep
+	// stale HTML that references gone-tags / renamed-section / etc.
+	let narrowOnly = opts.only;
+	if (narrowOnly) {
+		let target = scanned.find(s => s.rel === narrowOnly);
+		let prev = FRONTMATTER_SIG.get(narrowOnly);
+		if (!target || prev === undefined || prev !== target.sig) {
+			narrowOnly = undefined;
+			debug('[build.narrow] frontmatter changed; promoting to full rebuild');
+		}
+	}
 
 	// Between walks — build Pages and Sections registries.
 	let Pages: Template.PageInfo[] = [];
@@ -250,9 +298,13 @@ export async function build(argv: Argv): Promise<void> {
 	}
 
 	// Walk 2 — render layouts with $pages + $section + $tags context.
+	// If `only` is set, skip rendering every item except the matching one — walk 1
+	// above already populated the registries so sibling awareness stays correct.
 	let pages: CollectedPage[] = [];
 
 	for (let item of scanned) {
+		if (narrowOnly && item.rel !== narrowOnly) continue;
+
 		let $page: Template.Page = {
 			path: item.path,
 			params: item.params,
@@ -405,6 +457,12 @@ export async function build(argv: Argv): Promise<void> {
 		let output = relative(cwd, argv.cwd) || '.';
 		await exec(`minify -r "${input}" -o "${output}"`);
 	}
+
+	// Refresh the frontmatter-sig snapshot for the next narrow rebuild. Only
+	// pages actually scanned in this build are updated; narrow builds don't
+	// touch unrelated entries, so pages skipped by `narrowOnly` above retain
+	// their prior sig (which matches since they weren't re-read).
+	for (let item of scanned) FRONTMATTER_SIG.set(item.rel, item.sig);
 
 	console.log('~> DONE~!');
 }

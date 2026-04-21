@@ -6,6 +6,25 @@ import * as fs from './utils/fs';
 import { build } from './build';
 
 import type { Argv } from 'bongo';
+import type { BuildOptions } from './build';
+
+async function rebuild(argv: Argv, opts: BuildOptions = {}): Promise<void> {
+	try {
+		await build(argv, opts);
+		// Success: reload the page to pick up new output.
+		http.send({ type: 'reload' });
+	} catch (err) {
+		// Bundler errors: bundler.flush() already pushed { type: 'error' } via
+		// HMR_SEND, so the overlay is already mounted in the existing page.
+		// Non-bundler errors (template compile failures, etc.) need manual
+		// propagation since the bundler never saw them.
+		let message = err instanceof Error ? err.message : String(err);
+		if (!message.startsWith('Build failed:')) {
+			http.send({ type: 'error', errors: [{ message }] });
+		}
+		// Don't reload — the overlay stays until the next successful build.
+	}
+}
 
 export async function dev(argv: Argv) {
 	argv.dev = true;
@@ -24,53 +43,34 @@ export async function dev(argv: Argv) {
 	// For now, any change triggers a full reload (HMR updates are not yet
 	// emitted — see spec "Dev mode" open question).
 	bundler.watch(async () => {
-		try {
-			await build(argv);
-			// Success: reload the page to pick up new assets.
-			http.send({ type: 'reload' });
-		} catch (err) {
-			// Bundler errors: bundler.flush() already pushed { type: 'error' } via
-			// HMR_SEND, so the overlay is already mounted in the existing page.
-			// Non-bundler errors (template compile failures, etc.) need manual
-			// propagation since the bundler never saw them.
-			let message = err instanceof Error ? err.message : String(err);
-			if (!message.startsWith('Build failed:')) {
-				http.send({ type: 'error', errors: [{ message }] });
-			}
-			// Don't reload — the overlay stays until the next successful build.
-		}
+		await rebuild(argv);
 	});
 
-	// TODO: content -> single file rebuild
-	// TODO: layouts/partials -> all content
-	// TODO: assets -> invalidate bundle(s), all content
-	//
-	// Template/content changes: clear caches and rebuild. The bundler keeps
-	// its registrations (placeholders are stable) but flush() re-runs.
-	await fs.watch([
-		flags.layouts,
-		flags.partials,
-		flags.content,
-	], async function (file) {
+	// Layout/partial changes: blow away the compiled-template caches and run
+	// a full rebuild. A layout or partial edit can affect every page, so
+	// narrowing isn't safe here.
+	await fs.watch([flags.layouts, flags.partials], async function (file) {
 		console.log('[ dev ]', relative(flags.cwd, file));
-
 		templates.Partials.clear();
 		templates.Layouts.clear();
+		await rebuild(argv);
+	});
 
-		try {
-			await build(argv);
-			// Success: reload the page to pick up new assets.
-			http.send({ type: 'reload' });
-		} catch (err) {
-			// Bundler errors: bundler.flush() already pushed { type: 'error' } via
-			// HMR_SEND, so the overlay is already mounted in the existing page.
-			// Non-bundler errors (template compile failures, etc.) need manual
-			// propagation since the bundler never saw them.
-			let message = err instanceof Error ? err.message : String(err);
-			if (!message.startsWith('Build failed:')) {
-				http.send({ type: 'error', errors: [{ message }] });
-			}
-			// Don't reload — the overlay stays until the next successful build.
+	// Content changes: rebuild only the affected page. Layouts/partials caches
+	// stay hot, the registries get re-walked (cheap) so sibling awareness is
+	// preserved, and only the changed page is re-rendered + rewritten. Other
+	// pages in `public/` are left alone.
+	// Deleted files fall back to full rebuild since their removal affects
+	// registries (siblings can reference gone pages via $pages/$section/$tags).
+	await fs.watch([flags.content], async function (file) {
+		console.log('[ dev ]', relative(flags.cwd, file));
+		let rel = relative(flags.content, file);
+		if (!fs.exists(file)) {
+			templates.Partials.clear();
+			templates.Layouts.clear();
+			await rebuild(argv);
+			return;
 		}
+		await rebuild(argv, { only: rel });
 	});
 }
