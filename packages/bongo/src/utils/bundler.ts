@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import * as path from 'node:path';
+import type { BundleError, RolldownError } from 'rolldown';
 import * as browsers from './browsers';
 import * as css from './css';
 import * as fs from './fs';
@@ -206,6 +207,29 @@ async function flushCssGroup(
 	}));
 }
 
+// Map a caught error to a BuildError, pulling location info from the first
+// RolldownError in a BundleError wrapper when present, otherwise from the
+// error itself (which may carry `loc`/`frame` directly). Falls back to
+// message-only for unknown shapes.
+function toBuildError(err: unknown, fallbackFile?: string): BuildError {
+	let base: BuildError = {
+		message: err instanceof Error ? err.message : String(err),
+	};
+	if (fallbackFile) base.file = fallbackFile;
+
+	if (err instanceof Error) {
+		let error = ((err as BundleError).errors?.[0] || err) as RolldownError;
+		if (error.frame) base.frame = error.frame;
+		if (error.id) base.file = error.id;
+		if (error.loc) {
+			if (error.loc.file) base.file = error.loc.file;
+			if (typeof error.loc.line === 'number') base.line = error.loc.line;
+			if (typeof error.loc.column === 'number') base.column = error.loc.column;
+		}
+	}
+	return base;
+}
+
 export async function flush(opts: { outDir: string }): Promise<FlushResult> {
 	let warnings: Warning[] = [];
 	let errors: BuildError[] = [];
@@ -221,8 +245,7 @@ export async function flush(opts: { outDir: string }): Promise<FlushResult> {
 				await flushCssGroup(regs, opts.outDir, outputs, warnings);
 			}
 		} catch (err) {
-			let e = err as Error;
-			errors.push({ message: e.message, file: regs.map(r => r.entry).join(', ') });
+			errors.push(toBuildError(err, regs.map(r => r.entry).join(', ')));
 		}
 	});
 

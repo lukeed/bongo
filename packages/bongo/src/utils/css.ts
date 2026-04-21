@@ -28,10 +28,10 @@ function resolveTargets(input: Targets | undefined): lightningcss.Targets | unde
 	return input;
 }
 
-function mapExports(exp: unknown): Record<string, string> | undefined {
-	if (!exp || typeof exp !== 'object') return undefined;
+function mapExports(exp: lightningcss.CSSModuleExports | null | undefined | void): Record<string, string> | undefined {
+	if (!exp) return undefined;
 	let out: Record<string, string> = {};
-	for (let [k, v] of Object.entries(exp as Record<string, { name: string }>)) {
+	for (let [k, v] of Object.entries(exp)) {
 		out[k] = v.name;
 	}
 	return out;

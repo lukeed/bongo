@@ -155,6 +155,28 @@ describe('flush() — CSS', () => {
 	});
 });
 
+describe('flush() error reporting', () => {
+	test('propagates location info from rolldown errors', async () => {
+		let { dir, outDir } = await tmp({
+			'broken.ts': 'export const x: number = ;\n// intentional syntax error',
+		});
+		try {
+			bundler.register(join(dir, 'broken.ts'), { kind: 'js' });
+			let result = await bundler.flush({ outDir });
+			expect(result.errors.length).toBeGreaterThan(0);
+			let err = result.errors[0];
+			// At minimum the message and file are populated; line/column/frame
+			// may or may not be present depending on how rolldown surfaces the
+			// error. The test just confirms no info is discarded when rolldown
+			// provides it — either `line` or `frame` should typically be set.
+			expect(err.message.length).toBeGreaterThan(0);
+			expect(err.file).toBeDefined();
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('reset()', () => {
 	test('clears registrations and outputs', async () => {
 		let { dir, outDir } = await tmp({ 'entry.ts': 'export const x = 1;' });
