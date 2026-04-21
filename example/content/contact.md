@@ -1,15 +1,17 @@
-# contact me
+---
+title: Contact
+summary: How to reach the bongo project — bug reports, feature requests, and general discussion.
+---
 
-contact page
+# Contact
 
-<bongo:hello/>
+The best way to reach the project is through GitHub.
 
-<bongo:greet name="foobar"/>
+- **Bug reports & feature requests** — [GitHub Issues](https://github.com/lukeed/bongo/issues)
+- **General discussion** — [GitHub Discussions](https://github.com/lukeed/bongo/discussions)
+- **Source code** — [github.com/lukeed/bongo](https://github.com/lukeed/bongo)
+- **Author** — [@lukeed](https://bsky.app/profile/lukeed.bsky.social) on BlueSky
 
-<bongo:alert type="warning">
-inner *content* here
-</bongo:alert>
+## Contributing
 
-<bongo:alert type="warning">
-  <bongo:hello/>
-</bongo:alert>
+Pull requests are welcome. Please read the contributing guide in the repository before submitting. The full test suite must stay green — run `bun test` before pushing.
