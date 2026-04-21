@@ -15,7 +15,9 @@ export async function dev(argv: Argv) {
 	const server = await http.start(flags);
 	console.log('~> started', server.address());
 
-	// Route bundle-time errors to the browser overlay.
+	// Route bundle-time errors to the browser error overlay (Phase G).
+	// hmr() must be called after http.start() so http.send is bound to the
+	// live client set. It persists across resets — the dev server stays up.
 	bundler.hmr(http.send);
 
 	// Asset-graph changes: bundler detects + re-flushes affected groups.
@@ -24,15 +26,25 @@ export async function dev(argv: Argv) {
 	bundler.watch(async () => {
 		try {
 			await build(argv);
+			// Success: reload the page to pick up new assets.
 			http.send({ type: 'reload' });
 		} catch (err) {
+			// Bundler errors: bundler.flush() already pushed { type: 'error' } via
+			// HMR_SEND, so the overlay is already mounted in the existing page.
+			// Non-bundler errors (template compile failures, etc.) need manual
+			// propagation since the bundler never saw them.
 			let message = err instanceof Error ? err.message : String(err);
 			if (!message.startsWith('Build failed:')) {
 				http.send({ type: 'error', errors: [{ message }] });
 			}
+			// Don't reload — the overlay stays until the next successful build.
 		}
 	});
 
+	// TODO: content -> single file rebuild
+	// TODO: layouts/partials -> all content
+	// TODO: assets -> invalidate bundle(s), all content
+	//
 	// Template/content changes: clear caches and rebuild. The bundler keeps
 	// its registrations (placeholders are stable) but flush() re-runs.
 	await fs.watch([
@@ -47,12 +59,18 @@ export async function dev(argv: Argv) {
 
 		try {
 			await build(argv);
+			// Success: reload the page to pick up new assets.
 			http.send({ type: 'reload' });
 		} catch (err) {
+			// Bundler errors: bundler.flush() already pushed { type: 'error' } via
+			// HMR_SEND, so the overlay is already mounted in the existing page.
+			// Non-bundler errors (template compile failures, etc.) need manual
+			// propagation since the bundler never saw them.
 			let message = err instanceof Error ? err.message : String(err);
 			if (!message.startsWith('Build failed:')) {
 				http.send({ type: 'error', errors: [{ message }] });
 			}
+			// Don't reload — the overlay stays until the next successful build.
 		}
 	});
 }
