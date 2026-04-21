@@ -1,23 +1,6 @@
 import { createHash } from 'node:crypto';
 import * as path from 'node:path';
 import * as css from './css';
-import type { InputOptions, OutputOptions, RolldownOutput } from 'rolldown';
-
-// ---------------------------------------------------------------------------
-// Legacy API (used by templates.ts callers — do NOT remove until Phase D+E)
-// ---------------------------------------------------------------------------
-
-export type Group = `${string}~${string}`;
-export type Thunk = Promise<RolldownOutput>;
-
-type BundleConfigLegacy = {
-	input: InputOptions;
-	output: OutputOptions;
-};
-
-let INPUTS: Record<Group, Set<string>> = {};
-let CONFIGS: Record<Group, BundleConfigLegacy> = {};
-let BUNDLERS: Record<Group, Thunk> = {};
 
 let rd: typeof import('rolldown');
 
@@ -36,96 +19,8 @@ async function loadRolldown() {
 	return rd;
 }
 
-let inputDefaults: InputOptions = {
-	resolve: {
-		extensions: ['.ts', '.js', '.cjs', '.mjs', '.css', '.json'],
-		mainFields: ['browser', 'module', 'jsnext', 'main'],
-		conditionNames: ['browser', 'import', 'production'],
-	},
-};
-
-let outputDefaults: OutputOptions = {
-	format: 'esm',
-	sourcemap: false, // TODO
-	minify: true,
-	entryFileNames: '[name].[hash].js',
-	chunkFileNames: '[name].[hash].js',
-	assetFileNames: '[name].[hash][extname]',
-};
-
-export function toGroup(config: BundleConfigLegacy): Group {
-	let format = config.output.format || '';
-	let target = '';
-	return `${format}~${target}` as Group;
-}
-
-// TODO: move warning|error handling here
-export async function build(group: Group): Thunk {
-	await loadRolldown();
-
-	let thunk = BUNDLERS[group];
-	if (thunk) return thunk;
-
-	let inputs = INPUTS[group];
-	let config = CONFIGS[group];
-
-	if (!inputs || !inputs.size || !config) {
-		throw new Error('invalid group');
-	}
-
-	let entryPoints = [...inputs];
-	let input: Record<string, string> = {};
-	for (let entry of entryPoints) {
-		let name = entry.replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '');
-		input[name] = entry;
-	}
-
-	let inputOpts: InputOptions = {
-		...inputDefaults,
-		...config.input,
-		input,
-		resolve: {
-			...inputDefaults.resolve,
-			...config.input.resolve,
-		},
-	};
-
-	let outputOpts: OutputOptions = {
-		...outputDefaults,
-		...config.output,
-	};
-
-	return BUNDLERS[group] = rd.rolldown(inputOpts).then(bundle => bundle.write(outputOpts));
-}
-
-// TODO: errors, warnings
-export function postbuild(entry: string, result: RolldownOutput): string | never {
-	for (let chunk of result.output) {
-		if (chunk.type === 'chunk' && chunk.facadeModuleId === entry) {
-			return chunk.fileName;
-		}
-	}
-	// Fallback: match by entry name in the filename
-	let name = entry.replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '');
-	for (let chunk of result.output) {
-		if (chunk.type === 'chunk' && chunk.isEntry && chunk.name === name) {
-			return chunk.fileName;
-		}
-	}
-	throw new Error(`Missing output for "${entry}" entrypoint`);
-}
-
-export function prebuild(input: string, config: BundleConfigLegacy): Group {
-	let group = toGroup(config);
-	let inputs = INPUTS[group] || new Set;
-	CONFIGS[group] = CONFIGS[group] || config;
-	INPUTS[group] = inputs;
-	inputs.add(input);
-	return group;
-}
-
 // ---------------------------------------------------------------------------
-// New two-pass API (Phase C)
+// Two-pass API (Phase C+)
 // ---------------------------------------------------------------------------
 
 declare const PlaceholderBrand: unique symbol;
@@ -356,13 +251,8 @@ export function hmr(_send: (msg: HmrMessage) => void): void {
 // reset — clears both legacy state and new two-pass state
 // ---------------------------------------------------------------------------
 
-// TODO: invalidate BUNDLERS for dev server
+// TODO: invalidate bundler cache for dev server
 export function reset() {
-	// Legacy state
-	INPUTS = {};
-	CONFIGS = {};
-	BUNDLERS = {};
-	// New two-pass state
 	REGISTRATIONS = new Map();
 	GROUPS = new Map();
 	LAST_OUTPUTS = new Map();
