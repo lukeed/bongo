@@ -2,44 +2,43 @@ name: CI
 
 on:
   push:
+    branches: [main]
     paths-ignore:
+      - 'archive/**'
+      - 'docs/**'
       - 'example/**'
       - 'demo123/**'
       - '*.md'
-    branches:
-      - '**'
-    tags-ignore:
-      - '**'
   pull_request:
     paths-ignore:
+      - 'archive/**'
+      - 'docs/**'
       - 'example/**'
       - 'demo123/**'
       - '*.md'
-    branches:
-      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
-    name: Node.js v${{ matrix.nodejs }}
+    name: bun ${{ matrix.bun }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        nodejs: [24]
+        bun: [latest]
     steps:
-    - uses: actions/checkout@v6
-    - uses: pnpm/action-setup@v4
-      with:
-        version: 10.x
-        run_install: false
-    - uses: actions/setup-node@v6
-      with:
-        node-version: ${{ matrix.nodejs }}
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ matrix.bun }}
 
-    - name: Install
-      run: pnpm install
+      - name: Install
+        run: bun install
 
-    - name: Compiles
-      run: pnpm run build
+      - name: Compiles
+        run: bun run build
 
-    - name: Test
-      run: pnpm test
+      - name: Test
+        run: bun test
