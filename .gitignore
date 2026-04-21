@@ -6,4 +6,4 @@ node_modules
 
 /packages/*/index.js
 
-/demo123/public
+/example/public

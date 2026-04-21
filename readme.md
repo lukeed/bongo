@@ -58,7 +58,7 @@ bun test
 │       ├── bin.js
 │       └── template/      # Project template files
 │
-└── demo123/            # Demo site using bongo
+└── example/            # Demo site using bongo
 ```
 
 ## How It Works
