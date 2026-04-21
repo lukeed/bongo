@@ -103,6 +103,18 @@ describe('flush() — JS', () => {
 			await rm(outDir, { recursive: true, force: true });
 		}
 	});
+
+	test('accepts a browserslist query as target', async () => {
+		let { dir, outDir } = await tmp({ 'entry.ts': 'export const x = 1;' });
+		try {
+			bundler.register(join(dir, 'entry.ts'), { kind: 'js', target: 'last 2 versions' });
+			let result = await bundler.flush({ outDir });
+			expect(result.errors).toEqual([]);
+			expect(result.outputs.size).toBe(1);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
 });
 
 describe('flush() — CSS', () => {

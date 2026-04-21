@@ -1,5 +1,5 @@
 import * as lightningcss from 'lightningcss';
-import browserslist from 'browserslist';
+import * as browsers from './browsers';
 
 export type Targets = string | string[] | lightningcss.Targets;
 
@@ -23,7 +23,7 @@ const MODULE_FILE = /\.module\.css$/;
 function resolveTargets(input: Targets | undefined): lightningcss.Targets | undefined {
 	if (input == null) return undefined;
 	if (typeof input === 'string' || Array.isArray(input)) {
-		return lightningcss.browserslistToTargets(browserslist(input));
+		return browsers.parse(input);
 	}
 	return input;
 }

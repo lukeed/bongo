@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import * as path from 'node:path';
+import * as browsers from './browsers';
 import * as css from './css';
 import * as fs from './fs';
 
@@ -126,9 +127,14 @@ async function flushJsGroup(
 		entryByName.set(name, reg);
 	}
 
-	// `target` is an oxc transform option, nested under InputOptions.transform.
-	// Accepts ES-year strings ('es2020') or browserslist arrays. See
+	// `target` is an oxc transform option on InputOptions.transform. `cfg.target`
+	// is a browserslist query; parse to lightningcss Targets then translate to
+	// rolldown's esbuild-style string[] (e.g. ['chrome120', 'ios17']).
 	// https://rolldown.rs/reference/InputOptions.transform#target
+	let transform = cfg.target
+		? { target: browsers.translate(browsers.parse(cfg.target)) }
+		: undefined;
+
 	let bundle = await rd.rolldown({
 		input,
 		resolve: {
@@ -136,7 +142,7 @@ async function flushJsGroup(
 			mainFields: ['browser', 'module', 'jsnext', 'main'],
 			conditionNames: ['browser', 'import', 'production'],
 		},
-		transform: cfg.target ? { target: cfg.target } : undefined,
+		transform,
 	});
 
 	try {
