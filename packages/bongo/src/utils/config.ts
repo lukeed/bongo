@@ -1,4 +1,8 @@
 import { dirname, join, resolve } from 'node:path';
+import * as os from 'node:os';
+import { pathToFileURL } from 'node:url';
+import { builtinModules } from 'node:module';
+import { randomBytes } from 'node:crypto';
 import { transform } from './bundler';
 import * as fs from './fs';
 
@@ -10,6 +14,73 @@ const priority = [
 	'bongo.config.cjs',
 	'bongo.config.js',
 ];
+
+async function bundleConfigToTemp(file: string): Promise<string> {
+	let rd = await import('rolldown');
+
+	let tmpdir = os.tmpdir();
+	let name = `bongo-config-${randomBytes(6).toString('hex')}.mjs`;
+	let outfile = join(tmpdir, name);
+
+	let external = [
+		/^node:/,
+		...builtinModules.map(m => new RegExp(`^${m}(\\/.*)?$`)),
+		// anything from node_modules stays external
+		/[\\/]node_modules[\\/]/,
+	];
+
+	let bundle = await rd.rolldown({
+		input: file,
+		external,
+		resolve: {
+			extensions: ['.ts', '.mjs', '.js', '.cjs', '.json'],
+			conditionNames: ['import', 'node'],
+			mainFields: ['module', 'main'],
+		},
+	});
+
+	await bundle.write({
+		file: outfile,
+		format: 'esm',
+		minify: false,
+		sourcemap: false,
+	});
+
+	await bundle.close();
+	return outfile;
+}
+
+type UnknownModule = Record<string, unknown> & { default?: unknown };
+
+function isBun(): boolean {
+	return typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined';
+}
+
+function isDeno(): boolean {
+	return typeof (globalThis as { Deno?: unknown }).Deno !== 'undefined';
+}
+
+export async function loadModule(file: string): Promise<UnknownModule> {
+	let url = pathToFileURL(file).href;
+
+	if (!/\.ts$/.test(file)) {
+		return (await import(url)) as UnknownModule;
+	}
+
+	// Bun and Deno strip TS natively
+	if (isBun() || isDeno()) {
+		return (await import(url)) as UnknownModule;
+	}
+
+	// Node path: bundle to temp .mjs, then dynamic import
+	let tmp = await bundleConfigToTemp(file);
+	try {
+		let cacheBuster = `?t=${Date.now()}`;
+		return (await import(pathToFileURL(tmp).href + cacheBuster)) as UnknownModule;
+	} finally {
+		await fs.rm(tmp).catch(() => {});
+	}
+}
 
 /**
  * Traverse upwards until find a config file
