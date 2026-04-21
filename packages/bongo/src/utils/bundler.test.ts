@@ -175,3 +175,18 @@ describe('reset()', () => {
 		}
 	});
 });
+
+describe('watch()', () => {
+	test('returns an Unsubscribe function', async () => {
+		let { dir, outDir } = await tmp({ 'entry.ts': 'export const x = 1;' });
+		try {
+			bundler.register(join(dir, 'entry.ts'), { kind: 'js' });
+			await bundler.flush({ outDir });
+			let unsub = bundler.watch(() => {});
+			expect(typeof unsub).toBe('function');
+			unsub();
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+});

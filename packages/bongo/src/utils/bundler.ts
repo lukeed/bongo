@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import * as path from 'node:path';
 import * as css from './css';
+import * as fs from './fs';
 
 let rd: typeof import('rolldown');
 
@@ -228,6 +229,14 @@ export async function flush(opts: { outDir: string }): Promise<FlushResult> {
 	await Promise.all(jobs);
 
 	LAST_OUTPUTS = outputs;
+
+	// Extend the watch's tracked-file set with any newly discovered deps.
+	if (WATCH && WATCH.active) {
+		for (let info of outputs.values()) {
+			for (let dep of info.dependencies) WATCH.files.add(dep);
+		}
+	}
+
 	return { outputs, warnings, errors };
 }
 
@@ -237,9 +246,60 @@ export function resolve(p: Placeholder): string {
 	return info.filename;
 }
 
-// Phase F implements real watch behaviour.
-export function watch(_cb: (diff: WatchDiff) => void): Unsubscribe {
-	return () => {};
+// ---------------------------------------------------------------------------
+// Watch state (Phase F)
+// ---------------------------------------------------------------------------
+
+type WatchState = {
+	callback: (diff: WatchDiff) => void;
+	files: Set<string>;
+	active: boolean;
+};
+
+let WATCH: WatchState | null = null;
+
+// NOTE: utils/fs.ts `watch()` is directory-based — it accepts a list of
+// directories, sets up FSWatcher per dir, and emits absolute file paths via
+// the callback.  We therefore collect the unique PARENT directories of all
+// tracked source files, watch those dirs, and filter incoming events against
+// WATCH.files so only relevant changes propagate.
+export function watch(cb: (diff: WatchDiff) => void): Unsubscribe {
+	let state: WatchState = { callback: cb, files: new Set(), active: true };
+	WATCH = state;
+
+	// Seed known files from current REGISTRATIONS and LAST_OUTPUTS.
+	for (let reg of REGISTRATIONS.values()) state.files.add(reg.entry);
+	for (let info of LAST_OUTPUTS.values()) {
+		for (let dep of info.dependencies) state.files.add(dep);
+	}
+
+	// Derive unique parent dirs to pass to fs.watch (dir-based watcher).
+	let dirs = [...new Set([...state.files].map(f => path.dirname(f)))];
+
+	// fs.watch is async (sets up watchers) but we don't need to await — the
+	// watcher starts asynchronously, and any initial build already completed.
+	void fs.watch(dirs, async (file: string) => {
+		if (!WATCH || !WATCH.active) return;
+		if (!WATCH.files.has(file)) return;
+
+		// Find placeholders whose dep graph or entry path contains this file.
+		let changed: Set<Placeholder> = new Set();
+		for (let [placeholder, info] of LAST_OUTPUTS.entries()) {
+			if (info.dependencies.includes(file)) changed.add(placeholder);
+		}
+		for (let reg of REGISTRATIONS.values()) {
+			if (reg.entry === file) changed.add(reg.placeholder);
+		}
+
+		if (changed.size === 0) return;
+
+		WATCH.callback({ changed, reload: true });
+	});
+
+	return () => {
+		if (WATCH === state) WATCH = null;
+		state.active = false;
+	};
 }
 
 // Phase G implements real HMR behaviour.
@@ -256,4 +316,6 @@ export function reset() {
 	REGISTRATIONS = new Map();
 	GROUPS = new Map();
 	LAST_OUTPUTS = new Map();
+	// WATCH is intentionally NOT cleared — the dev server keeps the watcher
+	// alive across rebuilds triggered by bundler.reset() + build().
 }
