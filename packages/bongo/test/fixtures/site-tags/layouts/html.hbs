@@ -6,8 +6,8 @@
 {{{ $page.content }}}
 </section>
 <ul class="tag-pages">
-{{#each $tags as (entry, ti)}}
-<li data-tag="{{ entry.tag }}" data-paths="{{ entry.pathsCsv }}"></li>
+{{#each $tags as (entry)}}
+<li data-tag="{{ entry.tag }}">{{#each entry.pages as (p)}}<span data-path="{{ p.path }}">{{ p.title }}</span>{{/each}}</li>
 {{/each}}
 </ul>
 </body>

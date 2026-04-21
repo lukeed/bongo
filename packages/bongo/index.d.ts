@@ -99,8 +99,6 @@ export namespace Template {
 	type TagEntry = {
 		tag: string;
 		pages: PageInfo[];
-		// Convenience: page paths joined with ',' for use in templates where nested #each is not available.
-		pathsCsv: string;
 	};
 
 	interface Params {

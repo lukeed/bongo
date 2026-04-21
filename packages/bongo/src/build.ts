@@ -248,13 +248,11 @@ export async function build(argv: Argv): Promise<void> {
 		}
 	}
 
-	// Convert to an array of {tag, pages, pathsCsv} entries for tempura #each compatibility.
-	// (Tempura iterates arrays only; plain object keys are not iterable via #each.)
-	// pathsCsv is a convenience field: page paths joined with ',' for templates that
-	// cannot use nested #each (tempura shares $$a across nesting levels).
+	// Tempura iterates arrays only; a plain object keyed by tag would not be
+	// walkable via #each. Expose as [{ tag, pages }].
 	let $tags: Template.TagEntry[] = [];
 	for (let [tag, pages] of TagsMap) {
-		$tags.push({ tag, pages, pathsCsv: pages.map(p => p.path).join(',') });
+		$tags.push({ tag, pages });
 	}
 
 	// Walk 2 — render layouts with $pages + $section + $tags context.

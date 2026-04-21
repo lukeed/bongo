@@ -56,15 +56,20 @@ function gen(input, options) {
 				inner = inner.substring(num).trim().replace(/[;]$/, '');
 				txt += `var ${tmp}=${inner};`;
 			} else if (action === 'each') {
+				// Per-depth accumulator + index vars so nested `#each` doesn't
+				// clobber the outer loop's `$$a` / `i`.
 				num = inner.indexOf(' as ');
+				let depth = stack.reduce((n, s) => s === 'each' ? n + 1 : n, 0);
+				let acc = `$$a${depth || ''}`;
+				let ii = `$$i${depth || ''}`;
 				stack.push(action);
 				if (!~num) {
-					txt += `for(var i=0,$$a=${inner};i<$$a.length;i++){`;
+					txt += `for(var ${ii}=0,${acc}=${inner};${ii}<${acc}.length;${ii}++){`;
 				} else {
 					tmp = inner.substring(0, num).trim();
 					inner = inner.substring(num + 4).trim();
-					let [item, idx='i'] = inner.replace(/[()\s]/g, '').split(','); // (item, idx?)
-					txt += `for(var ${idx}=0,${item},$$a=${tmp};${idx}<$$a.length;${idx}++){${item}=$$a[${idx}];`;
+					let [item, idx=ii] = inner.replace(/[()\s]/g, '').split(','); // (item, idx?)
+					txt += `for(var ${idx}=0,${item},${acc}=${tmp};${idx}<${acc}.length;${idx}++){${item}=${acc}[${idx}];`;
 				}
 			} else if (action === 'if') {
 				txt += `if(${inner}){`;

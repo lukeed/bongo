@@ -254,14 +254,12 @@ describe('integration: site-tags', () => {
 				expect(home).toContain(`data-tag="${tag}"`);
 			}
 
-			// The 'travel' tag lists both post-a and post-b via pathsCsv.
-			// (Nested #each in tempura shares $$a across levels, so we use the
-			// pre-computed pathsCsv attribute instead of nested iteration.)
-			let travelMatch = home.match(/data-tag="travel"\s+data-paths="([^"]*)"/);
+			// The 'travel' tag lists both post-a and post-b via nested iteration.
+			let travelMatch = home.match(/<li data-tag="travel">([\s\S]*?)<\/li>/);
 			expect(travelMatch).not.toBeNull();
-			let travelPaths = travelMatch![1];
-			expect(travelPaths).toContain('/post-a/');
-			expect(travelPaths).toContain('/post-b/');
+			let travelSection = travelMatch![1];
+			expect(travelSection).toContain('data-path="/post-a/"');
+			expect(travelSection).toContain('data-path="/post-b/"');
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
