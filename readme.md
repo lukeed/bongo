@@ -273,7 +273,7 @@ client({ transitions: true, announce: true });
 Register it as a `<bongo:script>` in your layout so it runs on every page:
 
 ```hbs
-<bongo:script src="client-boot.ts"></bongo:script>
+<bongo:script src="main.ts"></bongo:script>
 ```
 
 ### `ClientOptions`
@@ -311,13 +311,20 @@ navigate('/old-url', { replace: true }); // replace
 
 Returns `Promise<void>` — resolves when the navigation (and optional view transition) is complete.
 
-### Persisting elements across navigations
+### Opting a link out of client navigation
 
-Add `data-bongo-persist="KEY"` to any element to transplant it from the current page into the incoming `doc` before the swap. The element keeps its live DOM state (event listeners, scroll position, etc.):
+Add `bongo-reload` to any `<a>` to force a full-page load for that link — the client runtime will not intercept its navigation:
 
 ```html
-<aside data-bongo-persist="sidebar">…</aside>
+<a href="/legacy" bongo-reload>Legacy dashboard</a>
 ```
+
+### Scroll restoration
+
+`client()` takes over scroll restoration (`history.scrollRestoration = 'manual'`) and handles it synchronously during the swap (inside the view-transition snapshot window, so there is no post-transition jump):
+
+- **Back / forward** — restores the `{x, y}` position saved for that URL the last time you navigated away from it.
+- **Push / replace** — scrolls to the `#hash` element if the URL has one, otherwise `(0, 0)`.
 
 ### Browser support
 
