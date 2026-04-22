@@ -106,7 +106,7 @@ export function restoreScroll(event: NavigateEvent, to: URL): void {
 	window.scrollTo(0, 0);
 }
 
-export function findAnnouncer(): HTMLElement | null {
+export function announcer(): HTMLElement | null {
 	return document.getElementById('bongo:live');
 }
 

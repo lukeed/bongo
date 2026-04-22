@@ -42,7 +42,7 @@ export function client(opts: ClientOptions = {}): void {
 	// Announcer is emitted inline by <bongo:client />. Resolve once; if absent
 	// (user bootstraps client() manually without the element), announcements
 	// are silently skipped.
-	let announcer = internal.findAnnouncer();
+	let announcer = internal.announcer();
 
 	// Capture-phase click listener: sets BYPASS_NEXT for browsers that don't
 	// expose NavigateEvent.sourceElement.
