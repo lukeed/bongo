@@ -90,7 +90,8 @@ const PRESET_CSS: Record<string, string> = {
 	].join(''),
 };
 
-function resolvePreset(opt: ClientOptions['transitions']): string {
+/** @internal — used by tests only */
+export function resolvePreset(opt: ClientOptions['transitions']): string {
 	if (opt === true) return 'fade';
 	if (!opt || opt === false || opt === 'none') return 'none';
 	return opt; // 'fade' | 'initial' | 'slide' | any custom string
