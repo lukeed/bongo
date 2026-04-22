@@ -1,13 +1,35 @@
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import * as bundler from './bundler';
 import * as fs from './fs';
 
 import type { Argv, Config } from 'bongo';
 
 // `<bongo:script …/>`, `<bongo:script …></bongo:script>`,
-// `<bongo:style …/>`, `<bongo:style …></bongo:style>`.
+// `<bongo:style …/>`, `<bongo:style …></bongo:style>`,
+// `<bongo:client …/>`, `<bongo:client …></bongo:client>`.
 // Tolerant of inner text (for forward-compat with elements that allow children).
-const BONGO_TAG = /<bongo:(script|style)\b([^>]*?)(?:\s*\/>|>([\s\S]*?)<\/bongo:\1\s*>)/g;
+const BONGO_TAG = /<bongo:(script|style|client)\b([^>]*?)(?:\s*\/>|>([\s\S]*?)<\/bongo:\1\s*>)/g;
+
+// Path to bongo's bundled browser runtime. Resolves relative to this module:
+// — bundled (prod): sibling to packages/bongo/index.js, i.e. ./client.js.
+// — source (tests/workspace): packages/bongo/src/utils/tags.ts → ../../client.js.
+function resolveBongoClient(): string {
+	let bundled = resolve(__dirname, 'client.js');
+	if (fs.exists(bundled)) return bundled;
+	return resolve(__dirname, '..', '..', 'client.js');
+}
+
+const JS_IDENT = /^[a-zA-Z_$][\w$]*$/;
+
+function clientOptions(attrs: Attrs): string {
+	let pairs: string[] = [];
+	for (let key in attrs) {
+		let v = attrs[key];
+		let k = JS_IDENT.test(key) ? key : JSON.stringify(key);
+		pairs.push(`${k}: ${v === true ? 'true' : JSON.stringify(v)}`);
+	}
+	return pairs.length ? `{ ${pairs.join(', ')} }` : '{}';
+}
 
 // Attribute parser: name="value" | name='value' | name=bareword | name (boolean).
 const ATTR = /([\w:-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
@@ -42,8 +64,24 @@ export function scanBongoTags(
 	argv: Required<Argv>,
 	config: Required<Config>,
 ): string {
-	return html.replace(BONGO_TAG, (_match, kind: 'script' | 'style', rawAttrs: string) => {
+	return html.replace(BONGO_TAG, (_match, kind: 'script' | 'style' | 'client', rawAttrs: string) => {
 		let attrs = parseAttrs(rawAttrs);
+
+		if (kind === 'client') {
+			// No `src` — bongo wires in its own bundled runtime.
+			let entry = resolveBongoClient();
+			let placeholder = bundler.register(entry, {
+				kind: 'js',
+				format: 'esm',
+				target: config.$build.target,
+			});
+			// Always emit the aria-live announcer at this location so it is
+			// parsed before the bootstrap script runs. The runtime looks it up
+			// by id and updates its text on every navigation.
+			let announcer = '<div id="bongo:live" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);border:0"></div>';
+			return `${announcer}<script type="module">import { client } from "${placeholder}"; client(${clientOptions(attrs)});</script>`;
+		}
+
 		let src = str(attrs.src);
 		if (!src) throw new Error(`<bongo:${kind}> missing required "src" attribute`);
 

@@ -6,7 +6,6 @@ export { on, off } from './internal';
 
 export type ClientOptions = {
 	transitions?: preset.Options;  // `true` aliases 'fade', `false` aliases 'none'
-	announce?: boolean;
 };
 
 export type BongoEvent =
@@ -40,7 +39,10 @@ export function client(opts: ClientOptions = {}): void {
 	// Inject preset CSS if applicable (requires browser document).
 	if (name !== 'none') preset.inject(name);
 
-	let announcer = opts.announce ? internal.ensureAnnouncer() : null;
+	// Announcer is emitted inline by <bongo:client />. Resolve once; if absent
+	// (user bootstraps client() manually without the element), announcements
+	// are silently skipped.
+	let announcer = internal.announcer();
 
 	// Capture-phase click listener: sets BYPASS_NEXT for browsers that don't
 	// expose NavigateEvent.sourceElement.

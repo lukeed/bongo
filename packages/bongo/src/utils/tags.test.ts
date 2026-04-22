@@ -193,10 +193,72 @@ describe('scanBongoTags', () => {
 	test('unknown tag <bongo:something> is left untouched', async () => {
 		let dir = await tmpAssets({});
 		try {
-			// The scanner only matches `script` and `style` — other tag names pass through.
+			// The scanner only matches `script`, `style`, and `client` — other tag names pass through.
 			let html = '<bongo:something src="x"></bongo:something>';
 			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
 			expect(result).toBe(html);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('<bongo:client /> emits announcer + ESM script that imports and calls client({})', async () => {
+		let dir = await tmpAssets({});
+		try {
+			let html = '<bongo:client />';
+			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
+			expect(result).toMatch(
+				/^<div id="bongo:live"[^>]+><\/div><script type="module">import { client } from "__BONGO_BUNDLE:[a-f0-9]{16}__"; client\({}\);<\/script>$/,
+			);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('<bongo:client> boolean attrs become true in the options object', async () => {
+		let dir = await tmpAssets({});
+		try {
+			let html = '<bongo:client transitions />';
+			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
+			expect(result).toContain('client({ transitions: true });');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('<bongo:client> always emits the aria announcer div before the bootstrap script', async () => {
+		let dir = await tmpAssets({});
+		try {
+			let html = '<bongo:client />';
+			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
+			expect(result).toContain('<div id="bongo:live" role="status" aria-live="polite"');
+			expect(result.indexOf('id="bongo:live"')).toBeLessThan(result.indexOf('<script'));
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('<bongo:client> string attrs become quoted values', async () => {
+		let dir = await tmpAssets({});
+		try {
+			let html = '<bongo:client transitions="slide" />';
+			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
+			expect(result).toContain('client({ transitions: "slide" });');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('<bongo:client> repeated on the same page bundles the runtime once', async () => {
+		let dir = await tmpAssets({});
+		try {
+			let html = '<bongo:client /><bongo:client transitions />';
+			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
+			let matches = result.match(/__BONGO_BUNDLE:[a-f0-9]{16}__/g) ?? [];
+			// Both tags reference the same placeholder — bundler.register is idempotent
+			// per (entry, cfg) pair, so repeated scans produce one registration.
+			expect(matches.length).toBe(2);
+			expect(matches[0]).toBe(matches[1]);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
