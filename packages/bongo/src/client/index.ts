@@ -93,15 +93,14 @@ export function client(opts: ClientOptions = {}): void {
 	});
 }
 
-export function navigate(url: string | URL, opts: { replace?: boolean } = {}): Promise<void> {
+export async function navigate(url: string | URL, opts: { replace?: boolean } = {}): Promise<void> {
 	let target = new URL(url, location.href);
 	let nav = globalThis.navigation;
-	if (!nav) {
-		location[ opts.replace ? 'replace' : 'assign' ](target.href);
-		return Promise.resolve();
+	if (nav) {
+		await nav.navigate(target.href, {
+			history: opts.replace ? 'replace' : 'push'
+		}).finished;
+		return;
 	}
-	let result = nav.navigate(target.href, {
-		history: opts.replace ? 'replace' : 'push'
-	});
-	return result.finished;
+	location[ opts.replace ? 'replace' : 'assign' ](target.href);
 }
