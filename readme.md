@@ -157,7 +157,7 @@ No manual configuration needed.
 
 ### Templates
 
-Templates use [tempura](https://github.com/lukeed/tempura) syntax (Handlebars-like). Asset entrypoints are declared with `<bongo:style>` and `<bongo:script>` custom elements — bongo scans for them after layout render and replaces them with the appropriate HTML:
+Templates use [tempura](https://github.com/lukeed/tempura) syntax (Handlebars-like). Asset entrypoints are declared with `<bongo:style>`, `<bongo:script>`, and `<bongo:client>` custom elements — bongo scans for them after layout render and replaces them with the appropriate HTML:
 
 ```hbs
 {{! layouts/html.hbs }}
@@ -200,6 +200,15 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax (Handlebars-li
 - `defer` — adds the `defer` attribute (CJS format only; ESM modules are deferred by the browser).
 - `format="esm"|"cjs"` — output module format. Defaults to `esm`.
 - `target="…"` — browserslist target string. Defaults to `$build.target` from the config.
+
+**`<bongo:client>`:** sugar element that bundles bongo's own browser runtime and emits a module script that calls `client(...)`. No `src`. All other attributes are forwarded as `ClientOptions`:
+
+```hbs
+<bongo:client transitions announce />
+<bongo:client transitions="slide" />
+```
+
+See the [Client Runtime](#client-runtime-lukeedbongoclient) section for the full option list. Multiple `<bongo:client>` tags on a page share one bundled runtime.
 
 **View-transition attributes (build-time rewrite):**
 
@@ -264,16 +273,45 @@ import { client, navigate, on, off } from 'bongo/client';
 
 ### Setup
 
-Call `client()` once, early in your boot script:
-
-```ts
-client({ transitions: true, announce: true });
-```
-
-Register it as a `<bongo:script>` in your layout so it runs on every page:
+The simplest way to wire the client runtime in is the `<bongo:client />` element — bongo bundles its own browser runtime and emits the bootstrap script for you. Attributes become `client()` options:
 
 ```hbs
+{{! layouts/html.hbs }}
+<bongo:client transitions announce />
+```
+
+That expands at build time to a hashed, `publicPath`-prefixed import:
+
+```html
+<script type="module">
+  import { client } from "/client.D59fAaym.js";
+  client({ transitions: true, announce: true });
+</script>
+```
+
+Multiple `<bongo:client>` tags on a page share one bundled runtime. Boolean attrs become `true`; attrs with string values become `"string"` (e.g. `<bongo:client transitions="slide" />`).
+
+If you also want to register custom event handlers or run your own boot code, keep a separate `<bongo:script>` for that:
+
+```hbs
+<bongo:client transitions announce />
 <bongo:script src="main.ts"></bongo:script>
+```
+
+```ts
+// assets/main.ts
+import { on } from 'bongo/client';
+
+on('bongo:navigated', ({ to }) => {
+  console.log('navigated to', to.pathname);
+});
+```
+
+Or, if you prefer to call `client()` yourself, skip `<bongo:client />` and bootstrap from a `<bongo:script>`:
+
+```ts
+import { client } from 'bongo/client';
+client({ transitions: true, announce: true });
 ```
 
 ### `ClientOptions`

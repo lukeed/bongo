@@ -1,7 +1,6 @@
-import { client, on } from 'bongo/client';
+import { on } from 'bongo/client';
 
-client({ transitions: true, announce: true });
-
+// client() is mounted via <bongo:client transitions announce /> in html.hbs.
 on('bongo:navigated', ({ to }) => {
 	console.log('[bongo] navigated to', to.pathname);
 });
