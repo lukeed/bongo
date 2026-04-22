@@ -201,6 +201,18 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax (Handlebars-li
 - `format="esm"|"cjs"` — output module format. Defaults to `esm`.
 - `target="…"` — browserslist target string. Defaults to `$build.target` from the config.
 
+**View-transition attributes (build-time rewrite):**
+
+Add `transition:name` and `transition:animate` to any HTML element in a layout or partial. bongo rewrites them at build time — no runtime overhead:
+
+```hbs
+<header transition:name="site-header">…</header>
+<nav transition:name="nav" transition:animate="slide">…</nav>
+```
+
+- `transition:name="NAME"` — removed from the element; `view-transition-name: NAME` is merged into the element's `style` attribute.
+- `transition:animate="KEYFRAME"` — requires a named `@keyframes KEYFRAME` in your CSS. bongo injects a `<style data-bongo-transitions>` block in `<head>` that wires the keyframe to the matching `::view-transition-old(NAME)` and `::view-transition-new(NAME)` pseudo-elements. If `transition:animate` is present without `transition:name`, an auto name (`bongo-auto-<hash>`) is generated.
+
 **Partial includes:**
 
 ```hbs
@@ -240,6 +252,84 @@ All CSS is handled by [LightningCSS](https://lightningcss.dev): `@import` bundli
 
 The `hmr` message type exists in the type union for forward compatibility. Rolldown's HMR client transport is not yet stable (as of 1.0-rc.9), so all file changes trigger a full reload today.
 
+## Client Runtime (`@lukeed/bongo/client`)
+
+`bongo` ships an optional browser-side runtime that turns a statically-generated site into a client-navigated SPA. Import it from the `./client` subpath export:
+
+```ts
+import { client, navigate, on, off } from '@lukeed/bongo/client';
+// or, inside a bongo site where the dep is aliased as "bongo":
+import { client, navigate, on, off } from 'bongo/client';
+```
+
+### Setup
+
+Call `client()` once, early in your boot script:
+
+```ts
+client({ transitions: true, announce: true });
+```
+
+Register it as a `<bongo:script>` in your layout so it runs on every page:
+
+```hbs
+<bongo:script src="main.ts"></bongo:script>
+```
+
+### `ClientOptions`
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `transitions` | `boolean \| 'fade' \| 'initial' \| 'slide' \| 'none' \| string` | `false` | View-transition preset. `true` / `'fade'` injects a cross-fade keyframe. `'slide'` injects a slide keyframe. `'initial'` wraps the swap without injecting CSS (browser default). Custom string: wrap only, user provides `::view-transition-*` rules. `false` / `'none'` disables transitions. |
+| `announce` | `boolean` | `false` | Mount a hidden `role="status"` live region and update it with the new page title after each swap (a11y). |
+
+### Events
+
+Subscribe with `on(event, handler)` — returns an unsubscribe function. Remove a specific handler with `off(event, handler)`.
+
+```ts
+on('bongo:navigated', ({ to }) => {
+  console.log('navigated to', to.pathname);
+});
+```
+
+| Event | Detail shape | Fires when |
+|---|---|---|
+| `bongo:ready` | `{ url: URL }` | Once, immediately after `client()` is called. |
+| `bongo:navigate` | `{ to: URL; from: URL }` | Navigation intercepted, before the fetch. |
+| `bongo:replace` | `{ to: URL; from: URL; doc: Document }` | HTML fetched and parsed; swap has not happened yet. Mutate `doc` to adjust the incoming tree. |
+| `bongo:replaced` | `{ to: URL; from: URL }` | DOM swapped (inside the view-transition callback when transitions are enabled). |
+| `bongo:navigated` | `{ to: URL; from: URL }` | Navigation settled: announcer updated, transition finished, URL committed. |
+| `bongo:error` | `{ to: URL; error: Error }` | Navigation fetch or swap threw. The error is re-thrown after firing so the browser falls back naturally. |
+
+### Programmatic navigation
+
+```ts
+navigate('/about');               // push
+navigate('/old-url', { replace: true }); // replace
+```
+
+Returns `Promise<void>` — resolves when the navigation (and optional view transition) is complete.
+
+### Opting a link out of client navigation
+
+Add `bongo-reload` to any `<a>` to force a full-page load for that link — the client runtime will not intercept its navigation:
+
+```html
+<a href="/legacy" bongo-reload>Legacy dashboard</a>
+```
+
+### Scroll restoration
+
+`client()` takes over scroll restoration (`history.scrollRestoration = 'manual'`) and handles it synchronously during the swap (inside the view-transition snapshot window, so there is no post-transition jump):
+
+- **Back / forward** — restores the `{x, y}` position saved for that URL the last time you navigated away from it.
+- **Push / replace** — scrolls to the `#hash` element if the URL has one, otherwise `(0, 0)`.
+
+### Browser support
+
+The Navigation API is available in Chrome/Edge 102+ and is behind a flag or unsupported in Firefox/Safari at time of writing. `bongo/client` detects the API at runtime: if it is absent, `client()` emits `bongo:ready` and returns without installing any interception — navigation degrades to normal MPA full-page loads.
+
 ## Package Build System
 
-The `build/` directory builds the publishable packages using [rolldown](https://rolldown.rs). Each package's `src/index.ts` is compiled to a single CJS `index.js` with minification. TypeScript is handled natively by rolldown — no separate transpilation step.
+The `build/` directory builds the publishable packages using [rolldown](https://rolldown.rs). Each package's `src/index.ts` is compiled to a single CJS `index.js` with minification. The `bongo` package also emits a browser-targeted ESM `client.js` (no Node built-ins). TypeScript is handled natively by rolldown — no separate transpilation step.

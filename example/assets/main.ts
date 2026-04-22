@@ -1,3 +1,11 @@
+import { client, on } from 'bongo/client';
+
+client({ transitions: true, announce: true });
+
+on('bongo:navigated', ({ to }) => {
+	console.log('[bongo] navigated to', to.pathname);
+});
+
 // Back-to-top button: appears after scrolling down 300px.
 let btn = document.createElement('button');
 btn.id = 'back-to-top';

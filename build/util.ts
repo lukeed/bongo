@@ -53,9 +53,37 @@ export async function build(dir: string): Promise<void> {
 		txt += '  (' + size(gzipSync(code).length) + ')';
 
 		console.log('~>', txt);
-	} catch (err: any) {
-		let msg = (err.message || err || 'Unknown error').replace(/(\r?\n)/g, '$1      ');
+
+		// bongo package: also emit the browser-targeted client bundle.
+		if (dir === 'bongo') {
+			await buildClient(abs, dir);
+		}
+	} catch (err: unknown) {
+		let msg = ((err as { message?: string }).message || String(err) || 'Unknown error').replace(/(\r?\n)/g, '$1      ');
 		console.error('[ERROR]', msg);
 		process.exit(1);
 	}
+}
+
+async function buildClient(abs: string, dir: string): Promise<void> {
+	let bundle = await rolldown({
+		input: join(abs, 'src/client/index.ts'),
+		plugins,
+		// No Node built-ins — this is a pure-browser bundle.
+		external: [],
+	});
+
+	let result = await bundle.write({
+		format: 'esm',
+		file: join(abs, 'client.js'),
+		minify: !process.argv.includes('--dev'),
+	});
+
+	let { code } = result.output[0];
+	let outfile = join(dir, 'client.js');
+
+	let txt = outfile + ' :: ' + size(code.length);
+	txt += '  (' + size(gzipSync(code).length) + ')';
+
+	console.log('~>', txt);
 }
