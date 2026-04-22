@@ -201,6 +201,18 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax (Handlebars-li
 - `format="esm"|"cjs"` — output module format. Defaults to `esm`.
 - `target="…"` — browserslist target string. Defaults to `$build.target` from the config.
 
+**View-transition attributes (build-time rewrite):**
+
+Add `transition:name` and `transition:animate` to any HTML element in a layout or partial. bongo rewrites them at build time — no runtime overhead:
+
+```hbs
+<header transition:name="site-header">…</header>
+<nav transition:name="nav" transition:animate="slide">…</nav>
+```
+
+- `transition:name="NAME"` — removed from the element; `view-transition-name: NAME` is merged into the element's `style` attribute.
+- `transition:animate="KEYFRAME"` — requires a named `@keyframes KEYFRAME` in your CSS. bongo injects a `<style data-bongo-transitions>` block in `<head>` that wires the keyframe to the matching `::view-transition-old(NAME)` and `::view-transition-new(NAME)` pseudo-elements. If `transition:animate` is present without `transition:name`, an auto name (`bongo-auto-<hash>`) is generated.
+
 **Partial includes:**
 
 ```hbs

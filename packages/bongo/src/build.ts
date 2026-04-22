@@ -408,6 +408,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		}
 
 		rendered_content = tags.scanBongoTags(rendered_content, argv as Required<Argv>, config);
+		rendered_content = tags.rewriteTransitionAttrs(rendered_content);
 
 		pages.push({ output: item.output, html: rendered_content });
 	}

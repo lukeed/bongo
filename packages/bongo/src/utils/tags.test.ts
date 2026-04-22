@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 
-import { parseAttrs, scanBongoTags } from './tags';
+import { parseAttrs, scanBongoTags, rewriteTransitionAttrs } from './tags';
 import * as bundler from './bundler';
 
 import type { Argv, Config } from 'bongo';
@@ -200,5 +200,81 @@ describe('scanBongoTags', () => {
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
+	});
+});
+
+// ---------------------------------------------------------------------------
+// rewriteTransitionAttrs tests
+// ---------------------------------------------------------------------------
+
+describe('rewriteTransitionAttrs', () => {
+	test('transition:name adds view-transition-name to style', () => {
+		let html = '<aside transition:name="sidebar">content</aside>';
+		let result = rewriteTransitionAttrs(html);
+		expect(result).toContain('style="view-transition-name: sidebar"');
+		expect(result).not.toContain('transition:name');
+	});
+
+	test('transition:name merges into existing style attr', () => {
+		let html = '<aside style="color:red" transition:name="sidebar">x</aside>';
+		let result = rewriteTransitionAttrs(html);
+		expect(result).toContain('view-transition-name: sidebar');
+		expect(result).toContain('color:red');
+		expect(result).not.toContain('transition:name');
+	});
+
+	test('transition:animate injects ::view-transition-* rule into <style data-bongo-transitions>', () => {
+		let html = '<head></head><body><nav transition:name="nav" transition:animate="slide">x</nav></body>';
+		let result = rewriteTransitionAttrs(html);
+		expect(result).toContain('data-bongo-transitions');
+		expect(result).toContain('::view-transition-old(nav)');
+		expect(result).toContain('::view-transition-new(nav)');
+		expect(result).toContain('animation-name:slide');
+		expect(result).not.toContain('transition:animate');
+	});
+
+	test('transition:animate without transition:name uses auto-generated name', () => {
+		let html = '<head></head><body><section transition:animate="shake">x</section></body>';
+		let result = rewriteTransitionAttrs(html);
+		expect(result).toMatch(/view-transition-name: bongo-auto-[0-9a-f]+/);
+		expect(result).toMatch(/::view-transition-old\(bongo-auto-[0-9a-f]+\)/);
+	});
+
+	test('no transition attrs — html unchanged', () => {
+		let html = '<aside class="foo">content</aside>';
+		let result = rewriteTransitionAttrs(html);
+		expect(result).toBe(html);
+	});
+
+	test('self-closing element with transition:name is handled correctly', () => {
+		let html = '<img transition:name="hero" src="a.png" />';
+		let result = rewriteTransitionAttrs(html);
+		expect(result).toContain('view-transition-name: hero');
+		expect(result).not.toContain('transition:name');
+	});
+
+	test('<style data-bongo-transitions> is injected before </head>', () => {
+		let html = '<html><head><title>T</title></head><body><span transition:name="x" transition:animate="fade">y</span></body></html>';
+		let result = rewriteTransitionAttrs(html);
+		let headClose = result.indexOf('</head>');
+		let styleIdx = result.indexOf('<style data-bongo-transitions>');
+		expect(styleIdx).toBeGreaterThan(-1);
+		expect(styleIdx).toBeLessThan(headClose);
+	});
+
+	test('multiple elements each get their own rule', () => {
+		let html = '<head></head><p transition:name="a" transition:animate="k1">1</p><p transition:name="b" transition:animate="k2">2</p>';
+		let result = rewriteTransitionAttrs(html);
+		expect(result).toContain('::view-transition-old(a)');
+		expect(result).toContain('::view-transition-old(b)');
+		expect(result).toContain('animation-name:k1');
+		expect(result).toContain('animation-name:k2');
+	});
+
+	test('single-quoted transition:name is also handled', () => {
+		let html = "<aside transition:name='hero'>x</aside>";
+		let result = rewriteTransitionAttrs(html);
+		expect(result).toContain('view-transition-name: hero');
+		expect(result).not.toContain('transition:name');
 	});
 });
