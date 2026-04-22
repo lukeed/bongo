@@ -69,9 +69,9 @@ When you run `bongo build`:
 
 1. **Config load** (`utils/config.ts`): Finds `bongo.config.{ts,mjs,cjs,js}` by traversing upward from `cwd`. Bun and Deno import `.ts` natively. On Node, bongo bundles the config through rolldown to a temp `.mjs` and dynamic-imports it — no separate transpile step required.
 
-2. **Template collection** (`utils/templates.ts`): Scans `layouts/` and `partials/` directories. Handlebars files (`.hbs`) are compiled with tempura. JS/TS partials are loaded as modules. The `style`, `link`, `script`, and `partial` template blocks are registered here.
+2. **Template collection** (`utils/templates.ts`): Scans `layouts/` and `partials/` directories. Handlebars files (`.hbs`) are compiled with tempura. JS/TS partials are loaded as modules. The `partial` template block and any user-defined partials are registered here.
 
-3. **Pass 1 — Render**: For each content file, run it through any registered loaders, then apply the matching layout template. During render, `style`/`link`/`script` blocks call `bundler.register(entry, cfg)` and emit opaque placeholder tokens into the HTML output. Pages are collected in memory.
+3. **Pass 1 — Render**: For each content file, run it through any registered loaders, then apply the matching layout template. After the layout chain, `utils/tags.ts` scans the rendered HTML for `<bongo:style>` and `<bongo:script>` custom elements, calls `bundler.register(entry, cfg)` for each, and replaces them with opaque placeholder tokens. Pages are collected in memory.
 
 4. **Flush**: `bundler.flush({ outDir })` runs all bundle groups in parallel. JS groups go through rolldown with code splitting and content-hashed filenames. CSS groups go through LightningCSS (`@import` bundling, autoprefixing, nesting, optional minification). Output filenames include content hashes.
 
@@ -157,7 +157,7 @@ No manual configuration needed.
 
 ### Templates
 
-Templates use [tempura](https://github.com/lukeed/tempura) syntax (Handlebars-like). Asset references use standard HTML tags — bongo recognises them during render:
+Templates use [tempura](https://github.com/lukeed/tempura) syntax (Handlebars-like). Asset entrypoints are declared with `<bongo:style>` and `<bongo:script>` custom elements — bongo scans for them after layout render and replaces them with the appropriate HTML:
 
 ```hbs
 {{! layouts/html.hbs }}
@@ -167,33 +167,39 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax (Handlebars-li
   <meta charset="utf-8"/>
   <title>{{ $page.title }}</title>
 
-  {{! Inline CSS: <style src> always splices the built file into a <style> block }}
-  {{#style src="app.css"}}
+  {{! External CSS: emits <link rel="stylesheet" href="/style.hash.css"/> }}
+  <bongo:style src="app.css"></bongo:style>
 
-  {{! External CSS: <link rel=stylesheet> rewrites href to hashed public URL }}
-  {{#link rel="stylesheet" href="print.css"}}
+  {{! Inline CSS: splices built file contents into a <style> block }}
+  <bongo:style src="print.css" inline></bongo:style>
 </head>
 <body>
   {{{ $page.content }}}
 
-  {{! External JS (default): src rewritten to hashed public URL }}
-  {{#script src="main.ts"}}
+  {{! External JS (default): emits <script type="module" src="/main.hash.js"></script> }}
+  <bongo:script src="main.ts"></bongo:script>
 
   {{! Async external JS }}
-  {{#script src="analytics.ts" async=true}}
+  <bongo:script src="analytics.ts" async></bongo:script>
 
   {{! Inline JS: file contents spliced into the <script> element }}
-  {{#script src="boot.ts" inline=true}}
+  <bongo:script src="boot.ts" inline></bongo:script>
 </body>
 </html>
 ```
 
-**Asset block rules:**
-- `{{#style src="…"}}` → always inline (built CSS spliced into `<style>…</style>`).
-- `{{#link rel="stylesheet" href="…"}}` → always external (bongo rewrites `href` to hashed URL). Other `rel` values pass through unchanged.
-- `{{#script src="…"}}` → external by default (bongo rewrites `src` to hashed URL). Add `inline=true` to splice contents.
+**`<bongo:style>` attributes:**
+- `src="…"` (required) — path relative to `assets/`.
+- `inline` — splice built CSS directly into a `<style>…</style>` block. Omit for an external `<link rel="stylesheet">`.
+- `global` — disable CSS modules auto-detection on `*.module.css` sources (class names are not scoped).
 
-**Supported script attributes:** `async`, `defer`, `format="esm"|"cjs"`, `target="…"`, `inline`.
+**`<bongo:script>` attributes:**
+- `src="…"` (required) — path relative to `assets/`.
+- `inline` — splice built JS directly into a `<script>` block.
+- `async` — adds the `async` attribute to an external `<script>`.
+- `defer` — adds the `defer` attribute (CJS format only; ESM modules are deferred by the browser).
+- `format="esm"|"cjs"` — output module format. Defaults to `esm`.
+- `target="…"` — browserslist target string. Defaults to `$build.target` from the config.
 
 **Partial includes:**
 
