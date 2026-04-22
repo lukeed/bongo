@@ -268,7 +268,7 @@ Register it as a `<bongo:script>` in your layout so it runs on every page:
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `transitions` | `boolean` | `false` | Wrap the body swap in `document.startViewTransition(...)` when the API is available. |
+| `transitions` | `boolean \| 'fade' \| 'initial' \| 'slide' \| 'none' \| string` | `false` | View-transition preset. `true` / `'fade'` injects a cross-fade keyframe. `'slide'` injects a slide keyframe. `'initial'` wraps the swap without injecting CSS (browser default). Custom string: wrap only, user provides `::view-transition-*` rules. `false` / `'none'` disables transitions. |
 | `announce` | `boolean` | `false` | Mount a hidden `role="status"` live region and update it with the new page title after each swap (a11y). |
 
 ### Events
@@ -276,7 +276,7 @@ Register it as a `<bongo:script>` in your layout so it runs on every page:
 Subscribe with `on(event, handler)` — returns an unsubscribe function. Remove a specific handler with `off(event, handler)`.
 
 ```ts
-on('bongo:after-swap', ({ to }) => {
+on('bongo:nav:after', ({ to }) => {
   console.log('navigated to', to.pathname);
 });
 ```
@@ -284,9 +284,10 @@ on('bongo:after-swap', ({ to }) => {
 | Event | Detail shape | Fires when |
 |---|---|---|
 | `bongo:ready` | `{ url: URL }` | Once, immediately after `client()` is called. |
-| `bongo:before-nav` | `{ to: URL; from: URL }` | Navigation intercepted, before the fetch. |
-| `bongo:before-swap` | `{ to: URL; from: URL; doc: Document }` | HTML fetched and parsed; swap has not happened yet. Mutate `doc` to adjust the incoming tree. |
-| `bongo:after-swap` | `{ to: URL; from: URL }` | Body swap complete, new page is live. |
+| `bongo:nav:before` | `{ to: URL; from: URL }` | Navigation intercepted, before the fetch. |
+| `bongo:swap:before` | `{ to: URL; from: URL; doc: Document }` | HTML fetched and parsed; swap has not happened yet. Mutate `doc` to adjust the incoming tree. |
+| `bongo:swap:after` | `{ to: URL; from: URL }` | DOM swapped (inside the view-transition callback when transitions are enabled). |
+| `bongo:nav:after` | `{ to: URL; from: URL }` | Navigation settled: announcer updated, transition finished, URL committed. |
 | `bongo:error` | `{ to: URL; error: Error }` | Navigation fetch or swap threw. The error is re-thrown after firing so the browser falls back naturally. |
 
 ### Programmatic navigation
