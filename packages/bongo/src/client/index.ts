@@ -1,12 +1,11 @@
 /// <reference lib="dom" />
-import { resolvePreset, injectPresetCSS, type TransitionOption } from './transitions';
+import * as preset from './preset';
 import * as internal from './internal';
 
-export type { TransitionPreset } from './transitions';
 export { on, off } from './internal';
 
 export type ClientOptions = {
-	transitions?: TransitionOption;  // `true` aliases 'fade', `false` aliases 'none'
+	transitions?: preset.Options;  // `true` aliases 'fade', `false` aliases 'none'
 	announce?: boolean;
 };
 
@@ -36,10 +35,10 @@ export function client(opts: ClientOptions = {}): void {
 	// Take over scroll restoration from the browser so we can do it synchronously.
 	if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
-	let preset = resolvePreset(opts.transitions);
+	let name = preset.resolve(opts.transitions);
 
 	// Inject preset CSS if applicable (requires browser document).
-	if (preset !== 'none') injectPresetCSS(preset);
+	if (name !== 'none') preset.inject(name);
 
 	let announcer = opts.announce ? internal.ensureAnnouncer() : null;
 
@@ -77,7 +76,7 @@ export function client(opts: ClientOptions = {}): void {
 					};
 
 					let viewTransition = document.startViewTransition
-					if (preset !== 'none' && viewTransition) {
+					if (name !== 'none' && viewTransition) {
 						await viewTransition.call(document, swap).finished;
 					} else {
 						swap();

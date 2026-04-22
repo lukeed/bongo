@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeEach } from 'bun:test';
 import { on, off } from './index';
 import { emit, reset, getBypassNext, setBypassNext } from './internal';
-import { resolvePreset } from './transitions';
+import * as preset from './preset';
 
 describe('event bus', () => {
 	beforeEach(() => {
@@ -139,37 +139,37 @@ describe('BYPASS_NEXT flag', () => {
 	});
 });
 
-describe('resolvePreset()', () => {
+describe('preset.resolve()', () => {
 	test('true resolves to "fade"', () => {
-		expect(resolvePreset(true)).toBe('fade');
+		expect(preset.resolve(true)).toBe('fade');
 	});
 
 	test('"fade" resolves to "fade"', () => {
-		expect(resolvePreset('fade')).toBe('fade');
+		expect(preset.resolve('fade')).toBe('fade');
 	});
 
 	test('"slide" resolves to "slide"', () => {
-		expect(resolvePreset('slide')).toBe('slide');
+		expect(preset.resolve('slide')).toBe('slide');
 	});
 
 	test('"initial" resolves to "initial"', () => {
-		expect(resolvePreset('initial')).toBe('initial');
+		expect(preset.resolve('initial')).toBe('initial');
 	});
 
 	test('false resolves to "none"', () => {
-		expect(resolvePreset(false)).toBe('none');
+		expect(preset.resolve(false)).toBe('none');
 	});
 
 	test('"none" resolves to "none"', () => {
-		expect(resolvePreset('none')).toBe('none');
+		expect(preset.resolve('none')).toBe('none');
 	});
 
 	test('undefined resolves to "none"', () => {
-		expect(resolvePreset(undefined)).toBe('none');
+		expect(preset.resolve(undefined)).toBe('none');
 	});
 
 	test('custom string is returned as-is', () => {
-		expect(resolvePreset('my-custom-preset')).toBe('my-custom-preset');
+		expect(preset.resolve('my-custom-preset')).toBe('my-custom-preset');
 	});
 });
 
