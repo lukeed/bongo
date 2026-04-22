@@ -226,6 +226,30 @@ describe('scanBongoTags', () => {
 		}
 	});
 
+	test('<bongo:client announce> also emits the aria announcer div at its location', async () => {
+		let dir = await tmpAssets({});
+		try {
+			let html = '<bongo:client announce />';
+			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
+			expect(result).toContain('<div id="bongo:live" role="status" aria-live="polite"');
+			// Announcer comes before the script so it is parsed before client() runs.
+			expect(result.indexOf('id="bongo:live"')).toBeLessThan(result.indexOf('<script'));
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('<bongo:client> without announce does not emit the announcer', async () => {
+		let dir = await tmpAssets({});
+		try {
+			let html = '<bongo:client transitions />';
+			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
+			expect(result).not.toContain('bongo:live');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	test('<bongo:client> string attrs become quoted values', async () => {
 		let dir = await tmpAssets({});
 		try {

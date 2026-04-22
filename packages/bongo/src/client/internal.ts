@@ -107,10 +107,10 @@ export function restoreScroll(event: NavigateEvent, to: URL): void {
 }
 
 export function ensureAnnouncer(): HTMLElement {
-	let el = document.getElementById('__bongo-live__');
+	let el = document.getElementById('bongo:live');
 	if (el) return el;
 	el = document.createElement('div');
-	el.id = '__bongo-live__';
+	el.id = 'bongo:live';
 	el.setAttribute('role', 'status');
 	el.setAttribute('aria-live', 'polite');
 	el.style.cssText = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);border:0';
