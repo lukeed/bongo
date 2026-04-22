@@ -1,11 +1,13 @@
 /// <reference lib="dom" />
 import * as preset from './preset';
+import * as prefetch from './prefetch';
 import * as internal from './internal';
 
 export { on, off } from './internal';
 
 export type ClientOptions = {
-	transitions?: preset.Options;  // `true` aliases 'fade', `false` aliases 'none'
+	transitions?: preset.Options;   // `true` aliases 'fade', `false` aliases 'none'
+	prefetch?: prefetch.Options;    // `true` aliases 'hover', `false` aliases 'off'
 };
 
 export type BongoEvent =
@@ -28,6 +30,10 @@ export type BongoEventDetails = {
 export function client(opts: ClientOptions = {}): void {
 	let nav: Navigation | undefined = globalThis.navigation;
 	internal.emit('bongo:ready', { url: new URL(location.href) });
+
+	// Prefetch works independently of the Navigation API — even on MPA
+	// fallback, warming the HTTP cache speeds up the next full-page load.
+	prefetch.install(prefetch.resolve(opts.prefetch));
 
 	if (!nav) return; // MPA fallback — no interception
 
