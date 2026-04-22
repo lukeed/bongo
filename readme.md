@@ -201,10 +201,11 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax (Handlebars-li
 - `format="esm"|"cjs"` — output module format. Defaults to `esm`.
 - `target="…"` — browserslist target string. Defaults to `$build.target` from the config.
 
-**`<bongo:client>`:** sugar element that bundles bongo's own browser runtime and emits a module script that calls `client(...)`. No `src`. All other attributes are forwarded as `ClientOptions`:
+**`<bongo:client>`:** sugar element that bundles bongo's own browser runtime and emits a module script that calls `client(...)`, plus the hidden `aria-live` region used to announce page-title changes. No `src`. All other attributes are forwarded as `ClientOptions`:
 
 ```hbs
-<bongo:client transitions announce />
+<bongo:client />
+<bongo:client transitions />
 <bongo:client transitions="slide" />
 ```
 
@@ -273,28 +274,31 @@ import { client, navigate, on, off } from 'bongo/client';
 
 ### Setup
 
-The simplest way to wire the client runtime in is the `<bongo:client />` element — bongo bundles its own browser runtime and emits the bootstrap script for you. Attributes become `client()` options:
+The simplest way to wire the client runtime in is the `<bongo:client />` element — bongo bundles its own browser runtime and emits the bootstrap script plus an `aria-live` region for you. Attributes become `client()` options:
 
 ```hbs
 {{! layouts/html.hbs }}
-<bongo:client transitions announce />
+<bongo:client transitions />
 ```
 
-That expands at build time to a hashed, `publicPath`-prefixed import:
+That expands at build time to:
 
 ```html
+<div id="bongo:live" role="status" aria-live="polite" style="…visually-hidden…"></div>
 <script type="module">
   import { client } from "/client.D59fAaym.js";
-  client({ transitions: true, announce: true });
+  client({ transitions: true });
 </script>
 ```
+
+The runtime looks up `#bongo:live` on each navigation and updates its text content with the new page title — route announcement is always on, no flag required. If the element isn't in the DOM (e.g. you bootstrap `client()` manually without using `<bongo:client />`), announcements are skipped silently.
 
 Multiple `<bongo:client>` tags on a page share one bundled runtime. Boolean attrs become `true`; attrs with string values become `"string"` (e.g. `<bongo:client transitions="slide" />`).
 
 If you also want to register custom event handlers or run your own boot code, keep a separate `<bongo:script>` for that:
 
 ```hbs
-<bongo:client transitions announce />
+<bongo:client transitions />
 <bongo:script src="main.ts"></bongo:script>
 ```
 
@@ -311,7 +315,7 @@ Or, if you prefer to call `client()` yourself, skip `<bongo:client />` and boots
 
 ```ts
 import { client } from 'bongo/client';
-client({ transitions: true, announce: true });
+client({ transitions: true });
 ```
 
 ### `ClientOptions`
@@ -319,7 +323,6 @@ client({ transitions: true, announce: true });
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `transitions` | `boolean \| 'fade' \| 'initial' \| 'slide' \| 'none' \| string` | `false` | View-transition preset. `true` / `'fade'` injects a cross-fade keyframe. `'slide'` injects a slide keyframe. `'initial'` wraps the swap without injecting CSS (browser default). Custom string: wrap only, user provides `::view-transition-*` rules. `false` / `'none'` disables transitions. |
-| `announce` | `boolean` | `false` | Mount a hidden `role="status"` live region and update it with the new page title after each swap (a11y). |
 
 ### Events
 

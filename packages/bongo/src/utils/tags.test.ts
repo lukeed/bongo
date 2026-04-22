@@ -202,13 +202,13 @@ describe('scanBongoTags', () => {
 		}
 	});
 
-	test('<bongo:client /> emits an ESM script that imports and calls client({})', async () => {
+	test('<bongo:client /> emits announcer + ESM script that imports and calls client({})', async () => {
 		let dir = await tmpAssets({});
 		try {
 			let html = '<bongo:client />';
 			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
 			expect(result).toMatch(
-				/^<script type="module">import { client } from "__BONGO_BUNDLE:[a-f0-9]{16}__"; client\({}\);<\/script>$/,
+				/^<div id="bongo:live"[^>]+><\/div><script type="module">import { client } from "__BONGO_BUNDLE:[a-f0-9]{16}__"; client\({}\);<\/script>$/,
 			);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
@@ -218,33 +218,21 @@ describe('scanBongoTags', () => {
 	test('<bongo:client> boolean attrs become true in the options object', async () => {
 		let dir = await tmpAssets({});
 		try {
-			let html = '<bongo:client transitions announce />';
-			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
-			expect(result).toContain('client({ transitions: true, announce: true });');
-		} finally {
-			await rm(dir, { recursive: true, force: true });
-		}
-	});
-
-	test('<bongo:client announce> also emits the aria announcer div at its location', async () => {
-		let dir = await tmpAssets({});
-		try {
-			let html = '<bongo:client announce />';
-			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
-			expect(result).toContain('<div id="bongo:live" role="status" aria-live="polite"');
-			// Announcer comes before the script so it is parsed before client() runs.
-			expect(result.indexOf('id="bongo:live"')).toBeLessThan(result.indexOf('<script'));
-		} finally {
-			await rm(dir, { recursive: true, force: true });
-		}
-	});
-
-	test('<bongo:client> without announce does not emit the announcer', async () => {
-		let dir = await tmpAssets({});
-		try {
 			let html = '<bongo:client transitions />';
 			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
-			expect(result).not.toContain('bongo:live');
+			expect(result).toContain('client({ transitions: true });');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('<bongo:client> always emits the aria announcer div before the bootstrap script', async () => {
+		let dir = await tmpAssets({});
+		try {
+			let html = '<bongo:client />';
+			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
+			expect(result).toContain('<div id="bongo:live" role="status" aria-live="polite"');
+			expect(result.indexOf('id="bongo:live"')).toBeLessThan(result.indexOf('<script'));
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}

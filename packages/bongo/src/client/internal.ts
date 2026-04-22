@@ -106,16 +106,8 @@ export function restoreScroll(event: NavigateEvent, to: URL): void {
 	window.scrollTo(0, 0);
 }
 
-export function ensureAnnouncer(): HTMLElement {
-	let el = document.getElementById('bongo:live');
-	if (el) return el;
-	el = document.createElement('div');
-	el.id = 'bongo:live';
-	el.setAttribute('role', 'status');
-	el.setAttribute('aria-live', 'polite');
-	el.style.cssText = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);border:0';
-	document.body.appendChild(el);
-	return el;
+export function findAnnouncer(): HTMLElement | null {
+	return document.getElementById('bongo:live');
 }
 
 /** @internal — used by tests only */

@@ -75,15 +75,11 @@ export function scanBongoTags(
 				format: 'esm',
 				target: config.$build.target,
 			});
-			let out = '';
-			if (bool(attrs.announce)) {
-				// Emit the aria-live announcer at this location so it is parsed
-				// before the bootstrap script runs. The runtime's ensureAnnouncer()
-				// will find it by id.
-				out += '<div id="bongo:live" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);border:0"></div>';
-			}
-			out += `<script type="module">import { client } from "${placeholder}"; client(${clientOptions(attrs)});</script>`;
-			return out;
+			// Always emit the aria-live announcer at this location so it is
+			// parsed before the bootstrap script runs. The runtime looks it up
+			// by id and updates its text on every navigation.
+			let announcer = '<div id="bongo:live" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);border:0"></div>';
+			return `${announcer}<script type="module">import { client } from "${placeholder}"; client(${clientOptions(attrs)});</script>`;
 		}
 
 		let src = str(attrs.src);
