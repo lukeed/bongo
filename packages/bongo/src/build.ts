@@ -6,6 +6,7 @@ import * as log from './utils/log';
 import * as bundler from './utils/bundler';
 import { load } from './utils/config';
 import * as templates from './utils/templates';
+import * as tags from './utils/tags';
 import { normalize } from './utils/argv';
 import { RELOAD } from './utils/http';
 
@@ -405,6 +406,8 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			rendered_content +=   `}`;
 			rendered_content += `</script>`;
 		}
+
+		rendered_content = tags.scanBongoTags(rendered_content, argv as Required<Argv>, config);
 
 		pages.push({ output: item.output, html: rendered_content });
 	}
