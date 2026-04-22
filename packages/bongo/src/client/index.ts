@@ -1,7 +1,10 @@
-export type TransitionPreset = 'fade' | 'initial' | 'slide' | 'none';
+/// <reference lib="dom" />
+import { resolvePreset, injectPresetCSS, type TransitionPreset, type TransitionOption } from './transitions';
+
+export type { TransitionPreset } from './transitions';
 
 export type ClientOptions = {
-	transitions?: boolean | TransitionPreset | string;  // `true` aliases 'fade', `false` aliases 'none'
+	transitions?: TransitionOption;  // `true` aliases 'fade', `false` aliases 'none'
 	announce?: boolean;
 };
 
@@ -22,7 +25,7 @@ export type BongoEventDetails = {
 	'bongo:error': { to: URL; error: Error };
 };
 
-type Handler<K extends BongoEvent> = (detail: BongoEventDetails[K]) => void;
+type Handler<K extends BongoEvent> = (detail: BongoEventDetails[ K ]) => void;
 
 // Module-level listener registry; reset() is exported for test isolation.
 let LISTENERS: Map<BongoEvent, Set<Handler<BongoEvent>>> = new Map();
@@ -30,85 +33,42 @@ let LISTENERS: Map<BongoEvent, Set<Handler<BongoEvent>>> = new Map();
 // Fallback flag for browsers that don't expose NavigateEvent.sourceElement.
 let BYPASS_NEXT = false;
 
+// In-session scroll memory, keyed by full URL. Populated on navigate-out
+// and read on back/forward. Synchronous restore avoids the async `event.scroll()`
+// jump where the browser paints the new body at the old scroll first.
+let SCROLL_CACHE = new Map<string, { x: number; y: number }>();
+
 /** @internal — used by tests only */
 export function reset(): void {
 	LISTENERS = new Map();
 	BYPASS_NEXT = false;
+	SCROLL_CACHE = new Map();
 }
 
 /** @internal — used by tests only */
-export function emit<K extends BongoEvent>(type: K, detail: BongoEventDetails[K]): void {
+export function emit<K extends BongoEvent>(type: K, detail: BongoEventDetails[ K ]): void {
 	let set = LISTENERS.get(type);
 	if (!set) return;
 	for (let fn of set) {
-		try { fn(detail as BongoEventDetails[BongoEvent]); }
+		try { fn(detail as BongoEventDetails[ BongoEvent ]); }
 		catch (err) { console.error(`[bongo] handler for ${type} threw:`, err); }
 	}
 }
 
 export function on<K extends BongoEvent>(type: K, handler: Handler<K>): () => void {
 	let set = LISTENERS.get(type);
-	if (!set) { set = new Set(); LISTENERS.set(type, set); }
+	if (!set) LISTENERS.set(type, set = new Set());
+
 	set.add(handler as Handler<BongoEvent>);
-	return () => set!.delete(handler as Handler<BongoEvent>);
+	return () => set.delete(handler as Handler<BongoEvent>);
 }
 
 export function off<K extends BongoEvent>(type: K, handler: Handler<K>): void {
 	LISTENERS.get(type)?.delete(handler as Handler<BongoEvent>);
 }
 
-// --- Navigation API type stubs (browser-only; not from @types/node) ---
 
-type NavigationApi = {
-	addEventListener(type: 'navigate', handler: (event: NavEvent) => void): void;
-	navigate(url: string, init?: { history?: 'replace' | 'push' }): { finished: Promise<void> };
-};
-
-type NavEvent = {
-	destination: { url: string };
-	canIntercept: boolean;
-	hashChange: boolean;
-	downloadRequest: string | null;
-	sourceElement?: Element | null;
-	intercept(init: { handler: () => Promise<void> | void }): void;
-};
-
-// --- View-transition preset CSS ---
-
-const PRESET_CSS: Record<string, string> = {
-	fade: [
-		'@keyframes bongo-fade-in{from{opacity:0}to{opacity:1}}',
-		'@keyframes bongo-fade-out{from{opacity:1}to{opacity:0}}',
-		'::view-transition-old(root){animation-name:bongo-fade-out;animation-duration:.18s}',
-		'::view-transition-new(root){animation-name:bongo-fade-in;animation-duration:.18s}',
-	].join(''),
-	slide: [
-		'@keyframes bongo-slide-in{from{transform:translateX(16px);opacity:0}to{transform:none;opacity:1}}',
-		'@keyframes bongo-slide-out{from{transform:none;opacity:1}to{transform:translateX(-16px);opacity:0}}',
-		'::view-transition-old(root){animation-name:bongo-slide-out;animation-duration:.22s}',
-		'::view-transition-new(root){animation-name:bongo-slide-in;animation-duration:.22s}',
-	].join(''),
-};
-
-/** @internal — used by tests only */
-export function resolvePreset(opt: ClientOptions['transitions']): string {
-	if (opt === true) return 'fade';
-	if (!opt || opt === false || opt === 'none') return 'none';
-	return opt; // 'fade' | 'initial' | 'slide' | any custom string
-}
-
-function injectPresetCSS(preset: string): void {
-	let css = PRESET_CSS[preset];
-	if (!css) return; // 'initial', 'none', or unknown custom preset — user handles CSS
-	// Only inject once per preset name.
-	if (document.querySelector(`style[data-bongo-preset="${preset}"]`)) return;
-	let el = document.createElement('style');
-	el.setAttribute('data-bongo-preset', preset);
-	el.textContent = css;
-	document.head.appendChild(el);
-}
-
-function shouldIntercept(event: NavEvent): boolean {
+function shouldIntercept(event: NavigateEvent): boolean {
 	if (BYPASS_NEXT) {
 		BYPASS_NEXT = false;
 		return false;
@@ -128,43 +88,51 @@ async function fetchPage(url: URL): Promise<string> {
 	return res.text();
 }
 
+function stylesheets(doc: Document): HTMLLinkElement[] {
+	return [ ...doc.querySelectorAll('link[rel=stylesheet]') ] as HTMLLinkElement[];
+}
+
 function reconcile(current: Document, incoming: Document): void {
-	// Title
 	current.title = incoming.title;
 
-	// Stylesheets: diff <link rel="stylesheet"> by href.
-	let hrefs = (doc: Document) =>
-		new Set(Array.from(doc.querySelectorAll('link[rel="stylesheet"]')).map(l => (l as HTMLLinkElement).href));
-	let cur = hrefs(current);
-	let inc = hrefs(incoming);
+	// Diff <link rel="stylesheet"> by href.
+	let currentLinks = stylesheets(current);
+	let incomingLinks = stylesheets(incoming);
+	let curHrefs = new Set(currentLinks.map(l => l.href));
+	let incHrefs = new Set(incomingLinks.map(l => l.href));
 
-	// Add incoming links the current page doesn't have.
-	for (let link of Array.from(incoming.querySelectorAll('link[rel="stylesheet"]'))) {
-		let l = link as HTMLLinkElement;
-		if (!cur.has(l.href)) current.head.appendChild(l.cloneNode(true));
+	for (let l of incomingLinks) {
+		curHrefs.has(l.href) || current.head.appendChild(l.cloneNode(true));
 	}
-	// Remove old links the incoming page dropped.
-	for (let link of Array.from(current.querySelectorAll('link[rel="stylesheet"]'))) {
-		let l = link as HTMLLinkElement;
-		if (!inc.has(l.href)) l.remove();
-	}
-
-	// Persist elements marked with data-bongo-persist: transplant by exact attr match.
-	let persistSelector = '[data-bongo-persist]';
-	let existingPersist = new Map<string, Element>();
-	for (let el of Array.from(current.querySelectorAll(persistSelector))) {
-		let key = (el as HTMLElement).dataset.bongoPersist;
-		if (key) existingPersist.set(key, el);
-	}
-	for (let target of Array.from(incoming.querySelectorAll(persistSelector))) {
-		let key = (target as HTMLElement).dataset.bongoPersist;
-		if (!key) continue;
-		let live = existingPersist.get(key);
-		if (live) target.replaceWith(live);
+	for (let l of currentLinks) {
+		incHrefs.has(l.href) || l.remove();
 	}
 
 	// Body swap.
 	current.body.replaceWith(incoming.body);
+}
+
+function restoreScroll(event: NavigateEvent, to: URL): void {
+	// Traversal (back/forward): restore from our synchronous cache.
+	if (event.navigationType === 'traverse') {
+		let saved = SCROLL_CACHE.get(to.href);
+		if (saved) {
+			window.scrollTo(saved.x, saved.y);
+			return;
+		}
+		window.scrollTo(0, 0);
+		return;
+	}
+	// push/replace: scroll to hash target, else top.
+	if (to.hash) {
+		let id = decodeURIComponent(to.hash.slice(1));
+		let target = id && document.getElementById(id);
+		if (target) {
+			target.scrollIntoView();
+			return;
+		}
+	}
+	window.scrollTo(0, 0);
 }
 
 function ensureAnnouncer(): HTMLElement {
@@ -180,10 +148,13 @@ function ensureAnnouncer(): HTMLElement {
 }
 
 export function client(opts: ClientOptions = {}): void {
-	let nav = (globalThis as { navigation?: NavigationApi }).navigation;
+	let nav: Navigation | undefined = globalThis.navigation;
 	emit('bongo:ready', { url: new URL(location.href) });
 
 	if (!nav) return; // MPA fallback — no interception
+
+	// Take over scroll restoration from the browser so we can do it synchronously.
+	if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
 	let preset = resolvePreset(opts.transitions);
 
@@ -206,6 +177,9 @@ export function client(opts: ClientOptions = {}): void {
 		let from = new URL(location.href);
 		let to = new URL(event.destination.url);
 
+		// Remember scroll for the page we are leaving, so back/forward can restore it.
+		SCROLL_CACHE.set(from.href, { x: window.scrollX, y: window.scrollY });
+
 		event.intercept({
 			async handler() {
 				try {
@@ -216,10 +190,13 @@ export function client(opts: ClientOptions = {}): void {
 
 					let swap = () => {
 						reconcile(document, doc);
+						// alert('before scroll')
+						restoreScroll(event, to);
+						// event.scroll?.();
 						emit('bongo:swap:after', { to, from });
 					};
 
-					let viewTransition = (document as { startViewTransition?: (cb: () => void) => { finished: Promise<void> } }).startViewTransition;
+					let viewTransition = document.startViewTransition
 					if (preset !== 'none' && viewTransition) {
 						await viewTransition.call(document, swap).finished;
 					} else {
@@ -239,12 +216,14 @@ export function client(opts: ClientOptions = {}): void {
 
 export function navigate(url: string | URL, opts: { replace?: boolean } = {}): Promise<void> {
 	let target = new URL(url, location.href);
-	let nav = (globalThis as { navigation?: NavigationApi }).navigation;
+	let nav = globalThis.navigation;
 	if (!nav) {
-		location[opts.replace ? 'replace' : 'assign'](target.href);
+		location[ opts.replace ? 'replace' : 'assign' ](target.href);
 		return Promise.resolve();
 	}
-	let result = nav.navigate(target.href, { history: opts.replace ? 'replace' : 'push' });
+	let result = nav.navigate(target.href, {
+		history: opts.replace ? 'replace' : 'push'
+	});
 	return result.finished;
 }
 
