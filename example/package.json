@@ -2,6 +2,7 @@
   "name": "example",
   "private": true,
   "scripts": {
+    "dev": "bongo dev",
     "build": "bongo build"
   },
   "devDependencies": {

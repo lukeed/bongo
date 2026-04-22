@@ -18,10 +18,10 @@
 
 		<meta name="description" content="{{ descr }}" />
 
-		{{#style src="style.css" output="s.css" }}
+		<bongo:style src="style.css"></bongo:style>
 		{{ $page.styles }}
 
-		{{#script src="bundle.ts" defer=true inline=true }}
+		<bongo:script src="bundle.ts" inline></bongo:script>
 		{{ $page.scripts }}
 	</head>
 	<body>
