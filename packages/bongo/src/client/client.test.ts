@@ -1,5 +1,6 @@
 import { describe, expect, test, beforeEach } from 'bun:test';
-import { on, off, emit, reset, getBypassNext, setBypassNext } from './index';
+import { on, off } from './index';
+import { emit, reset, getBypassNext, setBypassNext } from './internal';
 import { resolvePreset } from './transitions';
 
 describe('event bus', () => {
