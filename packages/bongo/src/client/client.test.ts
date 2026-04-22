@@ -124,6 +124,17 @@ describe('BYPASS_NEXT flag', () => {
 		setBypassNext(false);
 		expect(getBypassNext()).toBe(false);
 	});
+
+	// Verifies the "consume once" contract used by the navigate handler:
+	// shouldIntercept reads+clears the flag so the next navigation is not affected.
+	test('flag is a one-shot: after being read true it must be manually cleared', () => {
+		setBypassNext(true);
+		// Simulate what shouldIntercept does internally:
+		let val = getBypassNext();
+		setBypassNext(false);
+		expect(val).toBe(true);
+		expect(getBypassNext()).toBe(false);
+	});
 });
 
 describe('navigate()', () => {
