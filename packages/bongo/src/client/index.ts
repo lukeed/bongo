@@ -11,18 +11,18 @@ export type ClientOptions = {
 
 export type BongoEvent =
 	| 'bongo:ready'
-	| 'bongo:nav:before'
-	| 'bongo:nav:after'
-	| 'bongo:swap:before'
-	| 'bongo:swap:after'
+	| 'bongo:navigate'
+	| 'bongo:navigated'
+	| 'bongo:replace'
+	| 'bongo:replaced'
 	| 'bongo:error';
 
 export type BongoEventDetails = {
 	'bongo:ready': { url: URL };
-	'bongo:nav:before': { to: URL; from: URL };
-	'bongo:nav:after': { to: URL; from: URL };
-	'bongo:swap:before': { to: URL; from: URL; doc: Document };
-	'bongo:swap:after': { to: URL; from: URL };
+	'bongo:navigate': { to: URL; from: URL };
+	'bongo:navigated': { to: URL; from: URL };
+	'bongo:replace': { to: URL; from: URL; doc: Document };
+	'bongo:replaced': { to: URL; from: URL };
 	'bongo:error': { to: URL; error: Error };
 };
 
@@ -62,17 +62,17 @@ export function client(opts: ClientOptions = {}): void {
 		event.intercept({
 			async handler() {
 				try {
-					internal.emit('bongo:nav:before', { to, from });
+					internal.emit('bongo:navigate', { to, from });
 					let html = await internal.fetchPage(to);
 					let doc = new DOMParser().parseFromString(html, 'text/html');
-					internal.emit('bongo:swap:before', { to, from, doc });
+					internal.emit('bongo:replace', { to, from, doc });
 
 					let swap = () => {
 						internal.reconcile(document, doc);
 						// alert('before scroll')
 						internal.restoreScroll(event, to);
 						// event.scroll?.();
-						internal.emit('bongo:swap:after', { to, from });
+						internal.emit('bongo:replaced', { to, from });
 					};
 
 					let viewTransition = document.startViewTransition
@@ -83,7 +83,7 @@ export function client(opts: ClientOptions = {}): void {
 					}
 
 					if (announcer) announcer.textContent = document.title;
-					internal.emit('bongo:nav:after', { to, from });
+					internal.emit('bongo:navigated', { to, from });
 				} catch (err) {
 					internal.emit('bongo:error', { to, error: err instanceof Error ? err : new Error(String(err)) });
 					throw err;

@@ -2,7 +2,7 @@ import { client, on } from 'bongo/client';
 
 client({ transitions: true, announce: true });
 
-on('bongo:nav:after', ({ to }) => {
+on('bongo:navigated', ({ to }) => {
 	console.log('[bongo] navigated to', to.pathname);
 });
 

@@ -288,7 +288,7 @@ Register it as a `<bongo:script>` in your layout so it runs on every page:
 Subscribe with `on(event, handler)` — returns an unsubscribe function. Remove a specific handler with `off(event, handler)`.
 
 ```ts
-on('bongo:nav:after', ({ to }) => {
+on('bongo:navigated', ({ to }) => {
   console.log('navigated to', to.pathname);
 });
 ```
@@ -296,10 +296,10 @@ on('bongo:nav:after', ({ to }) => {
 | Event | Detail shape | Fires when |
 |---|---|---|
 | `bongo:ready` | `{ url: URL }` | Once, immediately after `client()` is called. |
-| `bongo:nav:before` | `{ to: URL; from: URL }` | Navigation intercepted, before the fetch. |
-| `bongo:swap:before` | `{ to: URL; from: URL; doc: Document }` | HTML fetched and parsed; swap has not happened yet. Mutate `doc` to adjust the incoming tree. |
-| `bongo:swap:after` | `{ to: URL; from: URL }` | DOM swapped (inside the view-transition callback when transitions are enabled). |
-| `bongo:nav:after` | `{ to: URL; from: URL }` | Navigation settled: announcer updated, transition finished, URL committed. |
+| `bongo:navigate` | `{ to: URL; from: URL }` | Navigation intercepted, before the fetch. |
+| `bongo:replace` | `{ to: URL; from: URL; doc: Document }` | HTML fetched and parsed; swap has not happened yet. Mutate `doc` to adjust the incoming tree. |
+| `bongo:replaced` | `{ to: URL; from: URL }` | DOM swapped (inside the view-transition callback when transitions are enabled). |
+| `bongo:navigated` | `{ to: URL; from: URL }` | Navigation settled: announcer updated, transition finished, URL committed. |
 | `bongo:error` | `{ to: URL; error: Error }` | Navigation fetch or swap threw. The error is re-thrown after firing so the browser falls back naturally. |
 
 ### Programmatic navigation

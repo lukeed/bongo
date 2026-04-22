@@ -24,24 +24,24 @@ describe('event bus', () => {
 
 	test('unsubscribe function stops delivery', () => {
 		let count = 0;
-		let unsub = on('bongo:swap:after', () => { count++; });
+		let unsub = on('bongo:replaced', () => { count++; });
 		let from = new URL('https://example.com/');
 		let to = new URL('https://example.com/about');
-		emit('bongo:swap:after', { to, from });
+		emit('bongo:replaced', { to, from });
 		expect(count).toBe(1);
 		unsub();
-		emit('bongo:swap:after', { to, from });
+		emit('bongo:replaced', { to, from });
 		expect(count).toBe(1); // still 1 — handler removed
 	});
 
 	test('off() removes a registered handler', () => {
 		let count = 0;
 		let fn = () => { count++; };
-		on('bongo:nav:before', fn);
-		off('bongo:nav:before', fn);
+		on('bongo:navigate', fn);
+		off('bongo:navigate', fn);
 		let from = new URL('https://example.com/');
 		let to = new URL('https://example.com/page');
-		emit('bongo:nav:before', { to, from });
+		emit('bongo:navigate', { to, from });
 		expect(count).toBe(0);
 	});
 
@@ -61,44 +61,44 @@ describe('event bus', () => {
 		expect(reached).toBe(true);
 	});
 
-	test('bongo:nav:before fires with to/from detail', () => {
+	test('bongo:navigate fires with to/from detail', () => {
 		let received: { to: URL; from: URL } | null = null;
 		let from = new URL('https://example.com/');
 		let to = new URL('https://example.com/about');
-		on('bongo:nav:before', (d) => { received = d; });
-		emit('bongo:nav:before', { to, from });
+		on('bongo:navigate', (d) => { received = d; });
+		emit('bongo:navigate', { to, from });
 		expect(received).not.toBeNull();
 		expect(received!.to).toBe(to);
 		expect(received!.from).toBe(from);
 	});
 
-	test('bongo:nav:after fires with to/from detail', () => {
+	test('bongo:navigated fires with to/from detail', () => {
 		let received: { to: URL; from: URL } | null = null;
 		let from = new URL('https://example.com/');
 		let to = new URL('https://example.com/about');
-		on('bongo:nav:after', (d) => { received = d; });
-		emit('bongo:nav:after', { to, from });
+		on('bongo:navigated', (d) => { received = d; });
+		emit('bongo:navigated', { to, from });
 		expect(received).not.toBeNull();
 		expect(received!.to).toBe(to);
 	});
 
-	test('bongo:swap:before fires with to/from/doc detail', () => {
+	test('bongo:replace fires with to/from/doc detail', () => {
 		let received: { to: URL; from: URL; doc: Document } | null = null;
 		let from = new URL('https://example.com/');
 		let to = new URL('https://example.com/about');
 		let doc = {} as Document;
-		on('bongo:swap:before', (d) => { received = d; });
-		emit('bongo:swap:before', { to, from, doc });
+		on('bongo:replace', (d) => { received = d; });
+		emit('bongo:replace', { to, from, doc });
 		expect(received).not.toBeNull();
 		expect(received!.doc).toBe(doc);
 	});
 
-	test('bongo:swap:after fires with to/from detail', () => {
+	test('bongo:replaced fires with to/from detail', () => {
 		let received: { to: URL; from: URL } | null = null;
 		let from = new URL('https://example.com/');
 		let to = new URL('https://example.com/about');
-		on('bongo:swap:after', (d) => { received = d; });
-		emit('bongo:swap:after', { to, from });
+		on('bongo:replaced', (d) => { received = d; });
+		emit('bongo:replaced', { to, from });
 		expect(received).not.toBeNull();
 		expect(received!.to).toBe(to);
 	});
