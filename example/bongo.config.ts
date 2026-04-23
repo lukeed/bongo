@@ -1,11 +1,11 @@
 import { markdown } from '@bongo/markdown';
 import type { Config } from 'bongo';
 
-const config: Config = {
+export default {
 	$site: {
-		url: 'https://example.com',
-		title: 'example',
 		lang: 'en',
+		title: 'example',
+		url: 'https://example.com',
 		description: 'A demo site built with bongo.',
 	},
 
@@ -23,7 +23,7 @@ const config: Config = {
 			});
 		},
 		sortByDate<T extends { params: { date?: unknown } }>(pages: T[]): T[] {
-			return [...pages].sort((a, b) => {
+			return [ ...pages ].sort((a, b) => {
 				let ad = typeof a.params.date === 'string' ? a.params.date : '';
 				let bd = typeof b.params.date === 'string' ? b.params.date : '';
 				return bd.localeCompare(ad); // newest first
@@ -47,7 +47,7 @@ const config: Config = {
 		},
 	},
 
-	plugins: [markdown()],
-};
-
-export default config;
+	plugins: [
+		markdown()
+	],
+} satisfies Config

@@ -1,6 +1,6 @@
 import { on } from 'bongo/client';
 
-// client() is mounted via <bongo:client transitions /> in html.hbs.
+// client() is mounted via <bongo:client transitions prefetch /> in html.hbs.
 on('bongo:navigated', ({ to }) => {
 	console.log('[bongo] navigated to', to.pathname);
 });

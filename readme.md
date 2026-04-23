@@ -323,6 +323,7 @@ client({ transitions: true });
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `transitions` | `boolean \| 'fade' \| 'initial' \| 'slide' \| 'none' \| string` | `false` | View-transition preset. `true` / `'fade'` injects a cross-fade keyframe. `'slide'` injects a slide keyframe. `'initial'` wraps the swap without injecting CSS (browser default). Custom string: wrap only, user provides `::view-transition-*` rules. `false` / `'none'` disables transitions. |
+| `prefetch` | `boolean \| 'hover' \| 'tap' \| 'off'` | `false` | Prefetch same-origin links to warm the HTTP cache. `true` / `'hover'`: fire ~80ms after the mouse comes to rest on a link (or immediately on `touchstart`). `'tap'`: fire on `mousedown` / `touchstart` — the earliest pre-click signal. `false` / `'off'` disables. Opt a specific link out with `prefetch:mode="off"`. |
 
 ### Events
 
