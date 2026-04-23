@@ -1,13 +1,13 @@
 {
   "compilerOptions": {
     "module": "esnext",
-    "target": "es2023",
+    "target": "es2024",
     "noImplicitAny": true,
     "resolveJsonModule": true,
     "strictBindCallApply": true,
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "strictNullChecks": true,
     "removeComments": true,
     "sourceMap": false,
@@ -15,23 +15,22 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
-    "baseUrl": ".",
     "paths": {
-      "bongo": ["./packages/bongo/index.d.ts"]
-    }
+      "bongo": [
+        "./packages/bongo/index.d.ts"
+      ]
+    },
+    "types": [
+      "node"
+    ]
   },
   "include": [
     "packages"
   ],
   "exclude": [
-    "node_modules",
-    "**/node_modules",
+    "**/node_modules/**",
     "archive/**",
-    "packages/bongo/index.js",
-    "packages/bongo/bin.js",
-    "packages/plugin.markdown/index.js",
-    "packages/create-bongo/bin.js",
-    "packages/create-bongo/index.js",
+    "packages/**/*.js",
     "packages/create-bongo/template/**"
   ]
 }

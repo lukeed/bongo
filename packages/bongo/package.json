@@ -19,7 +19,7 @@
     "./jsx": {
       "types": "./jsx.d.ts"
     },
-    "./tsconfig": "./tsconfig.json"
+    "./tsconfig": "./tsc.json"
   },
   "files": [
     "bin.js",
@@ -28,7 +28,7 @@
     "client.js",
     "client.d.ts",
     "jsx.d.ts",
-    "tsconfig.json"
+    "tsc.json"
   ],
   "author": {
     "name": "Luke Edwards",
