@@ -41,7 +41,7 @@ export function shouldIntercept(event: NavigateEvent): boolean {
 		BYPASS_NEXT = false;
 		return false;
 	}
-	if (event.sourceElement?.hasAttribute('bongo-reload')) return false;
+	if (event.sourceElement?.hasAttribute('transition:disable')) return false;
 	if (!event.canIntercept) return false;
 	if (event.hashChange) return false;
 	if (event.downloadRequest !== null) return false;
@@ -128,7 +128,7 @@ export function getBypassNext(): boolean {
 	return BYPASS_NEXT;
 }
 
-/** @internal — used by tests only and the bongo-reload click capture in client() */
+/** @internal — used by tests only and the transition:disable click capture in client() */
 export function setBypassNext(val: boolean): void {
 	BYPASS_NEXT = val;
 }

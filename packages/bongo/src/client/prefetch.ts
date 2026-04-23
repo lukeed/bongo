@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 
-export type Mode = 'hover' | 'tap' | 'off';
+export type Mode = 'hover' | 'tap';
 export type Options = boolean | Mode | undefined;
 
 // In-memory HTML cache, keyed by absolute href. Ownership of the cache lives
@@ -19,9 +19,9 @@ const TTL = 30_000; // 30s
 const HOVER_DELAY = 80;
 
 /** @internal — used by tests only */
-export function resolve(opt: Options): Mode {
+export function resolve(opt: Options): Mode | undefined {
 	if (opt === true) return 'hover';
-	if (!opt) return 'off';
+	if (!opt) return undefined;
 	return opt;
 }
 
@@ -41,11 +41,11 @@ export function get(href: string): Promise<string> | undefined {
 
 function prefetchable(anchor: HTMLAnchorElement | null | undefined): anchor is HTMLAnchorElement {
 	if (!anchor || !anchor.href) return false;
-	// Opt-outs: `prefetch:mode="off"` is the dedicated prefetch flag;
-	// `bongo-reload` forces a full page load, which throws away our
+	// Opt-outs: `prefetch:disable` is the dedicated prefetch flag;
+	// `transition:disable` forces a full page load, which throws away our
 	// in-memory cache — nothing to gain by warming it.
-	if (anchor.getAttribute('prefetch:mode') === 'off') return false;
-	if (anchor.hasAttribute('bongo-reload')) return false;
+	if (anchor.hasAttribute('prefetch:disable')) return false;
+	if (anchor.hasAttribute('transition:disable')) return false;
 	let url: URL;
 	try { url = new URL(anchor.href); } catch { return false; }
 	if (url.origin !== location.origin) return false;
@@ -71,8 +71,8 @@ export function reset(): void {
 	CACHE.clear();
 }
 
-export function install(mode: Mode): void {
-	if (mode === 'off') return;
+export function install(mode: Mode | undefined): void {
+	if (!mode) return;
 
 	// Mobile: `touchstart` is the only signal of intent for both modes.
 	document.addEventListener('touchstart', (e) => {
