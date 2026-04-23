@@ -41,10 +41,11 @@ export function get(href: string): Promise<string> | undefined {
 
 function prefetchable(anchor: HTMLAnchorElement | null | undefined): anchor is HTMLAnchorElement {
 	if (!anchor || !anchor.href) return false;
-	// `prefetch:mode="off"` is the only prefetch opt-out. `bongo-reload` is a
-	// separate concern (disables the in-place swap); a full-page-load link
-	// can still benefit from a warm HTTP cache.
+	// Opt-outs: `prefetch:mode="off"` is the dedicated prefetch flag;
+	// `bongo-reload` forces a full page load, which throws away our
+	// in-memory cache — nothing to gain by warming it.
 	if (anchor.getAttribute('prefetch:mode') === 'off') return false;
+	if (anchor.hasAttribute('bongo-reload')) return false;
 	let url: URL;
 	try { url = new URL(anchor.href); } catch { return false; }
 	if (url.origin !== location.origin) return false;
