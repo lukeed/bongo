@@ -15,14 +15,20 @@
       "types": "./client.d.ts",
       "browser": "./client.js",
       "default": "./client.js"
-    }
+    },
+    "./jsx": {
+      "types": "./jsx.d.ts"
+    },
+    "./tsconfig": "./tsconfig.json"
   },
   "files": [
     "bin.js",
     "index.js",
     "index.d.ts",
     "client.js",
-    "client.d.ts"
+    "client.d.ts",
+    "jsx.d.ts",
+    "tsconfig.json"
   ],
   "author": {
     "name": "Luke Edwards",

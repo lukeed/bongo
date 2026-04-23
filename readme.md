@@ -378,6 +378,31 @@ To block prefetch *without* forcing a reload, use `prefetch:disable`:
 
 The Navigation API is available in Chrome/Edge 102+ and is behind a flag or unsupported in Firefox/Safari at time of writing. `bongo/client` detects the API at runtime: if it is absent, `client()` emits `bongo:ready` and returns without installing any interception — navigation degrades to normal MPA full-page loads.
 
+## TypeScript
+
+`bongo` ships ambient JSX types for its custom elements and attributes. Extend the bundled `tsconfig.json` to pick them up automatically:
+
+```json
+{
+  "extends": "@lukeed/bongo/tsconfig",
+  "compilerOptions": {
+    // your own settings
+  }
+}
+```
+
+What the augmentation adds:
+
+- `<bongo:client>`, `<bongo:script>`, `<bongo:style>` as typed intrinsic elements.
+- `transition:name` and `transition:animate` on every HTML element (build-time view-transition attrs).
+- `transition:disable` and `prefetch:disable` on anchors.
+
+If you don't want to extend the tsconfig, reference the types directly instead:
+
+```ts
+/// <reference types="@lukeed/bongo/jsx" />
+```
+
 ## Package Build System
 
 The `build/` directory builds the publishable packages using [rolldown](https://rolldown.rs). Each package's `src/index.ts` is compiled to a single CJS `index.js` with minification. The `bongo` package also emits a browser-targeted ESM `client.js` (no Node built-ins). TypeScript is handled natively by rolldown — no separate transpilation step.
