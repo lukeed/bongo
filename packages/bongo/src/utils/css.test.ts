@@ -116,6 +116,78 @@ describe('bundle', () => {
 		}
 	});
 
+	test('runs $assets loaders via resolver.read', async () => {
+		let dir = await makeFixtureDir({
+			'root.scss': '.src { color: red; }',
+		});
+		try {
+			let scss: import('bongo').Loader = (filename, content, u) => ({
+				filename: filename.replace(/\.scss$/, '.css'),
+				content: (typeof content === 'string' ? content : u.decode(content))
+					+ '\n.__from_loader__ { color: blue; }',
+			});
+
+			let result = await css.bundle({
+				entry: join(dir, 'root.scss'),
+				assets: { scss },
+				utils: {
+					decode: (u) => new TextDecoder().decode(u),
+					render: () => '',
+					frontmatter: () => ({ offset: 0, value: {} }),
+				},
+			});
+			let code = result.code.toString('utf8');
+			expect(code).toContain('.src');
+			expect(code).toContain('.__from_loader__');
+			// Entry path is tracked as a dep so the watcher invalidates on edit.
+			expect(result.dependencies).toContain(join(dir, 'root.scss'));
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('forwards loader sourcemap via inputSourceMap', async () => {
+		let dir = await makeFixtureDir({
+			'root.scss': '.a { color: red; }',
+		});
+		try {
+			// Minimal v3 sourcemap — lightningcss accepts it as inputSourceMap.
+			let loaderMap = {
+				version: 3 as const,
+				sources: ['root.scss'],
+				names: [],
+				mappings: '',
+			};
+			let scss: import('bongo').Loader = (filename, content, u) => ({
+				filename: filename.replace(/\.scss$/, '.css'),
+				content: typeof content === 'string' ? content : u.decode(content),
+				sourcemap: loaderMap,
+			});
+
+			let result = await css.bundle({
+				entry: join(dir, 'root.scss'),
+				sourceMap: 'inline',
+				assets: { scss },
+				utils: {
+					decode: (u) => new TextDecoder().decode(u),
+					render: () => '',
+					frontmatter: () => ({ offset: 0, value: {} }),
+				},
+			});
+			let code = result.code.toString('utf8');
+			// Inline source map block appended after lightningcss composed the
+			// loader's input map with its own output map.
+			expect(code).toContain('sourceMappingURL=data:application/json;base64,');
+			// Decode the embedded map and confirm the loader's source entry
+			// survived the composition.
+			let b64 = code.match(/base64,([A-Za-z0-9+/=]+)/)?.[1] ?? '';
+			let decoded = JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
+			expect(decoded.sources.some((s: string) => s.includes('root.scss'))).toBe(true);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	test('includes inline source map when sourceMap=inline', async () => {
 		let dir = await makeFixtureDir({
 			'style.css': '.a { color: red; }',

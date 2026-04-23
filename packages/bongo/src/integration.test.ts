@@ -159,6 +159,70 @@ describe('integration: site-css-modules', () => {
 	});
 });
 
+describe('integration: site-loaders', () => {
+	test('routes <bongo:style src="*.scss"> through user loader chain', async () => {
+		let root = await copyFixture('site-loaders');
+		try {
+			await build({ cwd: root });
+
+			let out = join(root, 'public');
+			let files = await readdir(out);
+
+			// One hashed CSS output derived from main.scss → main.css.
+			let cssFiles = files.filter(f => /^main\.[\w-]+\.css$/.test(f));
+			expect(cssFiles.length).toBe(1);
+
+			let css = await readFile(join(out, cssFiles[0]), 'utf8');
+			// Marker rules appended by the pseudo-scss loader. One per file —
+			// both the entry (main.scss) and the @import'd shared.scss ran
+			// through the loader chain, not just one.
+			expect(css).toMatch(/\.__loaded_main__/);
+			expect(css).toMatch(/\.__loaded_shared__/);
+			// Source .scss file content passed through.
+			expect(css).toMatch(/\.shared/);
+			expect(css).toMatch(/\.card/);
+
+			// HTML link points at the hashed CSS file — not at main.scss.
+			let indexHtml = await readFile(join(out, 'index.html'), 'utf8');
+			expect(indexHtml).not.toContain('__BONGO_BUNDLE');
+			expect(indexHtml).not.toContain('main.scss');
+			let linkMatch = indexHtml.match(/<link rel="stylesheet" href="([^"]+)"/);
+			expect(linkMatch).not.toBeNull();
+			expect(linkMatch![1]).toMatch(/^\/main\.[\w-]+\.css$/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('routes <bongo:script src="*.jsx"> through user loader chain', async () => {
+		let root = await copyFixture('site-loaders');
+		try {
+			await build({ cwd: root });
+
+			let out = join(root, 'public');
+			let files = await readdir(out);
+
+			let jsFiles = files.filter(f => /^app\.[\w-]+\.js$/.test(f));
+			expect(jsFiles.length).toBe(1);
+
+			let js = await readFile(join(out, jsFiles[0]), 'utf8');
+			// Loader-emitted marker survives rolldown.
+			expect(js).toContain('__LOADER_JSX_MARKER__');
+			// The jsx literal was transformed into a string by the loader, not
+			// left raw for rolldown (which would fail to parse `<Hello/>` as JS).
+			expect(js).toContain('<Hello/>');
+
+			let indexHtml = await readFile(join(out, 'index.html'), 'utf8');
+			expect(indexHtml).not.toContain('app.jsx');
+			let scriptMatch = indexHtml.match(/<script[^>]*src="([^"]+)"/);
+			expect(scriptMatch).not.toBeNull();
+			expect(scriptMatch![1]).toMatch(/^\/app\.[\w-]+\.js$/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('integration: site-build-error', () => {
 	test('surfaces bundler errors with a useful message', async () => {
 		let root = await copyFixture('site-build-error');
