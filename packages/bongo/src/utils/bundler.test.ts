@@ -104,6 +104,78 @@ describe('flush() — JS', () => {
 		}
 	});
 
+	test('runs $assets loaders for non-native JS extensions', async () => {
+		let { dir, outDir } = await tmp({
+			'app.jsx': 'let tag = <Hello/>; export { tag };',
+		});
+		try {
+			let jsx: import('bongo').Loader = (filename, content, u) => ({
+				filename: filename.replace(/\.jsx$/, '.js'),
+				content: (typeof content === 'string' ? content : u.decode(content))
+					.replace(/<(\w+)\s*\/>/g, (_m, t) => `"<${t}/>"`),
+			});
+			let p = bundler.register(join(dir, 'app.jsx'), { kind: 'js' });
+			let result = await bundler.flush({
+				outDir,
+				assets: { jsx },
+				utils: {
+					decode: (u) => new TextDecoder().decode(u),
+					render: () => '',
+					frontmatter: () => ({ offset: 0, value: {} }),
+				},
+			});
+			expect(result.errors).toEqual([]);
+			let info = result.outputs.get(p)!;
+			expect(info.filename).toMatch(/^app\.[\w-]+\.js$/);
+			let written = await readFile(join(outDir, info.filename), 'utf8');
+			expect(written).toContain('<Hello/>');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('forwards loader sourcemap to rolldown inline output', async () => {
+		let { dir, outDir } = await tmp({
+			'app.jsx': 'export let x = 1;',
+		});
+		try {
+			let loaderMap = {
+				version: 3 as const,
+				sources: ['app.jsx'],
+				names: [],
+				mappings: 'AAAA',
+			};
+			let jsx: import('bongo').Loader = (filename, content, u) => ({
+				filename: filename.replace(/\.jsx$/, '.js'),
+				content: typeof content === 'string' ? content : u.decode(content),
+				sourcemap: loaderMap,
+			});
+			let p = bundler.register(join(dir, 'app.jsx'), {
+				kind: 'js',
+				sourceMap: 'inline',
+			});
+			let result = await bundler.flush({
+				outDir,
+				assets: { jsx },
+				utils: {
+					decode: (u) => new TextDecoder().decode(u),
+					render: () => '',
+					frontmatter: () => ({ offset: 0, value: {} }),
+				},
+			});
+			expect(result.errors).toEqual([]);
+			let info = result.outputs.get(p)!;
+			let written = await readFile(join(outDir, info.filename), 'utf8');
+			expect(written).toMatch(/sourceMappingURL=data:application\/json[^,]*,/);
+			let b64 = written.match(/base64,([A-Za-z0-9+/=]+)/)?.[1] ?? '';
+			let decoded = JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
+			// Loader-declared source survives rolldown's sourcemap composition.
+			expect(decoded.sources.some((s: string) => s.includes('app.jsx'))).toBe(true);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	test('accepts a browserslist query as target', async () => {
 		let { dir, outDir } = await tmp({ 'entry.ts': 'export const x = 1;' });
 		try {
