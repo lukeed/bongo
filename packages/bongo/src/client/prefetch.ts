@@ -21,8 +21,7 @@ const HOVER_DELAY = 80;
 /** @internal — used by tests only */
 export function resolve(opt: Options): Mode | undefined {
 	if (opt === true) return 'hover';
-	if (!opt) return undefined;
-	return opt;
+	else if (opt) return opt;
 }
 
 /**

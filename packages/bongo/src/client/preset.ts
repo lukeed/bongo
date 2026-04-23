@@ -22,8 +22,7 @@ const CSS: Record<string, string> = {
 /** @internal — used by tests only */
 export function resolve(opt: Options): Preset | (string & {}) | undefined {
 	if (opt === true) return 'fade';
-	if (!opt) return undefined;
-	return opt;
+	else if (opt) return opt;
 }
 
 export function inject(name: Preset | (string & {})): void {
