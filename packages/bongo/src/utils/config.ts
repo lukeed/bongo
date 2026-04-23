@@ -31,6 +31,7 @@ async function bundleConfigToTemp(file: string): Promise<string> {
 	let bundle = await rd.rolldown({
 		input: file,
 		external,
+		platform: 'node',
 		resolve: {
 			extensions: ['.ts', '.mjs', '.js', '.cjs', '.json'],
 			conditionNames: ['import', 'node'],
