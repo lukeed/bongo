@@ -1,10 +1,10 @@
 import type { Loader } from 'bongo';
-import type { Options } from 'markdown-it';
+import type { HtmlOptions } from 'md4x';
 
 type Loaders = {
 	md: Loader
 };
 
-export function markdown(options?: Options): {
+export function markdown(options?: HtmlOptions): {
 	$assets: Loaders;
 }

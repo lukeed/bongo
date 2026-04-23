@@ -18,10 +18,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "markdown-it": "^12.2.0"
-  },
-  "devDependencies": {
-    "@types/markdown-it": "^12.0.0"
+    "md4x": "^0.0.25"
   },
   "publishConfig": {
     "access": "public"

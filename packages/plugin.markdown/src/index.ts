@@ -1,12 +1,11 @@
+import { renderToHtml } from 'md4x';
 import type { Config, Args, Loader } from 'bongo';
-import type MarkdownIt from 'markdown-it';
-
-let mdown: MarkdownIt;
+import type { HtmlOptions } from 'md4x';
 
 // TODO: share w/ (inlined) tempura parser
 const ARGS = /([a-zA-Z$_][^\s=]*)\s*=\s*((["`'])(?:(?=(\\?))\4.)*?\3|{[^}]*}|\[[^\]]*]|\S+)/g;
 
-async function unpack(raw: string, utils: Loader.Utilities): Promise<string> {
+async function unpack(raw: string, utils: Loader.Utilities, options?: HtmlOptions): Promise<string> {
 	let tag: RegExpExecArray | null;
 
 	// TODO: make this a loader utility ??
@@ -26,14 +25,14 @@ async function unpack(raw: string, utils: Loader.Utilities): Promise<string> {
 		}
 
 		if (inner) {
-			inner = await unpack(inner.trim(), utils);
+			inner = await unpack(inner.trim(), utils, options);
 
 			if (inner.startsWith('<')) {
 				if (inner.startsWith('<p>') && inner.endsWith('</p>\n')) {
 					inner = inner.substring(3, inner.length - 5);
 				}
 			} else {
-				inner = mdown.render(inner);
+				inner = renderToHtml(inner, options);
 			}
 
 			args.$slot = inner;
@@ -46,22 +45,13 @@ async function unpack(raw: string, utils: Loader.Utilities): Promise<string> {
 		);
 	}
 
-	return mdown.render(raw);
+	return renderToHtml(raw, options);
 }
 
-export function markdown(options?: MarkdownIt.Options): Partial<Config> {
-	options = {
-		html: true,
-		linkify: true,
-		typographer: true,
-		...options,
-	};
-
+export function markdown(options?: HtmlOptions): Partial<Config> {
 	return {
 		$assets: {
 			async md(input, content, utils) {
-				mdown = mdown || await import('markdown-it').then(m => m.default(options!));
-
 				if (typeof content !== 'string') {
 					content = utils.decode(content);
 				}
@@ -69,11 +59,11 @@ export function markdown(options?: MarkdownIt.Options): Partial<Config> {
 				let { offset, value } = utils.frontmatter(content)
 				if (offset > 0) content = content.substring(offset);
 
-				content = await unpack(content, utils);
+				content = await unpack(content, utils, options);
 
 				return {
 					filename: input + '.html',
-					content: mdown.render(content),
+					content: renderToHtml(content, options),
 					metadata: value,
 				};
 			}
