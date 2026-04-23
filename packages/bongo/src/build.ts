@@ -405,7 +405,11 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	}
 
 	// Flush: run every bundle group in parallel.
-	let flushResult = await bundler.flush({ outDir: dest });
+	let flushResult = await bundler.flush({
+		outDir: dest,
+		assets: ASSETS,
+		utils: loader_utils,
+	});
 
 	if (flushResult.errors.length > 0) {
 		for (let err of flushResult.errors) {

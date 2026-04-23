@@ -1,9 +1,11 @@
 import { createHash } from 'node:crypto';
 import * as path from 'node:path';
-import type { BundleError, RolldownError } from 'rolldown';
+import type { BundleError, Plugin, RolldownError } from 'rolldown';
+import type { Loader } from 'bongo';
 import * as browsers from './browsers';
 import * as css from './css';
 import * as fs from './fs';
+import * as loaders from './loaders';
 
 let rd: typeof import('rolldown');
 
@@ -106,11 +108,44 @@ export function register(entry: string, cfg: BundleConfig): Placeholder {
 	return placeholder;
 }
 
+type FlushContext = {
+	assets?: loaders.LoaderMap;
+	utils?: Loader.Utilities;
+};
+
+// Rolldown plugin that routes entries/imports through the `$assets` loader
+// chain. Fires only for extensions the user has registered a loader for —
+// native extensions (.ts/.js/.css/.json) fall through to rolldown's builtins.
+function loaderPlugin(assets: loaders.LoaderMap, utils: Loader.Utilities): Plugin {
+	return {
+		name: 'bongo:loaders',
+		async load(id) {
+			let ext = path.extname(id).substring(1);
+			if (!assets[ext]) return null;
+
+			let bytes = await fs.read(id);
+			let result = await loaders.run(
+				id,
+				new Uint8Array(bytes) as Uint8Array | string,
+				assets,
+				utils,
+			);
+
+			let code = typeof result.content === 'string'
+				? result.content
+				: new TextDecoder().decode(result.content);
+			let map = loaders.serializeMap(result.sourcemap);
+			return map ? { code, map } : { code };
+		},
+	};
+}
+
 async function flushJsGroup(
 	regs: Registration[],
 	outDir: string,
 	outputs: Map<Placeholder, OutputInfo>,
 	_warnings: Warning[],
+	ctx: FlushContext,
 ): Promise<void> {
 	await loadRolldown();
 	let cfg = regs[0].cfg;
@@ -135,6 +170,10 @@ async function flushJsGroup(
 		? { target: browsers.translate(browsers.parse(cfg.target)) }
 		: undefined;
 
+	let plugins = ctx.assets && ctx.utils
+		? [loaderPlugin(ctx.assets, ctx.utils)]
+		: undefined;
+
 	let bundle = await rd.rolldown({
 		input,
 		resolve: {
@@ -143,6 +182,7 @@ async function flushJsGroup(
 			conditionNames: ['browser', 'import', 'production'],
 		},
 		transform,
+		plugins,
 	});
 
 	try {
@@ -175,6 +215,7 @@ async function flushCssGroup(
 	outDir: string,
 	outputs: Map<Placeholder, OutputInfo>,
 	_warnings: Warning[],
+	ctx: FlushContext,
 ): Promise<void> {
 	// CSS: one entry per bundle call, no cross-entry splitting.
 	await Promise.all(regs.map(async (reg) => {
@@ -185,6 +226,8 @@ async function flushCssGroup(
 			sourceMap: cfg.sourceMap,
 			targets: cfg.targets,
 			cssModules: cfg.cssModules,
+			assets: ctx.assets,
+			utils: ctx.utils,
 		});
 
 		let code = result.code;
@@ -229,19 +272,25 @@ function toBuildError(err: unknown, fallbackFile?: string): BuildError {
 	return base;
 }
 
-export async function flush(opts: { outDir: string }): Promise<FlushResult> {
+export async function flush(opts: {
+	outDir: string;
+	assets?: loaders.LoaderMap;
+	utils?: Loader.Utilities;
+}): Promise<FlushResult> {
 	let warnings: Warning[] = [];
 	let errors: BuildError[] = [];
 	let outputs: Map<Placeholder, OutputInfo> = new Map();
+
+	let ctx: FlushContext = { assets: opts.assets, utils: opts.utils };
 
 	let jobs = [...GROUPS.entries()].map(async ([_groupKey, regs]) => {
 		if (regs.length === 0) return;
 		let kind = regs[0].cfg.kind;
 		try {
 			if (kind === 'js') {
-				await flushJsGroup(regs, opts.outDir, outputs, warnings);
+				await flushJsGroup(regs, opts.outDir, outputs, warnings, ctx);
 			} else {
-				await flushCssGroup(regs, opts.outDir, outputs, warnings);
+				await flushCssGroup(regs, opts.outDir, outputs, warnings, ctx);
 			}
 		} catch (err) {
 			errors.push(toBuildError(err, regs.map(r => r.entry).join(', ')));
