@@ -17,7 +17,6 @@
     "@types/node": "^24",
     "bump": "1.0.0-next.1",
     "mitata": "1.0.34",
-    "sirv": "1.0.19",
     "typescript": "6.0.3"
   }
 }
