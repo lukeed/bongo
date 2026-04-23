@@ -25,11 +25,25 @@ export type Loader = (
 export namespace Loader {
 	type Metadata = Record<string, unknown>;
 
+	// Raw source map (v3). Loaders may also return the map as a JSON string —
+	// consumers (rolldown, lightningcss) accept either.
+	interface SourceMapObject {
+		version: number;
+		sources: (string | null)[];
+		mappings: string;
+		names?: string[];
+		file?: string;
+		sourceRoot?: string;
+		sourcesContent?: (string | null)[];
+	}
+
+	type SourceMap = string | SourceMapObject;
+
 	interface Result {
 		filename: string;
 		content: Uint8Array | string;
 		metadata?: Loader.Metadata;
-		sourcemap?: any | null; // TODO
+		sourcemap?: Loader.SourceMap | null;
 	}
 
 	interface Utilities {

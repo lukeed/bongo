@@ -11,7 +11,7 @@ export type RunResult = {
 	// Last non-null sourcemap emitted by the chain. Loader chains that rename
 	// across multiple steps produce intermediate maps that are not composed
 	// here — consumers get the most recent map (against the final output).
-	sourcemap?: unknown;
+	sourcemap?: Loader.SourceMap;
 };
 
 export type RunOptions = {
@@ -33,7 +33,7 @@ export async function run(
 	opts: RunOptions = {},
 ): Promise<RunResult> {
 	let metadata: Loader.Metadata = {};
-	let sourcemap: unknown;
+	let sourcemap: Loader.SourceMap | undefined;
 	let ext = extname(filename).substring(1);
 	let prev: string | undefined;
 
@@ -59,9 +59,9 @@ export async function run(
 }
 
 // Normalise a loader-produced sourcemap into a JSON string suitable for
-// tools like lightningcss's `inputSourceMap`. Returns null if the value
-// can't be serialised.
-export function serializeMap(map: unknown): string | null {
+// tools like lightningcss's `inputSourceMap`. Returns null if the map is
+// absent or can't be serialised.
+export function serializeMap(map: Loader.SourceMap | null | undefined): string | null {
 	if (map == null) return null;
 	if (typeof map === 'string') return map;
 	try {
