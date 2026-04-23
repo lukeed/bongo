@@ -14,16 +14,12 @@ describe('prefetch.resolve()', () => {
 		expect(prefetch.resolve('tap')).toBe('tap');
 	});
 
-	test('false resolves to "off"', () => {
-		expect(prefetch.resolve(false)).toBe('off');
+	test('false resolves to undefined', () => {
+		expect(prefetch.resolve(false)).toBeUndefined();
 	});
 
-	test('"off" resolves to "off"', () => {
-		expect(prefetch.resolve('off')).toBe('off');
-	});
-
-	test('undefined resolves to "off"', () => {
-		expect(prefetch.resolve(undefined)).toBe('off');
+	test('undefined resolves to undefined', () => {
+		expect(prefetch.resolve(undefined)).toBeUndefined();
 	});
 });
 

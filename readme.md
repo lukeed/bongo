@@ -322,8 +322,8 @@ client({ transitions: true });
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `transitions` | `boolean \| 'fade' \| 'initial' \| 'slide' \| 'none' \| string` | `false` | View-transition preset. `true` / `'fade'` injects a cross-fade keyframe. `'slide'` injects a slide keyframe. `'initial'` wraps the swap without injecting CSS (browser default). Custom string: wrap only, user provides `::view-transition-*` rules. `false` / `'none'` disables transitions. |
-| `prefetch` | `boolean \| 'hover' \| 'tap' \| 'off'` | `false` | Prefetch same-origin links to warm the HTTP cache. `true` / `'hover'`: fire ~80ms after the mouse comes to rest on a link (or immediately on `touchstart`). `'tap'`: fire on `mousedown` / `touchstart` — the earliest pre-click signal. `false` / `'off'` disables. Opt a specific link out with `prefetch:mode="off"`. |
+| `transitions` | `boolean \| 'fade' \| 'initial' \| 'slide' \| string` | `false` | View-transition preset. `true` / `'fade'` injects a cross-fade keyframe. `'slide'` injects a slide keyframe. `'initial'` wraps the swap without injecting CSS (browser default). Custom string: wrap only, user provides `::view-transition-*` rules. Any falsy value disables transitions. Opt a specific link out of the swap with `transition:disable`. |
+| `prefetch` | `boolean \| 'hover' \| 'tap'` | `false` | Prefetch same-origin links to warm the in-memory HTML cache. `true` / `'hover'`: fire ~80ms after the mouse comes to rest on a link (or immediately on `touchstart`). `'tap'`: fire on `mousedown` / `touchstart` — the earliest pre-click signal. Any falsy value disables. Opt a specific link out with `prefetch:disable`. |
 
 ### Events
 
@@ -355,10 +355,16 @@ Returns `Promise<void>` — resolves when the navigation (and optional view tran
 
 ### Opting a link out of client navigation
 
-Add `bongo-reload` to any `<a>` to force a full-page load for that link — the client runtime will not intercept its navigation:
+Add `transition:disable` to any `<a>` to force a full-page load for that link — the client runtime will not intercept its navigation, and prefetch is skipped for it (a full page load discards the in-memory HTML cache):
 
 ```html
-<a href="/legacy" bongo-reload>Legacy dashboard</a>
+<a href="/legacy" transition:disable>Legacy dashboard</a>
+```
+
+To block prefetch *without* forcing a reload, use `prefetch:disable`:
+
+```html
+<a href="/logout" prefetch:disable>Log out</a>
 ```
 
 ### Scroll restoration

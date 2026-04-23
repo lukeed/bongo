@@ -18,16 +18,12 @@ describe('preset.resolve()', () => {
 		expect(preset.resolve('initial')).toBe('initial');
 	});
 
-	test('false resolves to "none"', () => {
-		expect(preset.resolve(false)).toBe('none');
+	test('false resolves to undefined', () => {
+		expect(preset.resolve(false)).toBeUndefined();
 	});
 
-	test('"none" resolves to "none"', () => {
-		expect(preset.resolve('none')).toBe('none');
-	});
-
-	test('undefined resolves to "none"', () => {
-		expect(preset.resolve(undefined)).toBe('none');
+	test('undefined resolves to undefined', () => {
+		expect(preset.resolve(undefined)).toBeUndefined();
 	});
 
 	test('custom string is returned as-is', () => {

@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 
-export type Preset = 'fade' | 'initial' | 'slide' | 'none';
+export type Preset = 'fade' | 'initial' | 'slide';
 
 export type Options = boolean | Preset | (string & {}) | undefined;
 
@@ -20,15 +20,14 @@ const CSS: Record<string, string> = {
 };
 
 /** @internal — used by tests only */
-export function resolve(opt: Options): Preset | (string & {}) {
+export function resolve(opt: Options): Preset | (string & {}) | undefined {
 	if (opt === true) return 'fade';
-	if (!opt) return 'none';
-	return opt;
+	else if (opt) return opt;
 }
 
 export function inject(name: Preset | (string & {})): void {
 	let css = CSS[name];
-	if (!css) return; // 'initial', 'none', or unknown custom preset — user handles CSS
+	if (!css) return; // 'initial' or unknown custom preset — user handles CSS
 	if (document.querySelector(`style[data-bongo-preset="${name}"]`)) return;
 	let el = document.createElement('style');
 	el.setAttribute('data-bongo-preset', name);

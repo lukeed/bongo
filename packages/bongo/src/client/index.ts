@@ -6,8 +6,8 @@ import * as internal from './internal';
 export { on, off } from './internal';
 
 export type ClientOptions = {
-	transitions?: preset.Options;   // `true` aliases 'fade', `false` aliases 'none'
-	prefetch?: prefetch.Options;    // `true` aliases 'hover', `false` aliases 'off'
+	transitions?: preset.Options;   // `true` aliases 'fade'; falsy disables
+	prefetch?: prefetch.Options;    // `true` aliases 'hover'; falsy disables
 };
 
 export type BongoEvent =
@@ -43,7 +43,7 @@ export function client(opts: ClientOptions = {}): void {
 	let name = preset.resolve(opts.transitions);
 
 	// Inject preset CSS if applicable (requires browser document).
-	if (name !== 'none') preset.inject(name);
+	if (name) preset.inject(name);
 
 	// Announcer is emitted inline by <bongo:client />. Resolve once; if absent
 	// (user bootstraps client() manually without the element), announcements
@@ -54,7 +54,7 @@ export function client(opts: ClientOptions = {}): void {
 	// expose NavigateEvent.sourceElement.
 	document.addEventListener('click', (e) => {
 		let target = e.target as Element | null;
-		let anchor = target?.closest?.('a[bongo-reload]');
+		let anchor = target?.closest?.('a[transition\\:disable]');
 		internal.setBypassNext(!!anchor);
 	}, true);
 
@@ -84,7 +84,7 @@ export function client(opts: ClientOptions = {}): void {
 					};
 
 					let viewTransition = document.startViewTransition
-					if (name !== 'none' && viewTransition) {
+					if (name && viewTransition) {
 						await viewTransition.call(document, swap).finished;
 					} else {
 						swap();
