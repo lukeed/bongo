@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+import * as prefetch from './prefetch';
 import type { BongoEvent, BongoEventDetails } from './index';
 
 type Handler<K extends BongoEvent> = (detail: BongoEventDetails[ K ]) => void;
@@ -50,6 +51,11 @@ export function shouldIntercept(event: NavigateEvent): boolean {
 }
 
 export async function fetchPage(url: URL): Promise<string> {
+	let cached = prefetch.get(url.href);
+	if (cached) {
+		try { return await cached; }
+		catch { /* prefetch failed — fall through to a fresh fetch */ }
+	}
 	let res = await fetch(url.href, { headers: { Accept: 'text/html' } });
 	if (!res.ok) throw new Error(`Navigation fetch failed: ${res.status} ${res.statusText}`);
 	return res.text();
