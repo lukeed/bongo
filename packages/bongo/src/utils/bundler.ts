@@ -113,6 +113,11 @@ type FlushContext = {
 	utils?: Loader.Utilities;
 };
 
+// Extensions rolldown's resolver + oxc transform handle natively. If every
+// entry in a JS group falls under this set, the loader plugin is pointless —
+// load() would return null for every module — so we skip installing it.
+const NATIVE_JS_EXTS = new Set(['ts', 'js', 'cjs', 'mjs', 'css', 'json']);
+
 // Rolldown plugin that routes entries/imports through the `$assets` loader
 // chain. Fires only for extensions the user has registered a loader for —
 // native extensions (.ts/.js/.css/.json) fall through to rolldown's builtins.
@@ -170,8 +175,15 @@ async function flushJsGroup(
 		? { target: browsers.translate(browsers.parse(cfg.target)) }
 		: undefined;
 
-	let plugins = ctx.assets && ctx.utils
-		? [loaderPlugin(ctx.assets, ctx.utils)]
+	// Only install the loader plugin if at least one entry in this group uses
+	// a non-native extension — otherwise every load() call would return null
+	// and we'd pay the JS↔native boundary cost for nothing.
+	let needsLoader = ctx.assets && ctx.utils && regs.some(r => {
+		let ext = path.extname(r.entry).substring(1);
+		return !NATIVE_JS_EXTS.has(ext) && ctx.assets![ext] != null;
+	});
+	let plugins = needsLoader
+		? [loaderPlugin(ctx.assets!, ctx.utils!)]
 		: undefined;
 
 	let bundle = await rd.rolldown({

@@ -72,34 +72,39 @@ export async function bundle(opts: BundleOptions): Promise<BundleResult> {
 
 	let inputSourceMap: string | undefined;
 
-	if (opts.assets && opts.utils) {
-		let { assets, utils } = opts;
+	// The resolver is only installed when the entry extension has a registered
+	// loader. A `.css` entry falls through to lightningcss's native reader,
+	// avoiding a JS↔native callback per file. Trade-off: a `.css` entry that
+	// `@imports` a non-CSS ext (e.g. `@import "shared.scss"`) won't route
+	// through loaders — use a non-`.css` entry when you need that.
+	let entryExt = extname(opts.entry).substring(1);
+	let needsLoader = opts.assets && opts.utils && opts.assets[entryExt] != null;
+
+	if (needsLoader) {
+		let { assets, utils } = opts as { assets: loaders.LoaderMap; utils: Loader.Utilities };
 
 		// Pre-run the entry's loader chain so we can forward its sourcemap to
 		// lightningcss. @import'd files can't receive per-file input maps
 		// through the resolver API, so those maps (if any) are dropped.
-		let entryExt = extname(opts.entry).substring(1);
-		if (assets[entryExt]) {
-			let bytes = await fs.read(opts.entry);
-			let result = await loaders.run(
-				opts.entry,
-				new Uint8Array(bytes) as Uint8Array | string,
-				assets,
-				utils,
-			);
-			let text = typeof result.content === 'string'
-				? result.content
-				: new TextDecoder().decode(result.content);
-			compiled.set(opts.entry, text);
-			loaderDeps.add(opts.entry);
-			let map = loaders.serializeMap(result.sourcemap);
-			if (map) inputSourceMap = map;
-		}
+		let bytes = await fs.read(opts.entry);
+		let result = await loaders.run(
+			opts.entry,
+			new Uint8Array(bytes) as Uint8Array | string,
+			assets,
+			utils,
+		);
+		let text = typeof result.content === 'string'
+			? result.content
+			: new TextDecoder().decode(result.content);
+		compiled.set(opts.entry, text);
+		loaderDeps.add(opts.entry);
+		let map = loaders.serializeMap(result.sourcemap);
+		if (map) inputSourceMap = map;
 	}
 
 	let resolver: lightningcss.Resolver | undefined;
-	if (opts.assets && opts.utils) {
-		let { assets, utils } = opts;
+	if (needsLoader) {
+		let { assets, utils } = opts as { assets: loaders.LoaderMap; utils: Loader.Utilities };
 		resolver = {
 			async read(file) {
 				let cached = compiled.get(file);
