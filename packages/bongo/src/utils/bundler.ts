@@ -8,8 +8,7 @@ import * as fs from './fs';
 let rd: typeof import('rolldown');
 
 async function loadRolldown() {
-	rd = rd || (await import('rolldown'));
-	return rd;
+	return rd ||= await import('rolldown');
 }
 
 // ---------------------------------------------------------------------------
