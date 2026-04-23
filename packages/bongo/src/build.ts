@@ -5,6 +5,7 @@ import * as fs from './utils/fs';
 import * as log from './utils/log';
 import * as bundler from './utils/bundler';
 import { load } from './utils/config';
+import * as loaders from './utils/loaders';
 import * as templates from './utils/templates';
 import * as tags from './utils/tags';
 import { normalize } from './utils/argv';
@@ -162,37 +163,27 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			// `.hbs` content is compiled in walk 2, once Pages/Sections/Tags
 			// registries exist. `ext` stays 'hbs' through walk 1.
 		} else if (ASSETS[ext]) {
-			let loader, filename = input;
-			let prev, data = new Uint8Array(
-				await fs.read(input)
-			) as Uint8Array | string;
+			let initial = new Uint8Array(await fs.read(input)) as Uint8Array | string;
 
 			// Capture raw file text before loaders transform it, so the
 			// frontmatter signature below is computed on the untouched source.
-			raw = new TextDecoder().decode(data as Uint8Array);
+			raw = new TextDecoder().decode(initial as Uint8Array);
 
 			debug('[content.loader]', ext, '~> found');
 
-			while (prev !== ext) {
-				if (isPage.test(ext)) break;
+			let result = await loaders.run(input, initial, ASSETS, loader_utils, {
+				isTerminal: (e) => isPage.test(e),
+			});
 
-				if (loader = ASSETS[prev = ext]) {
-					let result = await loader(filename, data, loader_utils);
-					filename = result.filename;
-					data = result.content;
-					if (result.metadata) {
-						Object.assign(params, result.metadata);
-					}
-				}
-
-				ext = extname(filename).substring(1);
-				debug('[content.looper]', prev, '~>', ext);
-			}
+			Object.assign(params, result.metadata);
+			ext = extname(result.filename).substring(1);
 
 			if (isPage.test(ext)) {
-				src = typeof data === 'string' ? data : new TextDecoder().decode(data);
+				src = typeof result.content === 'string'
+					? result.content
+					: new TextDecoder().decode(result.content);
 			} else {
-				return fs.write(output, data);
+				return fs.write(output, result.content);
 			}
 		} else {
 			debug('[content.loader]', ext, '~> unknown');
