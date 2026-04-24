@@ -37,16 +37,18 @@ export function off<K extends BongoEvent>(type: K, handler: Handler<K>): void {
 }
 
 export function shouldIntercept(event: NavigateEvent): boolean {
-	if (BYPASS_NEXT) {
-		BYPASS_NEXT = false;
-		return false;
-	}
-	if (event.sourceElement?.hasAttribute('transition:disable')) return false;
-	if (!event.canIntercept) return false;
-	if (event.hashChange) return false;
-	if (event.downloadRequest !== null) return false;
+	if (BYPASS_NEXT) return BYPASS_NEXT = false;
+	if (!event.canIntercept || event.hashChange) return false;
+	if (event.navigationType === 'reload') return false;
+	if (event.downloadRequest) return false;
+
 	let url = new URL(event.destination.url);
 	if (url.origin !== location.origin) return false;
+
+	if (event.sourceElement?.hasAttribute('transition:disable')) {
+		return false;
+	}
+
 	return true;
 }
 
