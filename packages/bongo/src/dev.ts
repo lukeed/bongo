@@ -1,4 +1,4 @@
-import { relative } from 'node:path';
+import { join, relative } from 'node:path';
 import { networkInterfaces } from 'node:os';
 import { bold, cyan, dim, green } from 'kleur/colors';
 import * as bundler from './utils/bundler';
@@ -7,6 +7,7 @@ import * as http from './utils/http';
 import * as log from './utils/log';
 import * as fs from './utils/fs';
 import { build } from './build';
+import { normalize } from './utils/argv';
 
 import type { Argv } from 'bongo';
 import type { BuildOptions } from './build';
@@ -92,15 +93,23 @@ async function rebuild(argv: Argv, opts: BuildOptions = {}): Promise<void> {
 export async function dev(argv: Argv) {
 	argv.dev = true;
 	bundler.preload();
-
-	let t0 = Date.now();
-	await build(argv);
-	let buildTime = Date.now() - t0;
+	normalize(argv);
 
 	const flags = argv as Required<Argv>;
+
+	// Start server before build so the banner + URL appear instantly.
+	// sirv reads files per-request in dev mode, so it only needs the
+	// directory to exist — pages land once the build finishes.
+	await fs.mkdir(join(flags.dest, '_'));
 	await http.start(flags);
 	banner(flags.host, flags.port);
-	log.info(`ready in ${dim(log.elapsed(buildTime))}`);
+
+	let done = log.spin(`${dim('~>')} building`);
+	await build(argv);
+	done();
+
+	// Reload any page that connected before the build finished.
+	http.send({ type: 'reload' });
 
 	// Route bundle-time errors to the browser error overlay (Phase G).
 	// hmr() must be called after http.start() so http.send is bound to the

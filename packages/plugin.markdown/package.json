@@ -5,9 +5,21 @@
   "description": "WIP",
   "types": "index.d.ts",
   "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./highlight": {
+      "types": "./highlight.d.ts",
+      "default": "./highlight.js"
+    }
+  },
   "files": [
     "index.js",
-    "index.d.ts"
+    "index.d.ts",
+    "highlight.js",
+    "highlight.d.ts"
   ],
   "author": {
     "name": "Luke Edwards",
@@ -19,6 +31,22 @@
   },
   "dependencies": {
     "md4x": "^0.0.25"
+  },
+  "devDependencies": {
+    "shiki": "^4.0.2",
+    "sugar-high": "^1.1.0"
+  },
+  "peerDependencies": {
+    "shiki": ">=4.0.0",
+    "sugar-high": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "shiki": {
+      "optional": true
+    },
+    "sugar-high": {
+      "optional": true
+    }
   },
   "publishConfig": {
     "access": "public"

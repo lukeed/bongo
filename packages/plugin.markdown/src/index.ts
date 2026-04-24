@@ -1,6 +1,10 @@
 import { renderToHtml } from 'md4x';
 import type { Config, Args, Loader } from 'bongo';
-import type { HtmlOptions } from 'md4x';
+import type { CodeBlockHighlighter, HtmlOptions } from 'md4x';
+
+export type Options = Omit<HtmlOptions, 'highlighter'> & {
+	highlighter?: CodeBlockHighlighter | Promise<CodeBlockHighlighter>;
+};
 
 // TODO: share w/ (inlined) tempura parser
 const ARGS = /([a-zA-Z$_][^\s=]*)\s*=\s*((["`'])(?:(?=(\\?))\4.)*?\3|{[^}]*}|\[[^\]]*]|\S+)/g;
@@ -48,10 +52,21 @@ async function unpack(raw: string, utils: Loader.Utilities, options?: HtmlOption
 	return renderToHtml(raw, options);
 }
 
-export function markdown(options?: HtmlOptions): Partial<Config> {
+export function markdown(options?: Options): Partial<Config> {
+	let ready: Promise<HtmlOptions> | undefined;
+
+	if (options?.highlighter) {
+		ready = Promise.resolve(options.highlighter).then(highlighter => ({
+			...options,
+			highlighter,
+		}));
+	}
+
 	return {
 		$assets: {
 			async md(input, content, utils) {
+				let opts = ready ? await ready : options;
+
 				if (typeof content !== 'string') {
 					content = utils.decode(content);
 				}
@@ -59,11 +74,11 @@ export function markdown(options?: HtmlOptions): Partial<Config> {
 				let { offset, value } = utils.frontmatter(content)
 				if (offset > 0) content = content.substring(offset);
 
-				content = await unpack(content, utils, options);
+				content = await unpack(content, utils, opts);
 
 				return {
 					filename: input + '.html',
-					content: renderToHtml(content, options),
+					content: renderToHtml(content, opts),
 					metadata: value,
 				};
 			}

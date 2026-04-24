@@ -1,11 +1,6 @@
 import { markdown } from '@bongo/markdown';
-import { createHighlighter } from 'shiki';
+import { shiki } from '@bongo/markdown/highlight';
 import type { Config } from 'bongo';
-
-let highlighter = await createHighlighter({
-	themes: ['github-dark'],
-	langs: ['bash', 'css', 'hbs', 'js', 'ts'],
-});
 
 export default {
 	$site: {
@@ -55,13 +50,10 @@ export default {
 
 	plugins: [
 		markdown({
-			highlighter(code, block) {
-				if (!block.lang) return; // keep default for unknown languages
-				return highlighter.codeToHtml(code, {
-					lang: block.lang,
-					theme: 'github-dark',
-				});
-			},
+			highlighter: shiki({
+				theme: 'github-dark',
+				langs: ['bash', 'css', 'hbs', 'js', 'ts'],
+			}),
 		}),
 	],
 } satisfies Config
