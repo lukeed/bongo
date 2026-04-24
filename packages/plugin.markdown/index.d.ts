@@ -1,10 +1,14 @@
 import type { Loader } from 'bongo';
-import type { HtmlOptions } from 'md4x';
+import type { CodeBlockHighlighter, HtmlOptions } from 'md4x';
+
+export type Options = HtmlOptions & {
+	highlight?: CodeBlockHighlighter | Promise<CodeBlockHighlighter>;
+};
 
 type Loaders = {
 	md: Loader
 };
 
-export function markdown(options?: HtmlOptions): {
+export function markdown(options?: Options): {
 	$assets: Loaders;
 }
