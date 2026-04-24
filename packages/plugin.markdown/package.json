@@ -33,11 +33,11 @@
     "md4x": "^0.0.25"
   },
   "devDependencies": {
-    "shiki": "^1.29.2",
+    "shiki": "^4.0.2",
     "sugar-high": "^1.1.0"
   },
   "peerDependencies": {
-    "shiki": ">=1.0.0",
+    "shiki": ">=4.0.0",
     "sugar-high": ">=0.7.0"
   },
   "peerDependenciesMeta": {

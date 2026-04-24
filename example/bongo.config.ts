@@ -50,7 +50,7 @@ export default {
 
 	plugins: [
 		markdown({
-			highlight: shiki({
+			highlighter: shiki({
 				theme: 'github-dark',
 				langs: ['bash', 'css', 'hbs', 'js', 'ts'],
 			}),
