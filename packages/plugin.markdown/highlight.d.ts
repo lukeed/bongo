@@ -1,9 +1,9 @@
+import type { BundledLanguage } from 'shiki';
 import type { CodeBlockHighlighter } from 'md4x';
-import type { createHighlighter } from 'shiki';
 
 export type ShikiOptions = {
 	theme: string;
-	langs?: Parameters<typeof createHighlighter>[0]['langs'];
+	langs?: BundledLanguage[];
 };
 
 export function shiki(options: ShikiOptions): Promise<CodeBlockHighlighter>;
