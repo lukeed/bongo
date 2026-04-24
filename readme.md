@@ -47,12 +47,14 @@ bun test
 │   │           ├── fs.ts        # File system utilities (read, write, watch)
 │   │           ├── http.ts      # Dev server (sirv + SSE reload)
 │   │           ├── index.ts     # debounce/throttle helpers
-│   │           ├── log.ts       # Debug logging
+│   │           ├── log.ts       # Logging (info, spin, elapsed, debug)
 │   │           ├── templates.ts # Template/layout collection & asset blocks
 │   │           └── tempura/     # Embedded tempura template engine
 │   │
 │   ├── plugin.markdown/   # Markdown loader plugin (@bongo/markdown)
-│   │   └── src/index.ts   # markdown-it based .md → .html loader
+│   │   └── src/
+│   │       ├── index.ts       # md4x-based .md → .html loader
+│   │       └── highlight.ts   # Lazy shiki / sugar-high highlighter factories
 │   │
 │   └── create-bongo/      # Scaffolding CLI (create-bongo)
 │       ├── bin.js
@@ -99,7 +101,7 @@ export const $assets = {
 };
 ```
 
-Loaders are chained by extension. A `.md` file produces `.md.html`, the `.html` extension stops the chain and enters the template pipeline. The `@bongo/markdown` plugin provides a production-ready Markdown loader with frontmatter parsing.
+Loaders are chained by extension. A `.md` file produces `.md.html`, the `.html` extension stops the chain and enters the template pipeline. The `@bongo/markdown` plugin provides a production-ready Markdown loader (powered by [md4x](https://github.com/unjs/md4x)) with frontmatter parsing and optional syntax highlighting via `@bongo/markdown/highlight`.
 
 **Loader utilities** (third argument):
 - `utils.decode(uint8array)` — convert buffer to string
@@ -111,32 +113,30 @@ Loaders are chained by extension. A `.md` file produces `.md.html`, the `.html` 
 ```ts
 // bongo.config.ts
 import { markdown } from '@bongo/markdown';
+import { shiki } from '@bongo/markdown/highlight';
 
-export const $site = {
-  title: 'My Site',
-  url: 'https://example.com/',  // also drives publicPath
-  lang: 'en',
+export default {
+  $site: {
+    title: 'My Site',
+    url: 'https://example.com/',  // also drives publicPath
+    lang: 'en',
+  },
+
+  $utils: {
+    excerpt(text: string, len: number) {
+      return text.slice(0, len);
+    }
+  },
+
+  plugins: [
+    markdown({
+      highlighter: shiki({
+        theme: 'github-dark',
+        langs: ['js', 'ts', 'css', 'bash'],
+      }),
+    }),
+  ],
 };
-
-export const $assets = {
-  html(filename, content) {
-    return { filename, content };
-  }
-};
-
-export const $utils = {
-  excerpt(text: string, len: number) {
-    return text.slice(0, len);
-  }
-};
-
-export const $partials = {
-  // programmatic partials (functions)
-};
-
-export const plugins = [
-  markdown()
-];
 ```
 
 **Config fields:**
@@ -252,7 +252,7 @@ All CSS is handled by [LightningCSS](https://lightningcss.dev): `@import` bundli
 
 ### Dev Server
 
-`bongo dev` runs the full build, then starts a local HTTP server with an SSE reload channel. File changes in `assets/`, `layouts/`, `partials/`, or `content/` trigger a full rebuild and push one of the following SSE messages to the browser:
+`bongo dev` starts the HTTP server and shows the banner immediately, then runs the initial build behind it. File changes in `assets/`, `layouts/`, `partials/`, or `content/` trigger a rebuild with an in-place spinner that resolves to elapsed time (e.g. `[14:32:05] content/about.md (42ms)`). Rebuilds push one of the following SSE messages to the browser:
 
 | Message | Meaning |
 |---|---|
@@ -405,4 +405,4 @@ If you don't want to extend the tsconfig, reference the types directly instead:
 
 ## Package Build System
 
-The `build/` directory builds the publishable packages using [rolldown](https://rolldown.rs). Each package's `src/index.ts` is compiled to a single CJS `index.js` with minification. The `bongo` package also emits a browser-targeted ESM `client.js` (no Node built-ins). TypeScript is handled natively by rolldown — no separate transpilation step.
+The `build/` directory builds the publishable packages using [rolldown](https://rolldown.rs). Each package's `src/index.ts` is compiled to a single CJS `index.js` with minification. The `bongo` package also emits a browser-targeted ESM `client.js` (no Node built-ins). The `plugin.markdown` package also emits `highlight.js` from `src/highlight.ts` (the `./highlight` subpath export). TypeScript is handled natively by rolldown — no separate transpilation step.
