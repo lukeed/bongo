@@ -49,9 +49,17 @@ async function unpack(raw: string, utils: Loader.Utilities, options?: HtmlOption
 }
 
 export function markdown(options?: HtmlOptions): Partial<Config> {
+	let ready: Promise<void> | undefined;
+	let h = options?.highlighter;
+	if (h && 'load' in h && typeof h.load === 'function') {
+		ready = h.load();
+	}
+
 	return {
 		$assets: {
 			async md(input, content, utils) {
+				if (ready) await ready;
+
 				if (typeof content !== 'string') {
 					content = utils.decode(content);
 				}
