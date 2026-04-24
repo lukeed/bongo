@@ -43,6 +43,7 @@ export function shouldIntercept(event: NavigateEvent): boolean {
 	}
 	if (event.sourceElement?.hasAttribute('transition:disable')) return false;
 	if (!event.canIntercept) return false;
+	if (event.navigationType === 'reload') return false;
 	if (event.hashChange) return false;
 	if (event.downloadRequest !== null) return false;
 	let url = new URL(event.destination.url);
