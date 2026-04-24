@@ -13,7 +13,6 @@ export async function shiki(options: ShikiOptions): Promise<CodeBlockHighlighter
 		langs: options.langs || [],
 	});
 
-
 	return function (code, block) {
 		if (block.lang) return hl.codeToHtml(code, {
 			lang: block.lang,

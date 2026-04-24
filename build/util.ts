@@ -1,13 +1,13 @@
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { builtinModules } from 'node:module';
+import { builtinModules, createRequire } from 'node:module';
 import { readdir } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { rolldown } from 'rolldown';
-import type { OutputOptions } from 'rolldown';
 
-import { plugins } from './plugins.ts';
-import { size } from './size.ts';
+import { plugins } from './plugins';
+import { size } from './size';
+
+import type { OutputOptions } from 'rolldown';
 
 const require = createRequire(import.meta.url);
 const packages = join(import.meta.dirname, '../packages');
@@ -46,7 +46,7 @@ export async function build(dir: string): Promise<void> {
 			...output, file: join(abs, 'index.js')
 		});
 
-		let { code } = result.output[0];
+		let { code } = result.output[ 0 ];
 		let outfile = join(dir, 'index.js');
 
 		let txt = outfile + ' :: ' + size(code.length);
@@ -67,7 +67,7 @@ export async function build(dir: string): Promise<void> {
 			});
 			try {
 				let hr = await hb.write({ ...output, file: join(abs, 'highlight.js') });
-				let { code } = hr.output[0];
+				let { code } = hr.output[ 0 ];
 				let txt = join(dir, 'highlight.js') + ' :: ' + size(code.length);
 				txt += '  (' + size(gzipSync(code).length) + ')';
 				console.log('~>', txt);
@@ -96,7 +96,7 @@ async function buildClient(abs: string, dir: string): Promise<void> {
 		minify: !process.argv.includes('--dev'),
 	});
 
-	let { code } = result.output[0];
+	let { code } = result.output[ 0 ];
 	let outfile = join(dir, 'client.js');
 
 	let txt = outfile + ' :: ' + size(code.length);
