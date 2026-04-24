@@ -11,6 +11,8 @@ const argv = require('mri')(process.argv.slice(2), {
 		'm': 'minify',
 		'v': 'version',
 		'h': 'help',
+		'H': 'host',
+		'p': 'port',
 	}
 });
 
@@ -31,6 +33,8 @@ if (argv.h) {
 	output += '\n';
 	output += '\n  Options';
 	output += '\n    -C, --cwd        Directory to resolve from  (default .)';
+	output += '\n    -H, --host       Host to bind; bare flag exposes network  (default localhost)';
+	output += '\n    -p, --port       Port to bind  (default 3000)';
 	output += '\n    -m, --minify     Compress built assets  (default false)';
 	output += '\n    -v, --version    Displays current version';
 	output += '\n    -h, --help       Displays this message';

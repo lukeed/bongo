@@ -1,12 +1,75 @@
 import { relative } from 'node:path';
+import { networkInterfaces } from 'node:os';
+import { bold, cyan, dim, green } from 'kleur/colors';
 import * as bundler from './utils/bundler';
 import * as templates from './utils/templates';
 import * as http from './utils/http';
+import * as log from './utils/log';
 import * as fs from './utils/fs';
 import { build } from './build';
 
 import type { Argv } from 'bongo';
 import type { BuildOptions } from './build';
+
+// Host values that mean "bind to all interfaces". For these we resolve the
+// reachable network URLs via os.networkInterfaces() and also surface a
+// localhost URL for convenience. Anything else is shown verbatim.
+const WILDCARDS = new Set(['0.0.0.0', '::', '']);
+
+function listURLs(host: string, port: number): { local: string[]; network: string[] } {
+	let local: string[] = [];
+	let network: string[] = [];
+
+	if (WILDCARDS.has(host)) {
+		local.push(`http://localhost:${port}/`);
+		let ifaces = networkInterfaces();
+		for (let name in ifaces) {
+			for (let ni of ifaces[name] ?? []) {
+				// IPv4 non-internal only — keeps the list readable and avoids
+				// link-local IPv6 noise most users don't care about.
+				if (ni.family !== 'IPv4' || ni.internal) continue;
+				network.push(`http://${ni.address}:${port}/`);
+			}
+		}
+	} else {
+		local.push(`http://${host}:${port}/`);
+	}
+
+	return { local, network };
+}
+
+function banner(host: string, port: number): void {
+	let { local, network } = listURLs(host, port);
+	// 10 = len("Network:") + 2-space gutter so URLs align across both rows.
+	let label = (s: string) => bold(s.padEnd(10));
+	// Loopback bindings can't be reached over the network. Show a
+	// discoverability hint on the Network row (mirrors sirv-cli).
+	let isLoopback = /^(localhost|127\.|::1$)/i.test(host);
+
+	let out = '\n  ' + bold(cyan('Bongo')) + dim('  dev server') + '\n\n';
+	for (let url of local) {
+		out += '    ' + green('➜') + '  ' + label('Local:') + cyan(url) + '\n';
+	}
+	if (isLoopback) {
+		out += '    ' + green('➜') + '  ' + label('Network:') + dim('use `--host` to expose') + '\n';
+	} else {
+		for (let url of network) {
+			out += '    ' + green('➜') + '  ' + label('Network:') + cyan(url) + '\n';
+		}
+	}
+	out += '\n';
+	process.stdout.write(out);
+}
+
+function timestamp(): string {
+	let d = new Date();
+	let pad = (n: number) => String(n).padStart(2, '0');
+	return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function rebuildLabel(cwd: string, file: string): string {
+	return `${dim('[' + timestamp() + ']')} ${relative(cwd, file)}`;
+}
 
 async function rebuild(argv: Argv, opts: BuildOptions = {}): Promise<void> {
 	try {
@@ -28,11 +91,16 @@ async function rebuild(argv: Argv, opts: BuildOptions = {}): Promise<void> {
 
 export async function dev(argv: Argv) {
 	argv.dev = true;
+	bundler.preload();
 
+	let t0 = Date.now();
 	await build(argv);
+	let buildTime = Date.now() - t0;
+
 	const flags = argv as Required<Argv>;
-	const server = await http.start(flags);
-	console.log('~> started', server.address());
+	await http.start(flags);
+	banner(flags.host, flags.port);
+	log.info(`ready in ${dim(log.elapsed(buildTime))}`);
 
 	// Route bundle-time errors to the browser error overlay (Phase G).
 	// hmr() must be called after http.start() so http.send is bound to the
@@ -42,18 +110,21 @@ export async function dev(argv: Argv) {
 	// Asset-graph changes: bundler detects + re-flushes affected groups.
 	// For now, any change triggers a full reload (HMR updates are not yet
 	// emitted — see spec "Dev mode" open question).
-	bundler.watch(async () => {
+	bundler.watch(async (diff) => {
+		let done = log.spin(rebuildLabel(flags.cwd, diff.file));
 		await rebuild(argv);
+		done();
 	});
 
 	// Layout/partial changes: blow away the compiled-template caches and run
 	// a full rebuild. A layout or partial edit can affect every page, so
 	// narrowing isn't safe here.
 	await fs.watch([flags.layouts, flags.partials], async function (file) {
-		console.log('[ dev ]', relative(flags.cwd, file));
+		let done = log.spin(rebuildLabel(flags.cwd, file));
 		templates.Partials.clear();
 		templates.Layouts.clear();
 		await rebuild(argv);
+		done();
 	});
 
 	// Content changes: rebuild only the affected page. Layouts/partials caches
@@ -63,14 +134,16 @@ export async function dev(argv: Argv) {
 	// Deleted files fall back to full rebuild since their removal affects
 	// registries (siblings can reference gone pages via $pages/$section/$tags).
 	await fs.watch([flags.content], async function (file) {
-		console.log('[ dev ]', relative(flags.cwd, file));
+		let done = log.spin(rebuildLabel(flags.cwd, file));
 		let rel = relative(flags.content, file);
 		if (!fs.exists(file)) {
 			templates.Partials.clear();
 			templates.Layouts.clear();
 			await rebuild(argv);
+			done();
 			return;
 		}
 		await rebuild(argv, { only: rel });
+		done();
 	});
 }
