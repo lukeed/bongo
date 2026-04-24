@@ -15,6 +15,12 @@ export function normalize(argv: Argv): asserts argv is Required<Argv> {
 	argv.partials = resolve(argv.src, 'partials');
 	argv.layouts = resolve(argv.src, 'layouts');
 
+	// Bare `--host` (no value) → mri returns boolean `true`. Treat it as
+	// "expose on all interfaces", matching sirv-cli's `--host --dev` shorthand.
+	// Bare `--port` (no value) is nonsensical — drop it so env/default wins.
+	if ((argv.host as unknown) === true) argv.host = '0.0.0.0';
+	if ((argv.port as unknown) === true) argv.port = undefined;
+
 	const { PORT, HOST } = process.env;
 	argv.port = argv.port || PORT && +PORT || 3000;
 	argv.host = argv.host || HOST || 'localhost';

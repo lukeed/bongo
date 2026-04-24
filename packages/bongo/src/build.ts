@@ -1,5 +1,6 @@
 import { extname, join, relative } from 'node:path';
 import { createHash } from 'node:crypto';
+import { dim, green } from 'kleur/colors';
 
 import * as fs from './utils/fs';
 import * as log from './utils/log';
@@ -92,6 +93,7 @@ export type BuildOptions = {
 };
 
 export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> {
+	let t0 = Date.now();
 	normalize(argv);
 
 	const config = await load(argv.cwd);
@@ -452,7 +454,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 
 		let cwd = process.cwd();
 		let input = relative(cwd, argv.dest);
-		console.log('~> compressing...', input);
+		log.info(`compressing... ${input}`);
 		let output = relative(cwd, argv.cwd) || '.';
 		await exec(`minify -r "${input}" -o "${output}"`);
 	}
@@ -463,5 +465,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	// their prior sig (which matches since they weren't re-read).
 	for (let item of scanned) FRONTMATTER_SIG.set(item.rel, item.sig);
 
-	console.log('~> DONE~!');
+	if (!argv.dev) {
+		log.info(`${green('done')} ${dim('in ' + log.elapsed(Date.now() - t0))}`);
+	}
 }

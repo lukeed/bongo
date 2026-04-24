@@ -13,6 +13,10 @@ async function loadRolldown() {
 	return rd ||= await import('rolldown');
 }
 
+export function preload(): void {
+	loadRolldown();
+}
+
 // ---------------------------------------------------------------------------
 // Two-pass API (Phase C+)
 // ---------------------------------------------------------------------------
@@ -46,6 +50,10 @@ export type FlushResult = {
 };
 
 export type WatchDiff = {
+	// Absolute path of the file whose change triggered this diff. Consumers
+	// (e.g. the dev server) use this purely for logging — resolution logic
+	// should work off `changed` instead.
+	file: string;
 	changed: Set<Placeholder>;
 	reload: boolean;
 };
@@ -389,7 +397,7 @@ export async function watch(cb: (diff: WatchDiff) => void): Promise<Unsubscribe>
 
 		if (changed.size === 0) return;
 
-		WATCH.callback({ changed, reload: true });
+		WATCH.callback({ file, changed, reload: true });
 	});
 
 	return () => {
