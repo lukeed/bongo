@@ -1,5 +1,4 @@
-import type { Highlighter, createHighlighter } from 'shiki';
-import type { highlight } from 'sugar-high';
+import type { createHighlighter } from 'shiki';
 import type { CodeBlockHighlighter, CodeBlock } from 'md4x';
 
 // -- shiki --------------------------------------------------------------------
