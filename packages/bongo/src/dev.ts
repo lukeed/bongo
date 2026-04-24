@@ -1,5 +1,4 @@
-import { mkdirSync } from 'node:fs';
-import { relative } from 'node:path';
+import { join, relative } from 'node:path';
 import { networkInterfaces } from 'node:os';
 import { bold, cyan, dim, green } from 'kleur/colors';
 import * as bundler from './utils/bundler';
@@ -101,7 +100,7 @@ export async function dev(argv: Argv) {
 	// Start server before build so the banner + URL appear instantly.
 	// sirv reads files per-request in dev mode, so it only needs the
 	// directory to exist — pages land once the build finishes.
-	if (!fs.exists(flags.dest)) mkdirSync(flags.dest, { recursive: true });
+	await fs.mkdir(join(flags.dest, '_'));
 	await http.start(flags);
 	banner(flags.host, flags.port);
 
