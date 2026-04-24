@@ -38,7 +38,7 @@
   },
   "peerDependencies": {
     "shiki": ">=4.0.0",
-    "sugar-high": ">=0.7.0"
+    "sugar-high": ">=1.0.0"
   },
   "peerDependenciesMeta": {
     "shiki": {
