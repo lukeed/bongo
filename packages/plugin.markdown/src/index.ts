@@ -2,8 +2,8 @@ import { renderToHtml } from 'md4x';
 import type { Config, Args, Loader } from 'bongo';
 import type { CodeBlockHighlighter, HtmlOptions } from 'md4x';
 
-export type Options = HtmlOptions & {
-	highlight?: CodeBlockHighlighter | Promise<CodeBlockHighlighter>;
+export type Options = Omit<HtmlOptions, 'highlighter'> & {
+	highlighter?: CodeBlockHighlighter | Promise<CodeBlockHighlighter>;
 };
 
 // TODO: share w/ (inlined) tempura parser
@@ -55,8 +55,8 @@ async function unpack(raw: string, utils: Loader.Utilities, options?: HtmlOption
 export function markdown(options?: Options): Partial<Config> {
 	let ready: Promise<HtmlOptions> | undefined;
 
-	if (options?.highlight) {
-		ready = Promise.resolve(options.highlight).then(highlighter => ({
+	if (options?.highlighter) {
+		ready = Promise.resolve(options.highlighter).then(highlighter => ({
 			...options,
 			highlighter,
 		}));
