@@ -467,5 +467,6 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 
 	if (!argv.dev) {
 		log.info(`${green('done')} ${dim('in ' + log.elapsed(Date.now() - t0))}`);
+		log.sizes(argv.dest, process.cwd());
 	}
 }
