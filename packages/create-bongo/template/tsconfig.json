@@ -1,23 +1,13 @@
 {
   "compilerOptions": {
     "strict": true,
-    "allowJs": true,
     "module": "esnext",
     "target": "es2023",
-    "noImplicitAny": true,
-    "resolveJsonModule": true,
-    "strictBindCallApply": true,
-    "forceConsistentCasingInFileNames": true,
-    "allowSyntheticDefaultImports": true,
-    "moduleResolution": "node",
-    "strictNullChecks": true,
-    "removeComments": true,
-    "sourceMap": false,
-    "checkJs": true,
-    "noEmit": true,
+    "moduleResolution": "bundler",
+    "noEmit": true
   },
   "include": [
     "assets",
-    "partials"
+    "bongo.config.ts"
   ]
 }

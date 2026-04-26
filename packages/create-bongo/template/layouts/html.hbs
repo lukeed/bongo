@@ -1,33 +1,19 @@
-<html lang={{ $site.lang }}>
-	<head>
-		{{#var descr = $utils.truncate($page.summary || $site.description, 165) }}
-		{{#var title = $page.title ? ($site.title + ' | ' + $page.title) : $site.title }}
-
-		<meta charset="utf-8">
-		<title>{{ title }}</title>
-		<meta http-equiv="cleartype" content="on"/>
-		<meta http-equiv="X-UA-Compatible" content="IE=edge"/>
-		<meta name="mobile-web-app-capable" content="yes"/>
-
-		<meta name="application-name" content="{{ title }}"/>
-		<meta name="msapplication-tap-highlight" content="no"/>
-		<meta name="apple-mobile-web-app-capable" content="yes"/>
-		<meta name="apple-mobile-web-app-title" content="{{ title }}"/>
-		<meta name="apple-mobile-web-app-status-bar-style" content="black"/>
-		<meta name="viewport" content="width=device-width, initial-scale=1"/>
-
-		<meta name="description" content="{{ descr }}" />
-
-		<bongo:style src="style.css"></bongo:style>
-		{{ $page.styles }}
-
-		<bongo:script src="bundle.ts" inline></bongo:script>
-		{{ $page.scripts }}
-	</head>
-	<body>
-		<main>
-			<p>URL : {{ $page.url }}</p>
-			{{{ $page.content }}}
-		</main>
-	</body>
+<!doctype html>
+<html lang="{{ $site.lang }}">
+<head>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1"/>
+	<title>{{ $page.title }} — {{ $site.title }}</title>
+	<meta name="description" content="{{ $page.summary }}"/>
+	<bongo:style src="style.css"></bongo:style>
+</head>
+<body>
+{{#partial src="nav"}}
+<main>
+{{{ $page.content }}}
+</main>
+{{#partial src="footer"}}
+<bongo:client transitions prefetch />
+<bongo:script src="main.ts"></bongo:script>
+</body>
 </html>

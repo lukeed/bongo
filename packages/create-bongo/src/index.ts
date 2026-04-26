@@ -3,7 +3,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-interface Argv {
+type Argv = {
 	cwd: string;
 	force?: boolean;
 }

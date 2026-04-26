@@ -27,7 +27,7 @@ if (argv.h) {
 	let output = '';
 
 	output += '\n  Usage';
-	output += '\n    npm init bongo <name> [options]';
+	output += '\n    bun create bongo <name> [options]';
 	output += '\n';
 	output += '\n  Options';
 	output += '\n    -C, --cwd        Directory to resolve from';
@@ -36,22 +36,35 @@ if (argv.h) {
 	output += '\n    -h, --help       Displays this message';
 	output += '\n';
 	output += '\n  Examples';
-	output += '\n    $ npm init bongo my-project';
-	output += '\n    $ yarn create bongo website --force';
+	output += '\n    $ bun create bongo my-site';
+	output += '\n    $ bun create bongo website --force';
 	output += '\n';
 
 	exit(output, 0);
 }
 
-// TODO: logging
-// TODO: format own errors
 (async function () {
 	try {
 		let dir = argv._.join('-').trim().replace(/[\s_]+/g, '-');
 		if (!dir) throw new Error('Missing <name> argument');
+
+		let rel = dir;
+		if (argv.C !== '.') rel = require('path').join(argv.C, dir);
+
 		await require('.').setup(dir, argv);
-		console.log('DONE');
+
+		let msg = '\n';
+		msg += '  \x1b[32m\x1b[1m✓\x1b[22m Created \x1b[1m' + rel + '\x1b[22m\x1b[39m\n';
+		msg += '\n';
+		msg += '  Next steps:\n';
+		msg += '  \x1b[36m$\x1b[39m cd ' + rel + '\n';
+		msg += '  \x1b[36m$\x1b[39m bun install\n';
+		msg += '  \x1b[36m$\x1b[39m bun run dev\n';
+		msg += '\n';
+		process.stdout.write(msg);
 	} catch (err) {
-		exit(err.stack, 1);
+		let msg = '\n  \x1b[31m\x1b[1m✗\x1b[22m ' + (err.message || err) + '\x1b[39m\n\n';
+		process.stderr.write(msg);
+		process.exit(1);
 	}
 })();
