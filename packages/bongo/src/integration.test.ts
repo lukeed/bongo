@@ -159,6 +159,43 @@ describe('integration: site-css-modules', () => {
 	});
 });
 
+describe('integration: site-feed (feed-as-tempura-tag)', () => {
+	test('emits an Atom feed via <bongo:feed/> and attaches <link rel="alternate"> to matching pages', async () => {
+		let root = await copyFixture('site-feed');
+		try {
+			await build({ cwd: root });
+
+			let out = join(root, 'public');
+
+			// 1. Atom feed exists at the literal output path (no `index.html`
+			//    rewrite, no `html.hbs` wrapping).
+			let atomXml = await readFile(join(out, 'blog', 'feed.xml'), 'utf8');
+			expect(atomXml).not.toContain('<!doctype html>');
+			expect(atomXml).toContain('<feed xmlns="http://www.w3.org/2005/Atom">');
+			expect(atomXml).toContain('<title>Blog Feed</title>');
+			// Both blog posts appear, newest first thanks to the user's sort.
+			let p1Idx = atomXml.indexOf('<title>Post 2</title>');
+			let p2Idx = atomXml.indexOf('<title>Post 1</title>');
+			expect(p1Idx).toBeGreaterThan(0);
+			expect(p2Idx).toBeGreaterThan(0);
+			expect(p1Idx).toBeLessThan(p2Idx);
+			// Self-link points at the feed itself.
+			expect(atomXml).toContain('https://example.com/blog/feed.xml');
+
+			// 2. Blog post pages carry the alternate-link injected by the
+			//    plugin's pages hook.
+			let postHtml = await readFile(join(out, 'blog', 'post-1', 'index.html'), 'utf8');
+			expect(postHtml).toContain('<link rel="alternate" type="application/atom+xml" title="Blog Feed"');
+
+			// 3. The home page is OUTSIDE `/blog/`, so no alternate-link.
+			let homeHtml = await readFile(join(out, 'index.html'), 'utf8');
+			expect(homeHtml).not.toContain('<link rel="alternate"');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('integration: site-loaders', () => {
 	test('routes <bongo:style src="*.scss"> through user loader chain', async () => {
 		let root = await copyFixture('site-loaders');

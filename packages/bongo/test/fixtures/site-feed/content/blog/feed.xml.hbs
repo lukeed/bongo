@@ -1,0 +1,8 @@
+---
+output: /blog/feed.xml
+attach: /blog/
+title: Blog Feed
+format: atom
+---
+{{#var posts=$pages.filter(p => p.section === 'blog' && !p.params.output).sort((a,b) => String(b.params.date).localeCompare(String(a.params.date)))}}
+<bongo:feed format="atom" title="Blog Feed" url=$page.url items=posts />
