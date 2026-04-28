@@ -56,6 +56,10 @@ bun test
 │   │       ├── index.ts       # md4x-based .md → .html loader
 │   │       └── highlight.ts   # Lazy shiki / sugar-high highlighter factories
 │   │
+│   ├── plugin.feed/       # Feed output plugin (@bongo/feed)
+│   │   └── src/
+│   │       └── index.ts   # RSS, Atom, and JSONL feed generator
+│   │
 │   └── create-bongo/      # Scaffolding CLI (create-bongo)
 │       ├── bin.js
 │       └── template/      # Project template files
@@ -73,15 +77,17 @@ When you run `bongo build`:
 
 2. **Template collection** (`utils/templates.ts`): Scans `layouts/` and `partials/` directories. Handlebars files (`.hbs`) are compiled with tempura. JS/TS partials are loaded as modules. The `partial` template block and any user-defined partials are registered here.
 
-3. **Pass 1 — Render**: For each content file, run it through any registered loaders, then apply the matching layout template. After the layout chain, `utils/tags.ts` scans the rendered HTML for `<bongo:style>` and `<bongo:script>` custom elements, calls `bundler.register(entry, cfg)` for each, and replaces them with opaque placeholder tokens. Pages are collected in memory.
+3. **Pass 1 — Scan + collect**: For each content file, run it through any registered loaders, collect page metadata, and build `$pages`, `$section`, and `$tags`. Page hooks run after these registries exist and before layouts render.
 
-4. **Flush**: `bundler.flush({ outDir })` runs all bundle groups in parallel. JS groups go through rolldown with code splitting and content-hashed filenames. CSS groups go through LightningCSS (`@import` bundling, autoprefixing, nesting, optional minification). Output filenames include content hashes.
+4. **Pass 2 — Render**: Apply the matching layout template. After the layout chain, `utils/tags.ts` scans the rendered HTML for `<bongo:style>` and `<bongo:script>` custom elements, calls `bundler.register(entry, cfg)` for each, and replaces them with opaque placeholder tokens. Pages are collected in memory.
 
-5. **Pass 2 — Substitute** (`templates.substitute()`): For each rendered page, placeholder tokens are rewritten:
+5. **Flush**: `bundler.flush({ outDir })` runs all bundle groups in parallel. JS groups go through rolldown with code splitting and content-hashed filenames. CSS groups go through LightningCSS (`@import` bundling, autoprefixing, nesting, optional minification). Output filenames include content hashes.
+
+6. **Substitute** (`templates.substitute()`): For each rendered page, placeholder tokens are rewritten:
    - External assets: `{publicPath}{hashed-filename}` in `src`/`href` attributes.
    - Inline assets: built file contents spliced directly into the element.
 
-6. **Write**: all pages written to `public/` in the project root.
+7. **Write**: all pages are written to `public/` in the project root. Output hooks then write extra generated files, such as feeds.
 
 ### Loader System
 
@@ -112,6 +118,7 @@ Loaders are chained by extension. A `.md` file produces `.md.html`, the `.html` 
 
 ```ts
 // bongo.config.ts
+import { feed } from '@bongo/feed';
 import { markdown } from '@bongo/markdown';
 import { shiki } from '@bongo/markdown/highlight';
 
@@ -135,6 +142,18 @@ export default {
         langs: ['js', 'ts', 'css', 'bash'],
       }),
     }),
+    feed([{
+      path: '/blog/feed.xml',
+      title: 'Blog',
+      attach: '/blog/',
+      filter: page => page.section === 'blog',
+      render: page => ({
+        title: page.title,
+        url: page.url,
+        summary: page.summary,
+        date: page.params.date,
+      }),
+    }]),
   ],
 };
 ```
@@ -144,7 +163,65 @@ export default {
 - `$assets` — loader map keyed by file extension
 - `$utils` — helper functions available in templates
 - `$partials` — programmatic partials (functions)
+- `$hooks` — build lifecycle hooks for plugins and advanced generated outputs
 - `plugins` — array of partial config objects, merged in order
+
+### Feed Plugin
+
+`@bongo/feed` generates RSS, Atom, or JSONL files from the collected page registry. Feeds are configured in `bongo.config.ts`, not as content pages:
+
+```ts
+import { feed } from '@bongo/feed';
+
+export default {
+  plugins: [
+    feed([
+      {
+        path: '/feed.xml',
+        title: 'All posts',
+        attach: '/',
+        filter: page => page.section === 'blog',
+      },
+      {
+        path: '/blog/feed.xml',
+        title: 'Blog',
+        attach: '/blog/',
+        filter: page => page.section === 'blog',
+        sort: pages => pages.sort((a, b) => {
+          let ad = String(a.params.date || '');
+          let bd = String(b.params.date || '');
+          return bd.localeCompare(ad);
+        }),
+        render: page => ({
+          title: page.title,
+          url: page.url,
+          summary: page.summary,
+          date: page.params.date,
+        }),
+      },
+      {
+        format: 'atom',
+        path: '/blog/atom.xml',
+        title: 'Blog Atom',
+        attach: '/blog/',
+        filter: page => page.section === 'blog',
+      },
+    ]),
+  ],
+};
+```
+
+`filter(page)` controls which pages become feed items. `attach` controls which rendered HTML pages advertise the feed through `$page.feeds`. Use `attach: '/'` for every page, a path prefix like `'/blog/'`, or a function for custom matching. If `sort` is omitted, feeds sort by `page.params.date` newest first. If `render` is omitted, the plugin uses `title`, `url`, `summary`, and `params.date`.
+
+Add alternate links in the shared HTML layout:
+
+```hbs
+{{#each $page.feeds as (feed)}}
+<link rel="alternate" type="{{ feed.type }}" title="{{ feed.title }}" href="{{ feed.url }}">
+{{/each}}
+```
+
+`format` defaults to `'rss'`; supported values are `'rss'`, `'atom'`, and `'jsonl'`.
 
 ### publicPath
 

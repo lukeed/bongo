@@ -1,0 +1,10 @@
+<!doctype html>
+<html>
+<head>
+	<title>{{ $page.title }}</title>
+	{{#each $page.feeds as (feed)}}
+	<link rel="alternate" type="{{ feed.type }}" title="{{ feed.title }}" href="{{ feed.url }}">
+	{{/each}}
+</head>
+<body>{{ $page.content }}</body>
+</html>

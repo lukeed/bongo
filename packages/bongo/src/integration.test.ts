@@ -115,6 +115,26 @@ describe('integration: site-basic', () => {
 	});
 });
 
+describe('integration: site-hooks', () => {
+	test('hooks can annotate page context and emit extra output files', async () => {
+		let root = await copyFixture('site-hooks');
+		try {
+			await build({ cwd: root });
+
+			let out = join(root, 'public');
+			let indexHtml = await readFile(join(out, 'index.html'), 'utf8');
+			let postHtml = await readFile(join(out, 'blog', 'post', 'index.html'), 'utf8');
+			let manifest = await readFile(join(out, 'hook-manifest.txt'), 'utf8');
+
+			expect(indexHtml).toContain('<link rel="alternate" type="application/rss+xml" title="Hook Feed" href="https://example.com/feed.xml">');
+			expect(postHtml).toContain('<link rel="alternate" type="application/rss+xml" title="Hook Feed" href="https://example.com/feed.xml">');
+			expect(manifest).toBe('/\n/blog/post/');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('integration: site-css-modules', () => {
 	test('hashes class names in *.module.css output', async () => {
 		let root = await copyFixture('site-css-modules');

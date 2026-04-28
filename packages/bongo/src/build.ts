@@ -12,7 +12,7 @@ import * as tags from './utils/tags';
 import { normalize } from './utils/argv';
 import { RELOAD } from './utils/http';
 
-import type { Argv, Loader, Template } from 'bongo';
+import type { Argv, BuildContext, Loader, Template } from 'bongo';
 
 // Per-page frontmatter signatures from the last completed build. A narrow
 // rebuild (`opts.only`) compares the target's current frontmatter hash against
@@ -243,6 +243,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	// Between walks — build Pages and Sections registries.
 	let Pages: Template.PageInfo[] = [];
 	let Sections: Map<string, Template.PageInfo[]> = new Map();
+	let PageInfoByRel: Map<string, Template.PageInfo> = new Map();
 
 	for (let item of scanned) {
 		let info: Template.PageInfo = {
@@ -255,6 +256,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			params: item.params,
 		};
 		Pages.push(info);
+		PageInfoByRel.set(item.rel, info);
 
 		let list = Sections.get(item.section);
 		if (!list) {
@@ -291,6 +293,14 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		$tags.push({ tag, pages });
 	}
 
+	let context: BuildContext = {
+		config,
+		pages: Pages,
+		sections: Sections,
+		tags: $tags,
+	};
+	if (config.$hooks.pages) await config.$hooks.pages(context);
+
 	// Walk 2 — render layouts with $pages + $section + $tags context.
 	// If `only` is set, skip rendering every item except the matching one — walk 1
 	// above already populated the registries so sibling awareness stays correct.
@@ -298,16 +308,19 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 
 	for (let item of scanned) {
 		if (narrowOnly && item.rel !== narrowOnly) continue;
+		let info = PageInfoByRel.get(item.rel);
+		if (!info) throw new Error(`Missing page info for "${item.rel}"`);
 
 		let $page: Template.Page = {
-			path: item.path,
-			params: item.params,
+			path: info.path,
+			params: info.params,
 			content: '',                       // filled below (and again after layout)
-			url: new URL(item.path, $site.url).href,
-			summary: item.summary,
-			title: item.title,
-			section: item.section,
-			tags: item.tags,
+			url: info.url,
+			summary: info.summary,
+			title: info.title,
+			section: info.section,
+			tags: info.tags,
+			feeds: info.feeds || [],
 			scripts: '',
 			styles: '',
 		};
@@ -437,6 +450,15 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		});
 		await fs.write(page.output, html);
 	}));
+
+	if (config.$hooks.output) {
+		await config.$hooks.output({
+			...context,
+			write(path, content) {
+				return fs.write(join(dest, path.replace(/^\/+/, '')), content);
+			},
+		});
+	}
 
 	if (argv.minify) {
 		const exec = require('node:util').promisify(

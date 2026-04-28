@@ -5,7 +5,7 @@ import { builtinModules } from 'node:module';
 import { randomBytes } from 'node:crypto';
 import * as fs from './fs';
 
-import type { Config } from 'bongo';
+import type { BuildContext, BuildOutputContext, Config } from 'bongo';
 
 const priority = [
 	'bongo.config.ts',
@@ -120,6 +120,29 @@ export function merge(base: Required<Config>, custom: Partial<Config>) {
 	Object.assign(base.$site, custom.$site);
 	Object.assign(base.$assets, custom.$assets);
 	Object.assign(base.$partials, custom.$partials);
+	if (custom.$hooks) {
+		let pages = custom.$hooks.pages;
+		if (pages) {
+			let previous = base.$hooks.pages;
+			base.$hooks.pages = previous
+				? async (context: BuildContext) => {
+					await previous(context);
+					await pages(context);
+				}
+				: pages;
+		}
+
+		let output = custom.$hooks.output;
+		if (output) {
+			let previous = base.$hooks.output;
+			base.$hooks.output = previous
+				? async (context: BuildOutputContext) => {
+					await previous(context);
+					await output(context);
+				}
+				: output;
+		}
+	}
 	if (custom.$build) {
 		Object.assign(base.$build, custom.$build);
 	}
@@ -168,6 +191,7 @@ export async function load(root: string): Promise<Required<Config>> {
 			// custom partials
 		},
 		$build: {},
+		$hooks: {},
 		plugins: [
 			// any user plugins
 		]

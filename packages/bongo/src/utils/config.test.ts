@@ -13,6 +13,8 @@ function makeBase() {
 		},
 		$assets: {},
 		$partials: {},
+		$build: {},
+		$hooks: {},
 		plugins: [],
 	} as any;
 }
@@ -59,6 +61,34 @@ describe('merge', () => {
 		config.merge(base, { plugins: [plugin] } as any);
 
 		expect(base.$site.lang).toBe('en');
+	});
+
+	test('composes plugin hooks before root hooks', async () => {
+		let base = makeBase();
+		let calls: string[] = [];
+		config.merge(base, {
+			plugins: [{
+				$hooks: {
+					pages() {
+						calls.push('plugin');
+					},
+				},
+			}],
+			$hooks: {
+				pages() {
+					calls.push('root');
+				},
+			},
+		});
+
+		await base.$hooks.pages({
+			config: base,
+			pages: [],
+			sections: new Map(),
+			tags: [],
+		});
+
+		expect(calls).toEqual(['plugin', 'root']);
 	});
 
 	test('merges $partials', () => {

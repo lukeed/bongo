@@ -1,4 +1,5 @@
 type Promisable<T> = Promise<T> | T;
+type OutputContent = string | Uint8Array;
 
 export interface Argv {
 	cwd: string;
@@ -94,6 +95,7 @@ export namespace Template {
 		summary: string;
 		section: string;
 		tags: string[];
+		feeds: FeedLink[];
 		params: Params;
 		content: string;
 		scripts: string;
@@ -107,12 +109,23 @@ export namespace Template {
 		summary: string;
 		section: string; // directory prefix (e.g. 'blog', '' for root)
 		tags: string[];  // parsed from frontmatter
+		feeds?: FeedLink[];
 		params: Params;  // full frontmatter
 	};
 
 	type TagEntry = {
 		tag: string;
 		pages: PageInfo[];
+	};
+
+	type FeedFormat = 'rss' | 'atom' | 'jsonl';
+
+	type FeedLink = {
+		format: FeedFormat;
+		path: string;
+		title: string;
+		type: string;
+		url: string;
 	};
 
 	interface Params {
@@ -125,6 +138,22 @@ export namespace Template {
 		truncate(input: string, length: number): string;
 	}
 }
+
+export type BuildContext = {
+	config: Config;
+	pages: Template.PageInfo[];
+	sections: Map<string, Template.PageInfo[]>;
+	tags: Template.TagEntry[];
+};
+
+export type BuildOutputContext = BuildContext & {
+	write(path: string, content: OutputContent): Promisable<void>;
+};
+
+export type BuildHooks = {
+	pages?: (context: BuildContext) => Promisable<void>;
+	output?: (context: BuildOutputContext) => Promisable<void>;
+};
 
 interface Helpers {
   [name: string]: Function | Promise<any> | Helpers;
@@ -149,6 +178,7 @@ export interface Config {
 	$build?: {
 		target?: string | string[];  // browserslist query or array of queries
 	};
+	$hooks?: BuildHooks;
 	plugins?: Partial<Config>[];
 }
 
