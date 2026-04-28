@@ -15,7 +15,6 @@ export function send(msg: HmrMessage): void {
 	}
 }
 
-// TODO: port detect?
 export function start(argv: Required<Argv>): Promise<Server> {
 	clients.clear();
 
@@ -48,7 +47,20 @@ export function start(argv: Required<Argv>): Promise<Server> {
 		return clients.add(res);
 	});
 
-	return new Promise((res, rej) => {
-		server.on('error', rej).listen(argv.port, argv.host, () => res(server));
+	return new Promise((resolve, reject) => {
+		function tryListen(port: number, remaining: number): void {
+			server.once('error', (err: NodeJS.ErrnoException) => {
+				if (err.code === 'EADDRINUSE' && remaining > 0) {
+					tryListen(port + 1, remaining - 1);
+				} else {
+					reject(err);
+				}
+			});
+			server.listen(port, argv.host, () => {
+				argv.port = port;
+				resolve(server);
+			});
+		}
+		tryListen(argv.port, 10);
 	});
 }
