@@ -56,6 +56,10 @@ bun test
 │   │       ├── index.ts       # md4x-based .md → .html loader
 │   │       └── highlight.ts   # Lazy shiki / sugar-high highlighter factories
 │   │
+│   ├── plugin.feed/       # Feed plugin (@bongo/feed) — exposes <bongo:feed/>
+│   │   └── src/
+│   │       └── index.ts       # RSS / Atom / JSONL renderer + tempura `feed` block
+│   │
 │   └── create-bongo/      # Scaffolding CLI (create-bongo)
 │       ├── bin.js
 │       └── template/      # Project template files
@@ -73,15 +77,17 @@ When you run `bongo build`:
 
 2. **Template collection** (`utils/templates.ts`): Scans `layouts/` and `partials/` directories. Handlebars files (`.hbs`) are compiled with tempura. JS/TS partials are loaded as modules. The `partial` template block and any user-defined partials are registered here.
 
-3. **Pass 1 — Render**: For each content file, run it through any registered loaders, then apply the matching layout template. After the layout chain, `utils/tags.ts` scans the rendered HTML for `<bongo:style>` and `<bongo:script>` custom elements, calls `bundler.register(entry, cfg)` for each, and replaces them with opaque placeholder tokens. Pages are collected in memory.
+3. **Pass 1 — Scan + collect**: For each content file, run it through any registered loaders, collect page metadata, and build the `$pages`, `$section`, and `$tags` registries. The `pages` build hook runs immediately after these registries are sealed and before any layout renders, so plugins (e.g. `@bongo/feed`) can decorate `PageInfo` records with `feeds`, etc.
 
-4. **Flush**: `bundler.flush({ outDir })` runs all bundle groups in parallel. JS groups go through rolldown with code splitting and content-hashed filenames. CSS groups go through LightningCSS (`@import` bundling, autoprefixing, nesting, optional minification). Output filenames include content hashes.
+4. **Pass 2 — Render**: Apply the matching layout template (or skip it entirely for pages with `output:` frontmatter — see "Literal-output pages"). After the layout chain, `utils/tags.ts` scans the rendered HTML for `<bongo:style>` and `<bongo:script>` custom elements, calls `bundler.register(entry, cfg)` for each, and replaces them with opaque placeholder tokens. Pages are collected in memory.
 
-5. **Pass 2 — Substitute** (`templates.substitute()`): For each rendered page, placeholder tokens are rewritten:
+5. **Flush**: `bundler.flush({ outDir })` runs all bundle groups in parallel. JS groups go through rolldown with code splitting and content-hashed filenames. CSS groups go through LightningCSS (`@import` bundling, autoprefixing, nesting, optional minification). Output filenames include content hashes.
+
+6. **Substitute** (`templates.substitute()`): For each rendered page, placeholder tokens are rewritten:
    - External assets: `{publicPath}{hashed-filename}` in `src`/`href` attributes.
    - Inline assets: built file contents spliced directly into the element.
 
-6. **Write**: all pages written to `public/` in the project root.
+7. **Write**: all pages written to `public/` in the project root. The `output` build hook then fires so plugins can emit additional generated files.
 
 ### Loader System
 
@@ -144,6 +150,8 @@ export default {
 - `$assets` — loader map keyed by file extension
 - `$utils` — helper functions available in templates
 - `$partials` — programmatic partials (functions)
+- `$blocks` — tempura `{{#name args}}` blocks contributed by user/plugins. The `<bongo:NAME ...>` pre-pass rewrites known block tags into `{{#NAME ...}}` calls so attribute values resolve against the surrounding tempura scope (not as HTML strings). Used by `@bongo/feed` to register a `feed` block.
+- `$hooks` — build lifecycle hooks (`pages`, `output`) for plugins. Plugin hooks compose before root-config hooks.
 - `plugins` — array of partial config objects, merged in order
 
 ### publicPath
@@ -243,6 +251,69 @@ Add `transition:name` and `transition:animate` to any HTML element in a layout o
 Content files ending in `.hbs` are themselves tempura-compiled, with the same context as layouts: `$site`, `$page`, `$pages`, `$section`, `$tags`, `$assets`, `$utils`, plus `params` (alias for `$page.params`, kept for ergonomics). A content body can therefore list sibling posts, read `$page.tags`, or reference any other page in the build — not just its own frontmatter.
 
 One caveat: the current page's own `$page.content` is the empty string during its body's compile (it IS what the compile produces). Referencing it inside the body is nonsensical.
+
+### Literal-output pages (`output:` frontmatter)
+
+A page with `output: /some/path.ext` in its frontmatter writes its rendered tempura body verbatim to that exact path inside `dest/`. The file:
+
+- Is NOT wrapped in `html.hbs` (or any other layout).
+- Does NOT receive the dev-reload `<script>` appendix.
+- Skips the post-render `<bongo:script|style|client>` and `transition:*` rewrites (they assume HTML and would corrupt non-HTML payloads).
+
+This is the routing primitive feeds, sitemaps, robots.txt, and other non-HTML outputs use to land on the filesystem without HTML contamination. See the **Feed Plugin** section below for the canonical use case.
+
+### Feed Plugin
+
+`@bongo/feed` exposes a `<bongo:feed/>` tempura tag that emits RSS, Atom, or JSONL bodies from runtime tempura values. **Feed pages are content files** — you write a single `.xml.hbs` file with `output:` + `attach:` frontmatter and a `<bongo:feed/>` body, and bongo writes the rendered XML to that exact path.
+
+```ts
+// bongo.config.ts
+import { feed } from '@bongo/feed';
+
+export default {
+  $site: { url: 'https://example.com/', title: 'Site', lang: 'en' },
+  plugins: [feed()],
+};
+```
+
+```hbs
+{{! content/blog/feed.xml.hbs }}
+---
+output: /blog/feed.xml
+attach: /blog/
+title: Blog Feed
+format: atom
+---
+{{#var posts=$pages.filter(p => p.section === 'blog' && !p.params.output).sort((a,b) => String(b.params.date).localeCompare(String(a.params.date)))}}
+<bongo:feed format="atom" title="Blog Feed" url=$page.url items=posts />
+```
+
+**How it works:**
+
+1. `output: /blog/feed.xml` is read by the build pipeline as a literal-output marker. The page is rendered through tempura but skips layout wrapping, post-render `<bongo:script|style|client>` rewriting, and the dev-reload `<script>` injection. The body is written verbatim to `dest + /blog/feed.xml`.
+2. The feed plugin's `pages` build hook walks every collected page, identifies feed pages by their `output:` + `attach:` pair, and decorates every matching page (`page.path.startsWith(attach + '/')`) with a `feeds: [...]` entry. Layouts can render those into `<link rel="alternate">` tags:
+   ```hbs
+   {{#each $page.feeds as (feed)}}
+   <link rel="alternate" type="{{ feed.type }}" title="{{ feed.title }}" href="{{ feed.url }}">
+   {{/each}}
+   ```
+3. The `<bongo:feed format="atom" items=posts/>` tag is rewritten to a tempura block (`{{#feed format="atom" items=posts}}`) before tempura compiles the file, so `items=posts` resolves against the runtime scope created by `{{#var posts=...}}`. The block returns the rendered XML.
+
+**Tag attributes:**
+- `format` — `'rss' | 'atom' | 'jsonl'` (default: `'rss'`)
+- `title` — feed title
+- `url` — self-link URL (defaults to `''` — pass `url=$page.url` for self-referential feeds)
+- `items` — `Template.PageInfo[]` or pre-shaped `Feed.Item[]`. PageInfo entries flow through `render` (or the default mapping: `{ title, url, summary, date }`).
+- `render` — optional `(page) => Item` per-item mapper
+
+**Frontmatter (feed page):**
+- `output` — required. Site-absolute path to write to (e.g. `/blog/feed.xml`).
+- `attach` — required. Path-prefix string that `<link rel="alternate">` is injected on (e.g. `/blog/` covers every page under `/blog/`).
+- `title`, `format` — passed through to the plugin's `pages` hook for the alternate-link metadata.
+
+**Edge cases:**
+- Empty / dateless feeds skip `<updated>` rather than emitting the 1970 epoch (`1970-01-01T00:00:00.000Z`).
+- The feed page itself is never advertised in its own `<link rel="alternate">` injection.
 
 ### CSS
 
