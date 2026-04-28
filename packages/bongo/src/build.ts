@@ -12,7 +12,7 @@ import * as tags from './utils/tags';
 import { normalize } from './utils/argv';
 import { RELOAD } from './utils/http';
 
-import type { Argv, BuildContext, Loader, Template } from 'bongo';
+import type { Argv, Build, Loader, Template } from 'bongo';
 
 // Per-page frontmatter signatures from the last completed build. A narrow
 // rebuild (`opts.only`) compares the target's current frontmatter hash against
@@ -293,7 +293,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		$tags.push({ tag, pages });
 	}
 
-	let context: BuildContext = {
+	let context: Build.Context = {
 		config,
 		pages: Pages,
 		sections: Sections,

@@ -1,35 +1,39 @@
-import type { Config, Template } from 'bongo';
+import type { Config, Feed as CoreFeed, Template } from 'bongo';
 
-export type FeedItem = {
-	title: string;
-	url: string;
-	id?: string;
-	summary?: string;
-	content?: string;
-	date?: unknown;
-	author?: string;
-	[name: string]: unknown;
-};
+export namespace Feed {
+	export type Format = CoreFeed.Format;
 
-export type FeedConfig = {
-	format?: Template.FeedFormat;
-	path: string;
-	title: string;
-	attach: string | ((page: Template.PageInfo) => boolean);
-	filter?: (page: Template.PageInfo) => boolean;
-	sort?: (pages: Template.PageInfo[]) => Template.PageInfo[];
-	render?: (page: Template.PageInfo) => FeedItem;
-};
+	export type Item = {
+		title: string;
+		url: string;
+		id?: string;
+		summary?: string;
+		content?: string;
+		date?: unknown;
+		author?: string;
+		[name: string]: unknown;
+	};
 
-type NormalizedFeed = FeedConfig & {
-	format: Template.FeedFormat;
+	export type Config = {
+		format?: Format;
+		path: string;
+		title: string;
+		attach: string | ((page: Template.PageInfo) => boolean);
+		filter?: (page: Template.PageInfo) => boolean;
+		sort?: (pages: Template.PageInfo[]) => Template.PageInfo[];
+		render?: (page: Template.PageInfo) => Item;
+	};
+}
+
+type NormalizedFeed = Feed.Config & {
+	format: Feed.Format;
 	path: string;
 	type: string;
 	url(site: Template.Site): string;
 	attachPage(page: Template.PageInfo): boolean;
 };
 
-const MIME: Record<Template.FeedFormat, string> = {
+const MIME: Record<Feed.Format, string> = {
 	atom: 'application/atom+xml',
 	jsonl: 'application/x-ndjson',
 	rss: 'application/rss+xml',
@@ -98,7 +102,7 @@ function defaultSort(pages: Template.PageInfo[]): Template.PageInfo[] {
 	return pages.sort((a, b) => time(b.params.date) - time(a.params.date));
 }
 
-function defaultRender(page: Template.PageInfo): FeedItem {
+function defaultRender(page: Template.PageInfo): Feed.Item {
 	return {
 		title: page.title,
 		url: page.url,
@@ -107,7 +111,7 @@ function defaultRender(page: Template.PageInfo): FeedItem {
 	};
 }
 
-function normalize(input: FeedConfig): NormalizedFeed {
+function normalize(input: Feed.Config): NormalizedFeed {
 	let format = input.format || 'rss';
 	let outputPath = path(input.path);
 	let attach = input.attach;
@@ -141,14 +145,14 @@ function normalize(input: FeedConfig): NormalizedFeed {
 	};
 }
 
-function itemsFor(feed: NormalizedFeed, pages: Template.PageInfo[]): FeedItem[] {
+function itemsFor(feed: NormalizedFeed, pages: Template.PageInfo[]): Feed.Item[] {
 	let render = feed.render || defaultRender;
 	let selected = feed.filter ? pages.filter(feed.filter) : pages.slice();
 	let sorted = feed.sort ? feed.sort(selected.slice()) : defaultSort(selected.slice());
 	return sorted.map(render);
 }
 
-function rss(feed: NormalizedFeed, site: Template.Site, items: FeedItem[]): string {
+function rss(feed: NormalizedFeed, site: Template.Site, items: Feed.Item[]): string {
 	let feedUrl = feed.url(site);
 	let description = site.description || feed.title;
 	let output = '<?xml version="1.0" encoding="utf-8"?>\n';
@@ -177,7 +181,7 @@ function rss(feed: NormalizedFeed, site: Template.Site, items: FeedItem[]): stri
 	return output;
 }
 
-function latest(items: FeedItem[]): unknown {
+function latest(items: Feed.Item[]): unknown {
 	let winner: unknown = undefined;
 	let stamp = 0;
 	for (let item of items) {
@@ -190,7 +194,7 @@ function latest(items: FeedItem[]): unknown {
 	return winner;
 }
 
-function atom(feed: NormalizedFeed, site: Template.Site, items: FeedItem[]): string {
+function atom(feed: NormalizedFeed, site: Template.Site, items: Feed.Item[]): string {
 	let feedUrl = feed.url(site);
 	let output = '<?xml version="1.0" encoding="utf-8"?>\n';
 	output += '<feed xmlns="http://www.w3.org/2005/Atom">\n';
@@ -217,7 +221,7 @@ function atom(feed: NormalizedFeed, site: Template.Site, items: FeedItem[]): str
 	return output;
 }
 
-function jsonl(items: FeedItem[]): string {
+function jsonl(items: Feed.Item[]): string {
 	let output = '';
 	for (let item of items) {
 		output += JSON.stringify(item) + '\n';
@@ -225,13 +229,13 @@ function jsonl(items: FeedItem[]): string {
 	return output;
 }
 
-function render(feed: NormalizedFeed, site: Template.Site, items: FeedItem[]): string {
+function render(feed: NormalizedFeed, site: Template.Site, items: Feed.Item[]): string {
 	if (feed.format === 'atom') return atom(feed, site, items);
 	if (feed.format === 'jsonl') return jsonl(items);
 	return rss(feed, site, items);
 }
 
-export function feed(feeds: FeedConfig[]): Partial<Config> {
+export function feed(feeds: Feed.Config[]): Partial<Config> {
 	let normalized = feeds.map(normalize);
 
 	return {

@@ -95,7 +95,7 @@ export namespace Template {
 		summary: string;
 		section: string;
 		tags: string[];
-		feeds: FeedLink[];
+		feeds: Feed.Link[];
 		params: Params;
 		content: string;
 		scripts: string;
@@ -109,23 +109,13 @@ export namespace Template {
 		summary: string;
 		section: string; // directory prefix (e.g. 'blog', '' for root)
 		tags: string[];  // parsed from frontmatter
-		feeds?: FeedLink[];
+		feeds?: Feed.Link[];
 		params: Params;  // full frontmatter
 	};
 
 	type TagEntry = {
 		tag: string;
 		pages: PageInfo[];
-	};
-
-	type FeedFormat = 'rss' | 'atom' | 'jsonl';
-
-	type FeedLink = {
-		format: FeedFormat;
-		path: string;
-		title: string;
-		type: string;
-		url: string;
 	};
 
 	interface Params {
@@ -139,21 +129,35 @@ export namespace Template {
 	}
 }
 
-export type BuildContext = {
-	config: Config;
-	pages: Template.PageInfo[];
-	sections: Map<string, Template.PageInfo[]>;
-	tags: Template.TagEntry[];
-};
+export namespace Build {
+	export type Context = {
+		config: Config;
+		pages: Template.PageInfo[];
+		sections: Map<string, Template.PageInfo[]>;
+		tags: Template.TagEntry[];
+	};
 
-export type BuildOutputContext = BuildContext & {
-	write(path: string, content: OutputContent): Promisable<void>;
-};
+	export type OutputContext = Context & {
+		write(path: string, content: OutputContent): Promisable<void>;
+	};
 
-export type BuildHooks = {
-	pages?: (context: BuildContext) => Promisable<void>;
-	output?: (context: BuildOutputContext) => Promisable<void>;
-};
+	export type Hooks = {
+		pages?: (context: Context) => Promisable<void>;
+		output?: (context: OutputContext) => Promisable<void>;
+	};
+}
+
+export namespace Feed {
+	export type Format = 'rss' | 'atom' | 'jsonl';
+
+	export type Link = {
+		format: Format;
+		path: string;
+		title: string;
+		type: string;
+		url: string;
+	};
+}
 
 interface Helpers {
   [name: string]: Function | Promise<any> | Helpers;
@@ -178,7 +182,7 @@ export interface Config {
 	$build?: {
 		target?: string | string[];  // browserslist query or array of queries
 	};
-	$hooks?: BuildHooks;
+	$hooks?: Build.Hooks;
 	plugins?: Partial<Config>[];
 }
 
