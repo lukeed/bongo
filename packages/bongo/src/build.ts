@@ -12,7 +12,7 @@ import * as tags from './utils/tags';
 import { normalize } from './utils/argv';
 import { RELOAD } from './utils/http';
 
-import type { Argv, Loader, Template } from 'bongo';
+import type { Argv, Build, Feed, Loader, Template } from 'bongo';
 
 // Per-page frontmatter signatures from the last completed build. A narrow
 // rebuild (`opts.only`) compares the target's current frontmatter hash against
@@ -69,6 +69,12 @@ type ScanItem = {
 	summary: string;
 	tags: string[];          // parsed from frontmatter.tags
 	sig: string;             // sha256 of the raw frontmatter block (empty block ⇒ constant hash)
+	feed: {                  // populated when frontmatter declares `feed.format`
+		format: Feed.Format;
+		title: string;
+		attach: string;
+		path: string;
+	} | null;
 };
 
 function parseTags(value: unknown): string[] {
@@ -79,6 +85,41 @@ function parseTags(value: unknown): string[] {
 		return value.split(',').map(s => s.trim()).filter(Boolean);
 	}
 	return [];
+}
+
+const FEED_FORMATS = new Set<Feed.Format>(['rss', 'atom', 'jsonl']);
+
+// Treat a content file as a feed source when its frontmatter declares
+// `feed.format` (e.g. `feed.format: atom`). We use flat dot-keys because
+// bongo's frontmatter parser is line-based key:value and does NOT support
+// nested objects.
+function readFeedMeta(params: Template.Params, rel: string): {
+	format: Feed.Format;
+	title: string;
+	attach: string;
+	path: string;
+} | null {
+	let raw = params['feed.format'];
+	if (typeof raw !== 'string') return null;
+
+	let format = raw.trim() as Feed.Format;
+	if (!FEED_FORMATS.has(format)) return null;
+
+	let title = typeof params['feed.title'] === 'string' ? params['feed.title'] as string : '';
+	let attach = typeof params['feed.attach'] === 'string' ? params['feed.attach'] as string : '';
+	// `feed.path` overrides where the rendered feed is written. When omitted,
+	// derive a sensible default from the file's rel path (drop the `.hbs`
+	// extension chain so `blog/feed.xml.hbs` -> `/blog/feed.xml`).
+	let raw_path = typeof params['feed.path'] === 'string' ? params['feed.path'] as string : '';
+	let path: string;
+	if (raw_path) {
+		path = raw_path.startsWith('/') ? raw_path : '/' + raw_path;
+	} else {
+		let stripped = rel.replace(/\.hbs$/i, '');
+		path = '/' + stripped.replace(/\\/g, '/');
+	}
+
+	return { format, title, attach, path };
 }
 
 export type BuildOptions = {
@@ -223,6 +264,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			summary: (params.summary as string) || '',
 			tags: parseTags(params.tags),
 			sig: frontmatterSig(raw),
+			feed: readFeedMeta(params, rel),
 		});
 	});
 
@@ -241,10 +283,16 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	}
 
 	// Between walks — build Pages and Sections registries.
+	// Feed-source files are excluded from Pages/$section/$tags so they don't
+	// pollute iterations like `{{#each $pages}}`. They are still rendered in
+	// walk 2 (with full context), captured as Build.FeedSource records, and
+	// handed off to plugins via the `pages` / `output` hooks.
 	let Pages: Template.PageInfo[] = [];
 	let Sections: Map<string, Template.PageInfo[]> = new Map();
+	let PageInfoByRel: Map<string, Template.PageInfo> = new Map();
 
 	for (let item of scanned) {
+		if (item.feed) continue;
 		let info: Template.PageInfo = {
 			path: item.path,
 			url: new URL(item.path, $site.url).href,
@@ -255,6 +303,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			params: item.params,
 		};
 		Pages.push(info);
+		PageInfoByRel.set(item.rel, info);
 
 		let list = Sections.get(item.section);
 		if (!list) {
@@ -291,23 +340,93 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		$tags.push({ tag, pages });
 	}
 
+	// Collect Feed sources discovered via frontmatter. Bodies are populated in
+	// walk 2 below; the `pages` hook fires *before* walk 2 so plugins can use
+	// `context.feeds` to populate `page.feeds` (which `$page.feeds` reads) on
+	// any matching pages.
+	let Feeds: Build.FeedSource[] = [];
+	for (let item of scanned) {
+		if (!item.feed) continue;
+		Feeds.push({
+			rel: item.rel,
+			path: item.feed.path,
+			format: item.feed.format,
+			title: item.feed.title,
+			attach: item.feed.attach,
+			params: item.params,
+			body: '', // filled in walk 2
+		});
+	}
+
+	let context: Build.Context = {
+		config,
+		pages: Pages,
+		sections: Sections,
+		tags: $tags,
+		feeds: Feeds,
+	};
+
+	// `pages` hook: plugins can mutate `Pages` entries (e.g. attach
+	// `page.feeds = [...]`) before walk 2 renders any layout that reads from
+	// `$page.feeds`. Composed across plugins by `merge()` in config.ts.
+	if (config.$hooks.pages) await config.$hooks.pages(context);
+
 	// Walk 2 — render layouts with $pages + $section + $tags context.
 	// If `only` is set, skip rendering every item except the matching one — walk 1
 	// above already populated the registries so sibling awareness stays correct.
 	let pages: CollectedPage[] = [];
 
+	// Feed sources are rendered into `Feeds[i].body` and skip the rest of the
+	// page pipeline (no layout wrap, no dev reload script, no <bongo:*>
+	// rewrite, no default write). Plugins consume them via the `output` hook.
+	let feedByRel: Map<string, Build.FeedSource> = new Map();
+	for (let f of Feeds) feedByRel.set(f.rel, f);
+
 	for (let item of scanned) {
 		if (narrowOnly && item.rel !== narrowOnly) continue;
 
+		// Feed body: render with full walk-2 context, then capture and skip
+		// the rest of the per-page pipeline.
+		if (item.feed) {
+			let feedRecord = feedByRel.get(item.rel);
+			if (!feedRecord) continue;
+			let $section = Sections.get(item.section) || [];
+			let $page: Template.Page = {
+				path: item.path,
+				params: item.params,
+				content: '',
+				url: new URL(item.path, $site.url).href,
+				summary: item.summary,
+				title: item.title,
+				section: item.section,
+				tags: item.tags,
+				feeds: [],
+				scripts: '',
+				styles: '',
+			};
+			let body = item.ext === 'hbs'
+				? await (await templates.compileContent(item.body))(
+					{ $page, $pages: Pages, $section, $tags, params: item.params, ...config }
+				)
+				: item.body;
+			feedRecord.body = body;
+			continue;
+		}
+
+		let info = PageInfoByRel.get(item.rel);
+		// Should always be defined — every non-feed scanned item is in PageInfoByRel.
+		if (!info) throw new Error(`Missing page info for "${item.rel}"`);
+
 		let $page: Template.Page = {
-			path: item.path,
-			params: item.params,
+			path: info.path,
+			params: info.params,
 			content: '',                       // filled below (and again after layout)
-			url: new URL(item.path, $site.url).href,
-			summary: item.summary,
-			title: item.title,
-			section: item.section,
-			tags: item.tags,
+			url: info.url,
+			summary: info.summary,
+			title: info.title,
+			section: info.section,
+			tags: info.tags,
+			feeds: info.feeds || [],
 			scripts: '',
 			styles: '',
 		};
@@ -437,6 +556,20 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		});
 		await fs.write(page.output, html);
 	}));
+
+	// `output` hook: plugins write derived files (feeds, sitemaps, etc).
+	// Runs after all primary HTML is on disk so plugins can read those files
+	// back if needed. The `write(path, content)` closure resolves any leading
+	// '/' against `dest` so plugins use site-relative URL paths.
+	if (config.$hooks.output) {
+		let outputContext: Build.OutputContext = {
+			...context,
+			write(path, content) {
+				return fs.write(join(dest, path.replace(/^\/+/, '')), content);
+			},
+		};
+		await config.$hooks.output(outputContext);
+	}
 
 	if (argv.minify) {
 		const exec = require('node:util').promisify(
