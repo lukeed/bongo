@@ -262,6 +262,100 @@ All CSS is handled by [LightningCSS](https://lightningcss.dev): `@import` bundli
 
 The `hmr` message type exists in the type union for forward compatibility. Rolldown's HMR client transport is not yet stable (as of 1.0-rc.9), so all file changes trigger a full reload today.
 
+## Feeds (`@bongo/feed`)
+
+`@bongo/feed` makes RSS, Atom, and JSON-Lines feeds feel like first-class content. A feed is just a content file whose frontmatter declares `feed.format` — the plugin discovers it during the regular content scan, renders the body with the same context every other `.hbs` page sees, and emits the chosen feed format at output time.
+
+### Install
+
+```sh
+bun add -D @bongo/feed
+```
+
+### Wire it up
+
+```ts
+// bongo.config.ts
+import { feed } from '@bongo/feed';
+
+export default {
+  $site: {
+    url: 'https://example.com/',
+    title: 'My Blog',
+    description: 'Posts and rambles',
+    lang: 'en',
+  },
+  plugins: [
+    feed(),
+  ],
+};
+```
+
+### Author a feed
+
+Drop a content file ending in any of bongo's recognised content extensions (`.hbs`, `.html`, `.htm`) — the plugin only cares about the frontmatter:
+
+```hbs
+---
+feed.format: atom
+feed.title: My Blog
+feed.attach: /blog/
+feed.path: /blog/feed.xml
+title: Blog Feed
+---
+{{#each $section as (p)}}
+{{#if p.params.date}}
+{"title":{{{ JSON.stringify(p.title) }}},"url":{{{ JSON.stringify(p.url) }}},"date":{{{ JSON.stringify(p.params.date) }}},"summary":{{{ JSON.stringify(p.summary) }}}}
+{{/if}}
+{{/each}}
+```
+
+Frontmatter keys (all flat — bongo's frontmatter parser is line-based key:value, so YAML nesting under a single `feed:` block is not supported):
+
+| Key | Required | Meaning |
+|---|---|---|
+| `feed.format` | yes | One of `rss`, `atom`, `jsonl` |
+| `feed.title` | recommended | Human-readable feed title |
+| `feed.attach` | optional | URL prefix; pages whose path starts with it get a `<link rel="alternate">` injected. Empty/missing = site-wide |
+| `feed.path` | optional | Output path (defaults to the file's rel path with `.hbs` stripped) |
+
+The body is expected to emit one JSON object per item. Three shapes are accepted so you aren't boxed in by tempura's whitespace handling:
+
+1. A JSON array literal — `[ {...}, {...} ]`
+2. JSON-lines — one object per non-blank line (`// comments` ignored)
+3. Concatenated objects — `{...}{...}{...}` (the natural shape from `{{#each}}` because tempura strips newlines at block boundaries)
+
+Each item is a plain JSON object. Canonical fields the renderers know about:
+
+| Field | Used for |
+|---|---|
+| `title` | required — entry title |
+| `url` | required — entry URL |
+| `id` | optional — overrides `url` as the GUID |
+| `summary` / `content` | optional — entry summary |
+| `date` | optional — anything `new Date(...)` accepts; drives sort order and `<updated>` / `<pubDate>` |
+| `author` | optional |
+
+Extra keys pass through verbatim into `jsonl` output and are ignored by `rss` / `atom`.
+
+### Behaviour
+
+- The plugin's `pages` hook runs *before* templates render, so layouts can read `$page.feeds` to emit `<link rel="alternate">` markers:
+
+  ```hbs
+  {{#each $page.feeds as (f)}}
+  <link rel="alternate" type="{{ f.type }}" title="{{ f.title }}" href="{{ f.url }}"/>
+  {{/each}}
+  ```
+- Feed source files are excluded from `$pages` / `$section` / `$tags` iteration so they don't leak into your sitemap, archive lists, etc.
+- The default page write is suppressed — feeds *only* land at `feed.path`, never at `…/index.html`.
+- Items are sorted newest-first by `date` and capped at `feed({ limit })` (default 50).
+- Empty feeds emit a NOW-ish timestamp into Atom's `<updated>` field rather than the 1970-01-01 epoch (which feed validators flag).
+
+### Plugin API
+
+If you'd rather drive feeds programmatically instead of via content files, the `$hooks` lifecycle (`pages`, `output`) is part of the public `Build` namespace — see `packages/bongo/index.d.ts`. `Build.Context.feeds` is populated by the build core, and `Build.OutputContext.write(path, content)` accepts a site-relative path.
+
 ## Client Runtime (`@lukeed/bongo/client`)
 
 `bongo` ships an optional browser-side runtime that turns a statically-generated site into a client-navigated SPA. Import it from the `./client` subpath export:
