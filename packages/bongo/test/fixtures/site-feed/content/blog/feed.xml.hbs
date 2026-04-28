@@ -1,0 +1,12 @@
+---
+feed.format: atom
+feed.title: Blog Feed
+feed.attach: /blog/
+feed.path: /blog/feed.xml
+title: Blog Feed
+---
+{{#each $section as (p, i)}}
+{{#if p.params.date}}
+{"title":{{{ JSON.stringify(p.title) }}},"url":{{{ JSON.stringify(p.url) }}},"date":{{{ JSON.stringify(p.params.date) }}},"summary":{{{ JSON.stringify(p.summary) }}}}
+{{/if}}
+{{/each}}
