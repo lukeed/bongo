@@ -1,4 +1,5 @@
 type Promisable<T> = Promise<T> | T;
+type OutputContent = string | Uint8Array;
 
 export interface Argv {
 	cwd: string;
@@ -94,6 +95,7 @@ export namespace Template {
 		summary: string;
 		section: string;
 		tags: string[];
+		feeds: Feed.Link[];
 		params: Params;
 		content: string;
 		scripts: string;
@@ -107,6 +109,7 @@ export namespace Template {
 		summary: string;
 		section: string; // directory prefix (e.g. 'blog', '' for root)
 		tags: string[];  // parsed from frontmatter
+		feeds?: Feed.Link[];
 		params: Params;  // full frontmatter
 	};
 
@@ -124,6 +127,51 @@ export namespace Template {
 		relurl(target: string): string;
 		truncate(input: string, length: number): string;
 	}
+}
+
+export namespace Build {
+	// Source record for any content file whose frontmatter declares a feed.
+	// Build core renders the body (no layout wrap, full walk-2 context) and
+	// hands it to plugins via Build.Context.feeds. Plugins then transform the
+	// body into the final feed envelope (RSS/Atom/etc) and write it.
+	export type FeedSource = {
+		rel: string;             // path relative to content/, e.g. 'blog/feed.xml.hbs'
+		path: string;            // requested output URL path (from frontmatter or derived)
+		format: Feed.Format;     // declared format
+		title: string;           // feed title
+		attach: string;          // URL prefix to attach <link rel="alternate"> on
+		params: Template.Params; // full frontmatter (so plugins can read extra keys)
+		body: string;            // rendered template body
+	};
+
+	export type Context = {
+		config: Config;
+		pages: Template.PageInfo[];
+		sections: Map<string, Template.PageInfo[]>;
+		tags: Template.TagEntry[];
+		feeds: FeedSource[];
+	};
+
+	export type OutputContext = Context & {
+		write(path: string, content: OutputContent): Promisable<void>;
+	};
+
+	export type Hooks = {
+		pages?: (context: Context) => Promisable<void>;
+		output?: (context: OutputContext) => Promisable<void>;
+	};
+}
+
+export namespace Feed {
+	export type Format = 'rss' | 'atom' | 'jsonl';
+
+	export type Link = {
+		format: Format;
+		path: string;
+		title: string;
+		type: string;
+		url: string;
+	};
 }
 
 interface Helpers {
@@ -149,6 +197,7 @@ export interface Config {
 	$build?: {
 		target?: string | string[];  // browserslist query or array of queries
 	};
+	$hooks?: Build.Hooks;
 	plugins?: Partial<Config>[];
 }
 
