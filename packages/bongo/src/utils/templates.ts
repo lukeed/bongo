@@ -64,7 +64,50 @@ export async function compileContent(src: string): Promise<Template.Compiler> {
 		props: ['$site', '$page', '$pages', '$section', '$tags', '$assets', '$utils', 'params'],
 		blocks: blocks as unknown as tempura.Blocks,
 	};
-	return tempura.compile(src, options);
+	return tempura.compile(rewriteBongoBlockTags(src, blocks), options);
+}
+
+// ---------------------------------------------------------------------------
+// `<bongo:NAME ...>` ⇄ `{{#NAME ... /}}` rewrite (pre-pass before tempura).
+//
+// Tempura recognises `{{#name args}}` blocks but not the JSX-flavoured
+// `<bongo:name args/>` syntax that bongo's content authors are used to from
+// `<bongo:script>` / `<bongo:style>` / `<bongo:client>`. Those three are
+// post-render text rewrites (see `utils/tags.ts`) — they have no access to
+// template scope.
+//
+// `<bongo:feed items=posts />` and any future scope-aware tag must instead
+// reach the runtime so `items=posts` resolves against the tempura scope
+// rather than against an HTML attribute string. We therefore:
+//
+//   1. Inspect the registered tempura blocks at compile time.
+//   2. Rewrite `<bongo:NAME ...>` → `{{#NAME ... /}}` ONLY when NAME is a
+//      registered block. Unknown names (script/style/client) pass through.
+//   3. Tempura then evaluates the args as JS expressions (the same handling
+//      it gives to `{{#partial src="..." text=label}}` etc.).
+//
+// We rewrite BOTH self-closing and paired forms; paired tags lose their inner
+// text on purpose — block-level content can be supplied via attributes (e.g.
+// `body=$slot`) when the user wants HTML pass-through.
+// ---------------------------------------------------------------------------
+
+const BONGO_BLOCK_TAG = /<bongo:([\w-]+)\b([^>]*?)(?:\s*\/>|>([\s\S]*?)<\/bongo:\1\s*>)/g;
+
+function rewriteBongoBlockTags(src: string, blocks: Record<string, unknown>): string {
+	return src.replace(BONGO_BLOCK_TAG, (full, name: string, attrs: string) => {
+		// Only rewrite when the name is a registered tempura block.
+		// Anything else (script/style/client/etc.) is left as-is for the
+		// post-render rewriter in `utils/tags.ts` to handle.
+		if (!Object.prototype.hasOwnProperty.call(blocks, name)) return full;
+		// Tempura's `#name` blocks are one-shot calls (no `{{/name}}` close);
+		// the engine evaluates args as JS expressions and emits the block's
+		// return value verbatim. We pass `attrs` through unchanged — quoted
+		// strings, bare idents (e.g. `items=posts`), and `key={obj}` all work.
+		let trimmed = attrs.trim();
+		return trimmed
+			? `{{#${name} ${trimmed}}}`
+			: `{{#${name}}}`;
+	});
 }
 
 export async function collect(argv: Required<Argv>, config: Required<Config>): Promise<void> {
@@ -72,6 +115,14 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 
 	// Re-assign onto the exported const so ESM consumers see the new closures.
 	Object.assign(blocks, made);
+
+	// Plugin-contributed tempura blocks (e.g. `feed` from @bongo/feed). These
+	// arrive via Config.$blocks and are merged AFTER the built-ins so a user
+	// could intentionally shadow `partial` (we don't recommend it, but the
+	// merge order is deterministic). The block registry doubles as the
+	// lookup used by `<bongo:NAME>` ⇄ `{{#NAME}}` rewriting in compileContent
+	// and the layout compile path.
+	if (config.$blocks) Object.assign(blocks, config.$blocks);
 
 	let props = ['$site', '$page', '$pages', '$section', '$tags', '$assets', '$utils'];
 	// tempura blocks is typed as Blocks (Record<string, Block>); we cast through
@@ -82,7 +133,7 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 		try {
 			let file = join(dir, rel);
 			let content = await fs.read(file, 'utf8');
-			return tempura.compile(content, options);
+			return tempura.compile(rewriteBongoBlockTags(content, blocks), options);
 		} catch (err) {
 			let type = parse(dir).name.slice(0, -1); // strip "s"
 			let reason = err instanceof Error ? err.message : String(err);

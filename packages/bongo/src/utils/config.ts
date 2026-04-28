@@ -5,7 +5,7 @@ import { builtinModules } from 'node:module';
 import { randomBytes } from 'node:crypto';
 import * as fs from './fs';
 
-import type { Config } from 'bongo';
+import type { Build, Config } from 'bongo';
 
 const priority = [
 	'bongo.config.ts',
@@ -120,6 +120,35 @@ export function merge(base: Required<Config>, custom: Partial<Config>) {
 	Object.assign(base.$site, custom.$site);
 	Object.assign(base.$assets, custom.$assets);
 	Object.assign(base.$partials, custom.$partials);
+	if (custom.$blocks) {
+		Object.assign(base.$blocks, custom.$blocks);
+	}
+	if (custom.$hooks) {
+		// Compose plugin hooks BEFORE root hooks so user-defined hooks observe
+		// the plugin's mutations on `pages` (e.g. <link rel="alternate"> tags
+		// already attached) before running their own.
+		let pages = custom.$hooks.pages;
+		if (pages) {
+			let previous = base.$hooks.pages;
+			base.$hooks.pages = previous
+				? async (context: Build.Context) => {
+					await previous(context);
+					await pages(context);
+				}
+				: pages;
+		}
+
+		let output = custom.$hooks.output;
+		if (output) {
+			let previous = base.$hooks.output;
+			base.$hooks.output = previous
+				? async (context: Build.OutputContext) => {
+					await previous(context);
+					await output(context);
+				}
+				: output;
+		}
+	}
 	if (custom.$build) {
 		Object.assign(base.$build, custom.$build);
 	}
@@ -167,7 +196,11 @@ export async function load(root: string): Promise<Required<Config>> {
 		$partials: {
 			// custom partials
 		},
+		$blocks: {
+			// tempura blocks contributed by user/plugins
+		},
 		$build: {},
+		$hooks: {},
 		plugins: [
 			// any user plugins
 		]

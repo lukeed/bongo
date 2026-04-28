@@ -12,7 +12,7 @@ import * as tags from './utils/tags';
 import { normalize } from './utils/argv';
 import { RELOAD } from './utils/http';
 
-import type { Argv, Loader, Template } from 'bongo';
+import type { Argv, Build, Feed, Loader, Template } from 'bongo';
 
 // Per-page frontmatter signatures from the last completed build. A narrow
 // rebuild (`opts.only`) compares the target's current frontmatter hash against
@@ -243,6 +243,10 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	// Between walks — build Pages and Sections registries.
 	let Pages: Template.PageInfo[] = [];
 	let Sections: Map<string, Template.PageInfo[]> = new Map();
+	// Keyed lookup so walk-2 can recover the same PageInfo instance the
+	// `pages` hook may have decorated with `feeds`. Without this we'd build
+	// a fresh `$page` and hook mutations would be lost.
+	let PageInfoByRel: Map<string, Template.PageInfo> = new Map();
 
 	for (let item of scanned) {
 		let info: Template.PageInfo = {
@@ -255,6 +259,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			params: item.params,
 		};
 		Pages.push(info);
+		PageInfoByRel.set(item.rel, info);
 
 		let list = Sections.get(item.section);
 		if (!list) {
@@ -291,6 +296,19 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		$tags.push({ tag, pages });
 	}
 
+	// Pages hook — runs AFTER the registries are sealed but BEFORE walk-2
+	// renders any layout. This is the window where plugins like @bongo/feed
+	// inspect `pages`, identify feed-emitting content files, and decorate
+	// every matching page with `feeds: [...]` so the layout can render
+	// `<link rel="alternate">` elements.
+	let buildContext: Build.Context = {
+		config,
+		pages: Pages,
+		sections: Sections,
+		tags: $tags,
+	};
+	if (config.$hooks.pages) await config.$hooks.pages(buildContext);
+
 	// Walk 2 — render layouts with $pages + $section + $tags context.
 	// If `only` is set, skip rendering every item except the matching one — walk 1
 	// above already populated the registries so sibling awareness stays correct.
@@ -298,6 +316,12 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 
 	for (let item of scanned) {
 		if (narrowOnly && item.rel !== narrowOnly) continue;
+
+		// Recover the same PageInfo the `pages` hook saw — its `feeds` array
+		// (decorated by plugins) propagates into `$page.feeds` so layouts can
+		// render `<link rel="alternate">` per advertised feed.
+		let info = PageInfoByRel.get(item.rel);
+		let feeds: Feed.Link[] = (info && info.feeds) || [];
 
 		let $page: Template.Page = {
 			path: item.path,
@@ -308,6 +332,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			title: item.title,
 			section: item.section,
 			tags: item.tags,
+			feeds,
 			scripts: '',
 			styles: '',
 		};
@@ -437,6 +462,19 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		});
 		await fs.write(page.output, html);
 	}));
+
+	// Output hook — runs AFTER pages are flushed so plugins can emit additional
+	// files (manifests, sitemaps, JSONL feeds, etc.) without racing the page
+	// writer. The provided `write()` resolves the path against `dest` and
+	// strips a leading `/` so plugins can pass site-absolute paths directly.
+	if (config.$hooks.output) {
+		await config.$hooks.output({
+			...buildContext,
+			write(path, content) {
+				return fs.write(join(dest, path.replace(/^\/+/, '')), content);
+			},
+		});
+	}
 
 	if (argv.minify) {
 		const exec = require('node:util').promisify(
