@@ -192,20 +192,36 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			return fs.copy(input, output);
 		}
 
-		if (typeof params.url === 'string') {
+		// `output:` frontmatter — explicit, literal output path. Used by
+		// feed-style content files (e.g. `output: /blog/feed.xml`) so the
+		// rendered body is written as-is to that path WITHOUT layout
+		// wrapping or `index.html` rewriting. Pages with `output:` are
+		// excluded from layout lookup below by checking `params.output`.
+		let explicitOutput: string | null = null;
+		if (typeof params.output === 'string') {
+			explicitOutput = '/' + params.output.replace(/^.?\/+/, '');
+			if (/^(https?:)?\/\//.test(explicitOutput)) {
+				throw new Error('Custom `output` must be path only');
+			}
+			urlpath = explicitOutput;
+		} else if (typeof params.url === 'string') {
 			urlpath = '/' + params.url.replace(/^.?\/+/, '');
 			if (/^(https?:)?\/\//.test(urlpath)) {
 				throw new Error('Custom `url` must be path only');
 			}
 		}
 
-		if (basename === 'index') {
-			urlpath = urlpath.substring(0, urlpath.length - 5);
-		} else if (!urlpath.endsWith('/')) {
-			urlpath += '/'; // ensure trailing
+		if (explicitOutput) {
+			// Literal-output path — write directly, bypass index.html rewrite.
+			output = join(dest, explicitOutput.replace(/^\/+/, ''));
+		} else {
+			if (basename === 'index') {
+				urlpath = urlpath.substring(0, urlpath.length - 5);
+			} else if (!urlpath.endsWith('/')) {
+				urlpath += '/'; // ensure trailing
+			}
+			output = join(dest, urlpath, 'index.html');
 		}
-
-		output = join(dest, urlpath, 'index.html');
 
 		let section = deriveSection(rel);
 
@@ -349,6 +365,14 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			: item.body;
 		$page.content = rendered_content;
 
+		// `output:` frontmatter signals "this file's body is the literal
+		// output" — typically a feed (`output: /blog/feed.xml`) emitted via
+		// `<bongo:feed/>`. Skip every layout pass so the rendered body is
+		// written verbatim. Also skips the dev-reload <script> appendix and
+		// `<bongo:script|style|client>` rewriting below — those would corrupt
+		// non-HTML payloads.
+		let isLiteralOutput = typeof item.params.output === 'string';
+
 		// lookup priority –> need "" for `/layouts/*` root
 		let i=0, dirs = item.rel.split(/[\\\/]+/g).slice(0, -1).concat('');
 		let basename = item.name.substring(0, item.name.lastIndexOf('.'));
@@ -356,7 +380,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		let render: Template.Compiler | void = undefined;
 		let layout = '';
 
-		if (isPage.test(item.ext)) {
+		if (isPage.test(item.ext) && !isLiteralOutput) {
 			let j=0, files = ['index.hbs', 'html.hbs'];
 			if (basename !== 'index') {
 				files.splice(0, 1, `${basename}.hbs`, 'single.hbs');
@@ -375,7 +399,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...config });
 		}
 
-		if (!layout.endsWith('html.hbs')) {
+		if (!isLiteralOutput && !layout.endsWith('html.hbs')) {
 			$page.content = rendered_content;
 			for (i=0; i < dirs.length; i++) {
 				layout = join(dirs[i], 'html.hbs');
@@ -387,7 +411,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...config });
 		}
 
-		if (argv.dev) {
+		if (argv.dev && !isLiteralOutput) {
 			rendered_content += `<script>`;
 			rendered_content +=   `var es = new EventSource('${RELOAD}');`;
 			rendered_content +=   `es.onopen = () => console.log('[dev] live reload enabled');`;
@@ -425,8 +449,12 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			rendered_content += `</script>`;
 		}
 
-		rendered_content = tags.scanBongoTags(rendered_content, argv as Required<Argv>, config);
-		rendered_content = tags.rewriteTransitionAttrs(rendered_content);
+		// Skip post-render bongo:* and transition:* rewriting for literal-output
+		// pages — those passes assume HTML and would corrupt XML/JSON payloads.
+		if (!isLiteralOutput) {
+			rendered_content = tags.scanBongoTags(rendered_content, argv as Required<Argv>, config);
+			rendered_content = tags.rewriteTransitionAttrs(rendered_content);
+		}
 
 		pages.push({ output: item.output, html: rendered_content });
 	}
