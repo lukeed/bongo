@@ -2,7 +2,6 @@ import { watch as fsw } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { existsSync as exists } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { throttle } from './index';
 
 import type { FSWatcher } from 'node:fs';
 
@@ -117,22 +116,37 @@ export async function watch(list: string[], callback: Callback): Promise<WatchDi
 		list.filter(exists)
 	);
 
-	const Triggers = new Set<string>();
 	const Watchers = new Map<string, FSWatcher>();
 
+	// debounced per file and run serially; a change during its own callback queues another pass
+	const Timers = new Map<string, NodeJS.Timeout>();
+	const Queue = new Set<string>();
+	let busy = false;
+
+	async function drain(): Promise<void> {
+		if (busy) return;
+		busy = true;
+		try {
+			for (let file of Queue) {
+				Queue.delete(file);
+				await callback(file);
+			}
+		} finally {
+			busy = false;
+		}
+	}
+
 	// TODO: Catch `EPERM` on Windows for removed dir
-	const onChange: Handler = throttle(async function (dir, type, filename) {
+	const onChange: Handler = function (dir, _type, filename) {
 		if (!filename) return;
-		let tmp = join(dir, filename);
-		if (Triggers.has(tmp)) return;
-
-		// todo?
-		// console.clear();
-
-		Triggers.add(tmp);
-		await callback(tmp);
-		Triggers.delete(tmp);
-	}, 100);
+		let file = join(dir, filename);
+		clearTimeout(Timers.get(file));
+		Timers.set(file, setTimeout(() => {
+			Timers.delete(file);
+			Queue.add(file);
+			drain();
+		}, 50));
+	};
 
 	let dir, output;
 	for (dir of dirs) {
@@ -143,6 +157,9 @@ export async function watch(list: string[], callback: Callback): Promise<WatchDi
 	}
 
 	return () => {
+		for (let t of Timers.values()) clearTimeout(t);
+		Timers.clear();
+		Queue.clear();
 		for (let w of Watchers.values()) {
 			try { w.close(); } catch { /* already closed */ }
 		}
