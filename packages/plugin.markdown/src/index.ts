@@ -13,6 +13,9 @@ const ARGS = /([a-zA-Z$_][^\s=]*)\s*=\s*((["`'])(?:(?=(\\?))\4.)*?\3|{[^}]*}|\[[
 const TAG = /<bongo:(\w+)((?:"[^"]*"|'[^']*'|`[^`]*`|{[^}]*}|[^>"'`{/]|\/(?!>))*)(?:(\/>)|>([^]*?)<\/bongo:\1\s*>)/g;
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 
+// Elements bongo itself replaces after layouts render; they are kept verbatim, not rendered as partials.
+const BUILTIN = new Set(['asset', 'client', 'script', 'style']);
+
 // Partial output is stashed behind private-use tokens so markdown never re-parses its HTML.
 const TOKEN = (idx: number) => `\uE000${idx}\uE001`;
 const TOKENS = /<p>\uE000(\d+)\uE001<\/p>\n?|\uE000(\d+)\uE001/g;
@@ -84,6 +87,14 @@ async function unpack(raw: string, stash: string[], utils: Loader.Utilities, opt
 		}
 
 		let [full, name, attrs, _, inner] = tag;
+
+		if (BUILTIN.has(name)) {
+			let token = TOKEN(stash.push(full) - 1);
+			raw = raw.substring(0, at) + token + raw.substring(at + full.length);
+			skip = code(raw);
+			tags.lastIndex = at + token.length;
+			continue;
+		}
 
 		let args: Args = {};
 

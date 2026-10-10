@@ -114,6 +114,26 @@ describe('partials', () => {
 		expect(html).toBe('<bongo:script src="widget.ts"></bongo:script>');
 	});
 
+	test('passes bongo built-in elements through for bongo to handle', async () => {
+		let { calls, run } = setup();
+		let html = await run([
+			'<bongo:asset preload src="fonts/f.woff2" />',
+			'',
+			'A logo: <img src="<bongo:asset src=\'img/logo.png\' />" alt="logo"/>',
+			'',
+			'<bongo:style src="post.css"></bongo:style>',
+			'',
+			'<bongo:client />',
+			'',
+		].join('\n'));
+		expect(calls).toEqual([]);
+		expect(html).toContain('<bongo:asset preload src="fonts/f.woff2" />');
+		expect(html).toContain('<img src="<bongo:asset src=\'img/logo.png\' />" alt="logo"/>');
+		expect(html).toContain('<bongo:style src="post.css"></bongo:style>');
+		expect(html).toContain('<bongo:client />');
+		expect(html).not.toContain('&lt;bongo');
+	});
+
 	test('renders markdown once', async () => {
 		let { run } = setup();
 		let html = await run('# Title\n\nSome *text* & more.\n');
