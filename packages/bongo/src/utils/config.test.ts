@@ -92,3 +92,16 @@ describe('loadModule', () => {
 		expect(mod.default.$site.title).toBe('MJS Fixture Site');
 	});
 });
+
+describe('load', () => {
+	test('custom $utils keep the built-in helpers', async () => {
+		let dir = resolve(import.meta.dirname, '../../test/fixtures/config-ts-utils');
+		let output = await config.load(dir);
+		let utils = output.$utils as Record<string, unknown> & { url: Record<string, unknown> };
+		expect(typeof utils.year).toBe('function');
+		expect(typeof utils.truncate).toBe('function');
+		expect(typeof utils.countwords).toBe('function');
+		expect(typeof utils.url.abs).toBe('function');
+		expect(typeof utils.url.rel).toBe('function');
+	});
+});

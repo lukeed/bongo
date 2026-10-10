@@ -107,7 +107,7 @@ export async function navigate(url: string | URL, opts: { replace?: boolean } = 
 		let { committed, finished } = nav.navigate(target.href, {
 			history: opts.replace ? 'replace' : 'push'
 		});
-		committed.catch(() => {});
+		committed?.catch(() => {});
 		try {
 			await finished;
 		} catch (err) {

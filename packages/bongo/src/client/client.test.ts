@@ -47,12 +47,14 @@ describe('navigate() with the Navigation API', () => {
 	type Nav = { navigate: () => { committed: Promise<unknown>; finished: Promise<unknown> } };
 
 	async function withNavigation(nav: Nav, run: () => Promise<void>): Promise<void> {
-		let g = globalThis as { navigation?: Nav; location?: Partial<Location> };
-		let prev = [g.navigation, g.location] as const;
-		g.navigation = nav;
-		g.location = { href: 'https://example.com/' };
+		let prev = [Reflect.get(globalThis, 'navigation'), Reflect.get(globalThis, 'location')];
+		Reflect.set(globalThis, 'navigation', nav);
+		Reflect.set(globalThis, 'location', { href: 'https://example.com/' });
 		try { await run(); }
-		finally { [g.navigation, g.location] = prev as [Nav | undefined, Location | undefined]; }
+		finally {
+			Reflect.set(globalThis, 'navigation', prev[0]);
+			Reflect.set(globalThis, 'location', prev[1]);
+		}
 	}
 
 	test('resolves when a newer navigation supersedes it', async () => {

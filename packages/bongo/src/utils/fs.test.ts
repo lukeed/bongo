@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as fs from './fs';
@@ -37,7 +37,7 @@ describe('watch', () => {
 		let contents: string[] = [];
 		let stop = await fs.watch([dir], async changed => {
 			if (changed !== file) return;
-			contents.push(await Bun.file(file).text());
+			contents.push(readFileSync(file, 'utf8'));
 			await new Promise(r => setTimeout(r, 250));
 		});
 		try {

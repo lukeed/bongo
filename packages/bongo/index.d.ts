@@ -132,14 +132,15 @@ interface Helpers {
 
 export interface Config {
 	$site: Template.Site;
+	// bongo provides these built-ins; a config may override or extend them
 	$utils?: Helpers & {
-		truncate(text: string, length: number): string;
-		countwords(text: string): number;
-		url: {
-			abs(to: string, fro?: string): string;
+		truncate?(text: string, length: number): string;
+		countwords?(text: string): number;
+		url?: Helpers & {
+			abs?(to: string, fro?: string): string;
 		};
-		date: {
-			format(value: string|number|Date, format: string): string;
+		date?: Helpers & {
+			format?(value: string|number|Date, format: string): string;
 		};
 	};
 	$assets?: {
