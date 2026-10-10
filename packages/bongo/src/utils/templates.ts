@@ -1,5 +1,6 @@
 import { parse, join } from 'node:path';
 import * as tempura from './tempura/index';
+import { loadModule } from './config';
 import * as log from './log';
 import * as fs from './fs';
 
@@ -112,7 +113,7 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 			let file = String(rel);
 			let render = isHBS.test(file)
 				? await compile(partials, file)
-				: await fs.load(file, partials);
+				: await loadModule(join(partials, file));
 
 			render = render.default || render;
 

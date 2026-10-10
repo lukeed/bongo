@@ -100,3 +100,34 @@ describe('frontmatter', () => {
 		expect(result.value.phrase).toBe('Hello World');
 	});
 });
+
+describe('collect', () => {
+	test('loads TypeScript partials', async () => {
+		let { mkdtempSync, mkdirSync, writeFileSync } = await import('node:fs');
+		let { tmpdir } = await import('node:os');
+		let { join } = await import('node:path');
+		let templates = await import('./utils/templates');
+
+		let dir = mkdtempSync(join(tmpdir(), 'bongo-partials-'));
+		let partials = join(dir, 'partials');
+		mkdirSync(partials);
+		mkdirSync(join(dir, 'layouts'));
+		writeFileSync(join(partials, 'badge.ts'), [
+			'type Args = { name: string };',
+			'export default function (args: Args): string {',
+			'\treturn `<b>${args.name}</b>`;',
+			'}',
+		].join('\n'));
+
+		try {
+			templates.Partials.clear();
+			let argv = { layouts: join(dir, 'layouts'), partials } as Parameters<typeof templates.collect>[0];
+			let base = { $site: {}, $utils: {}, $assets: {}, $partials: {}, $build: {}, plugins: [] } as unknown as Parameters<typeof templates.collect>[1];
+			await templates.collect(argv, base);
+			let render = templates.Partials.get('badge') as (args: { name: string }) => string;
+			expect(await render({ name: 'hi' })).toBe('<b>hi</b>');
+		} finally {
+			templates.Partials.clear();
+		}
+	});
+});
