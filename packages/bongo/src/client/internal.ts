@@ -52,13 +52,13 @@ export function shouldIntercept(event: NavigateEvent): boolean {
 	return true;
 }
 
-export async function fetchPage(url: URL): Promise<string> {
+export async function fetchPage(url: URL, signal?: AbortSignal): Promise<string> {
 	let cached = prefetch.get(url.href);
 	if (cached) {
 		try { return await cached; }
 		catch { /* prefetch failed — fall through to a fresh fetch */ }
 	}
-	let res = await fetch(url.href, { headers: { Accept: 'text/html' } });
+	let res = await fetch(url.href, { headers: { Accept: 'text/html' }, signal });
 	if (!res.ok) throw new Error(`Navigation fetch failed: ${res.status} ${res.statusText}`);
 	return res.text();
 }
@@ -85,6 +85,21 @@ export function reconcile(current: Document, incoming: Document): void {
 
 	// Body swap.
 	current.body.replaceWith(incoming.body);
+}
+
+/**
+ * Run `swap` inside a view transition when enabled and supported.
+ * A skipped transition (eg, interrupted by a newer one) still swaps and never rejects;
+ * only a failing `swap` rejects.
+ */
+export async function transition(enabled: boolean, swap: () => void): Promise<void> {
+	let start = enabled && document.startViewTransition;
+	if (!start) return swap();
+	let vt = start.call(document, swap);
+	vt.ready.catch(() => {});
+	vt.finished.catch(() => {});
+	await vt.updateCallbackDone;
+	await vt.finished;
 }
 
 export function rememberScroll(url: URL): void {

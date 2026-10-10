@@ -137,3 +137,47 @@ describe('BYPASS_NEXT flag', () => {
 		expect(getBypassNext()).toBe(false);
 	});
 });
+
+describe('transition', () => {
+	type Doc = { startViewTransition?: (fn: () => void) => object };
+
+	function stub(doc: Doc | undefined, run: () => Promise<void>): Promise<void> {
+		let g = globalThis as { document?: Doc };
+		let prev = g.document;
+		g.document = doc;
+		return run().finally(() => { g.document = prev; });
+	}
+
+	test('swaps without a view transition when disabled', async () => {
+		let { transition } = await import('./internal');
+		let calls = 0;
+		await stub({}, () => transition(false, () => { calls++; }));
+		expect(calls).toBe(1);
+	});
+
+	test('a skipped transition swaps and does not reject', async () => {
+		let { transition } = await import('./internal');
+		let calls = 0;
+		let skipped = () => Promise.reject(new DOMException('Transition was skipped', 'AbortError'));
+		let doc: Doc = {
+			startViewTransition(fn) {
+				fn();
+				return { ready: skipped(), updateCallbackDone: Promise.resolve(), finished: Promise.resolve() };
+			},
+		};
+		await stub(doc, () => transition(true, () => { calls++; }));
+		await new Promise(r => setTimeout(r, 10));
+		expect(calls).toBe(1);
+	});
+
+	test('rejects when the swap itself fails', async () => {
+		let { transition } = await import('./internal');
+		let boom = new Error('boom');
+		let doc: Doc = {
+			startViewTransition() {
+				return { ready: Promise.resolve(), updateCallbackDone: Promise.reject(boom), finished: Promise.reject(boom) };
+			},
+		};
+		expect(stub(doc, () => transition(true, () => {}))).rejects.toBe(boom);
+	});
+});

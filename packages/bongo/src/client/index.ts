@@ -69,30 +69,29 @@ export function client(opts: ClientOptions = {}): void {
 
 		event.intercept({
 			async handler() {
+				// a newer navigation aborts this one; it must not touch the page after that
+				let { signal } = event;
 				try {
 					internal.emit('bongo:navigate', { to, from });
-					let html = await internal.fetchPage(to);
+					let html = await internal.fetchPage(to, signal);
+					if (signal.aborted) return;
 					let doc = new DOMParser().parseFromString(html, 'text/html');
 					internal.emit('bongo:replace', { to, from, doc });
 
-					let swap = () => {
+					await internal.transition(!!name, () => {
+						if (signal.aborted) return;
 						internal.reconcile(document, doc);
 						// alert('before scroll')
 						internal.restoreScroll(event, to);
 						// event.scroll?.();
 						internal.emit('bongo:replaced', { to, from });
-					};
-
-					let viewTransition = document.startViewTransition
-					if (name && viewTransition) {
-						await viewTransition.call(document, swap).finished;
-					} else {
-						swap();
-					}
+					});
+					if (signal.aborted) return;
 
 					if (announcer) announcer.textContent = document.title;
 					internal.emit('bongo:navigated', { to, from });
 				} catch (err) {
+					if (signal.aborted) return;
 					internal.emit('bongo:error', { to, error: err instanceof Error ? err : new Error(String(err)) });
 					throw err;
 				}
@@ -105,9 +104,17 @@ export async function navigate(url: string | URL, opts: { replace?: boolean } = 
 	let target = new URL(url, location.href);
 	let nav = globalThis.navigation;
 	if (nav) {
-		await nav.navigate(target.href, {
+		let { committed, finished } = nav.navigate(target.href, {
 			history: opts.replace ? 'replace' : 'push'
-		}).finished;
+		});
+		committed.catch(() => {});
+		try {
+			await finished;
+		} catch (err) {
+			// superseded by a newer navigation; the last one wins
+			if (err instanceof DOMException && err.name === 'AbortError') return;
+			throw err;
+		}
 		return;
 	}
 	location[ opts.replace ? 'replace' : 'assign' ](target.href);
