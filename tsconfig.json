@@ -21,7 +21,7 @@
       ]
     },
     "types": [
-      "node"
+      "bun"
     ]
   },
   "include": [
@@ -31,6 +31,7 @@
     "**/node_modules/**",
     "archive/**",
     "packages/**/*.js",
-    "packages/create-bongo/template/**"
+    "packages/create-bongo/template/**",
+    "packages/bongo/test/fixtures/site-build-error/**"
   ]
 }
