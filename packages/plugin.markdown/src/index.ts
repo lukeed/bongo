@@ -115,20 +115,14 @@ async function unpack(raw: string, stash: string[], utils: Loader.Utilities, opt
 	return raw;
 }
 
-export function markdown(options?: Options): Partial<Config> {
-	let ready: Promise<HtmlOptions> | undefined;
-
-	if (options?.highlighter) {
-		ready = Promise.resolve(options.highlighter).then(highlighter => ({
-			...options,
-			highlighter,
-		}));
-	}
+export function markdown(options: Options = {}): Partial<Config> {
+	let { highlighter, ...rest } = options;
+	let ready: Promise<HtmlOptions> = Promise.resolve(highlighter).then(fn => ({ ...rest, highlighter: fn }));
 
 	return {
 		$assets: {
 			async md(input, content, utils) {
-				let opts = ready ? await ready : options;
+				let opts = await ready;
 
 				if (typeof content !== 'string') {
 					content = utils.decode(content);

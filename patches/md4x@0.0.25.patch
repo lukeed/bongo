@@ -6,7 +6,7 @@ index 78dc5850bf8f699e965760204eacd1d2558e0601..59c5387081ce2e9ca6b9e1e694d3edb7
      "./napi": "./lib/napi.mjs",
      "./build/md4x.wasm": "./build/md4x.wasm",
      ".": {
-+      "types": "./lib/types.d.mts",
++      "types": "./lib/napi.d.mts",
        "node": "./lib/napi.mjs",
        "default": {
          "unwasm": "./lib/wasm/unwasm.mjs",

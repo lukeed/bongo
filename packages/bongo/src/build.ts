@@ -109,7 +109,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		load(filename: string, encoding?: BufferEncoding) {
 			let file = join(argv.assets, filename);
 			fs.assert(file, `Missing "${filename}" asset!`);
-			return fs.read(file, encoding);
+			return encoding ? fs.read(file, encoding) : fs.read(file);
 		}
 	};
 

@@ -68,6 +68,10 @@ export async function compileContent(src: string): Promise<Template.Compiler> {
 	return tempura.compile(src, options);
 }
 
+function isCompiler(input: unknown): input is Template.Compiler {
+	return typeof input === 'function';
+}
+
 export async function collect(argv: Required<Argv>, config: Required<Config>): Promise<void> {
 	let made = makeBlocks(argv, config);
 
@@ -111,11 +115,15 @@ export async function collect(argv: Required<Argv>, config: Required<Config>): P
 
 		for (let [key, rel] of Partials) {
 			let file = String(rel);
-			let render = isHBS.test(file)
-				? await compile(partials, file)
-				: await loadModule(join(partials, file));
-
-			render = render.default || render;
+			let render: Template.Compiler;
+			if (isHBS.test(file)) {
+				render = await compile(partials, file);
+			} else {
+				let mod = await loadModule(join(partials, file));
+				let fn = mod.default || mod;
+				if (!isCompiler(fn)) throw new Error(`Partial "${file}" must export a render function`);
+				render = fn;
+			}
 
 			// NOTE: Partials do NOT have access to `$page` var
 			let compiler = (x: Args) => render({ ...x, ...config }, blocks as unknown as tempura.Blocks);
