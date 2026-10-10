@@ -119,7 +119,7 @@ No manual configuration is required.
 
 ## Templates
 
-Templates use [tempura](https://github.com/lukeed/tempura) syntax. Asset entrypoints are declared with `<bongo:style>`, `<bongo:script>`, and `<bongo:client>` custom elements.
+Templates use [tempura](https://github.com/lukeed/tempura) syntax. Asset entrypoints are declared with `<bongo:style>`, `<bongo:script>`, `<bongo:client>`, and `<bongo:asset>` custom elements.
 
 ```hbs
 {{! layouts/html.hbs }}
@@ -174,6 +174,39 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax. Asset entrypo
 ```
 
 Multiple `<bongo:client>` tags on a page share one bundled runtime.
+
+`<bongo:asset>` publishes any file from `assets/`, such as a font, image, or icon, under a content-hashed name. It goes through the same pipeline as files referenced from CSS `url()`: a file used by both gets one copy and one URL. That makes it the way to preload a font that your CSS loads.
+
+```hbs
+{{! Preload: emits <link rel="preload" href="/inter.3f9a1c2e.woff2" as="font" type="font/woff2" crossorigin/> }}
+<bongo:asset preload src="fonts/inter.woff2" />
+
+{{! Plain: becomes the bare URL, so it works inside attributes }}
+<link rel="icon" href="<bongo:asset src='img/favicon.png' />"/>
+<img src="<bongo:asset src=img/hero.webp />" alt="…"/>
+```
+
+Without `preload`, the element is replaced by the file's public URL and nothing else. Inside an attribute, give `<bongo:asset>` its own attributes in single quotes or without quotes, so they do not end the outer attribute. The URL is percent-encoded, so it is safe in any attribute.
+
+With `preload`, bongo emits a `<link rel="preload">` and infers its attributes from the file extension:
+
+| Files | `as` | `type` | `crossorigin` |
+| --- | --- | --- | --- |
+| `.woff2`, `.woff`, `.ttf`, `.otf` | `font` | `font/woff2`, … | yes, as preload requires for fonts |
+| images, such as `.png`, `.jpg`, `.svg`, `.webp`, `.avif` | `image` | `image/png`, … | no |
+| `.css` | `style` | `text/css` | no |
+| `.js`, `.mjs` | `script` | `text/javascript` | no |
+| anything else, such as `.json` or `.wasm` | `fetch` | when known | yes |
+
+`<bongo:asset>` attributes:
+
+- `src="..."` — path relative to `assets/`.
+- `preload` — emit a `<link rel="preload">` instead of the bare URL.
+- `as="..."`, `type="..."` — override the inferred values. `type=false` leaves `type` out.
+- `crossorigin` or `crossorigin="use-credentials"` — override the inferred value. `crossorigin=false` leaves it out.
+- `media="..."`, `fetchpriority="high|low|auto"` — copied onto the `<link>`.
+
+A `src` that does not exist fails the build. The error shows the element and the content file and layouts that rendered it.
 
 ## View Transitions
 

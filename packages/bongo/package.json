@@ -43,6 +43,7 @@
     "kleur": "^4.0.0",
     "lightningcss": "^1.32.0",
     "mri": "^1.1.0",
+    "mrmime": "^2.0.1",
     "rolldown": "^1.0.0",
     "sirv": "^3.0.0",
     "tempura": "^0.3.1"

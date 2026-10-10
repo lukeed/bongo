@@ -331,6 +331,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 
 		let render: Template.Compiler | void = undefined;
 		let layout = '';
+		let chain = [`content/${item.rel}`];
 
 		if (isPage.test(item.ext)) {
 			let j=0, files = ['index.hbs', 'html.hbs'];
@@ -349,6 +350,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			// Should always be defined as a fallback
 			if (!render) throw new Error('Missing "html.hbs" template');
 			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...config });
+			chain.push(`layouts/${layout}`);
 		}
 
 		if (!layout.endsWith('html.hbs')) {
@@ -361,6 +363,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			// Should always be defined as a bare minimum
 			if (!render) throw new Error('Missing "html.hbs" template');
 			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...config });
+			chain.push(`layouts/${layout}`);
 		}
 
 		if (argv.dev) {
@@ -401,7 +404,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			rendered_content += `</script>`;
 		}
 
-		rendered_content = tags.scanBongoTags(rendered_content, argv as Required<Argv>, config);
+		rendered_content = tags.scanBongoTags(rendered_content, argv as Required<Argv>, config, chain.join(' → '));
 		rendered_content = tags.rewriteTransitionAttrs(rendered_content);
 
 		pages.push({ output: item.output, html: rendered_content });

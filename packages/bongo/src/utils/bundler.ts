@@ -25,7 +25,7 @@ declare const PlaceholderBrand: unique symbol;
 export type Placeholder = string & { readonly [PlaceholderBrand]: true };
 
 export type BundleConfig = {
-	kind: 'js' | 'css';
+	kind: 'js' | 'css' | 'file';            // file: copied as-is under a hashed name
 	format?: 'esm' | 'cjs';                 // js only
 	target?: string | string[];              // js only (rolldown target)
 	targets?: import('./css').Targets;       // css only (lightningcss targets)
@@ -119,11 +119,22 @@ export function register(entry: string, cfg: BundleConfig): Placeholder {
 type FlushContext = {
 	assets?: loaders.LoaderMap;
 	utils?: Loader.Utilities;
-	url: (file: string) => Promise<string>;
+	publicPath: string;
+	emit: (file: string) => Promise<string>;
 };
 
-// Copies a css-referenced file into outDir as `name.hash.ext`, once per flush.
-function emitter(outDir: string, publicPath: string): (file: string) => Promise<string> {
+/**
+ * Public URL for an output file, with each path segment percent-encoded so it is
+ * safe inside CSS `url()` and HTML attributes.
+ * @example href('/docs/', 'my font.1a2b3c4d.woff2') //=> '/docs/my%20font.1a2b3c4d.woff2'
+ */
+export function href(publicPath: string, filename: string): string {
+	let encode = (part: string) => encodeURIComponent(part).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+	return publicPath + filename.split('/').map(encode).join('/');
+}
+
+// Copies a file into outDir as `name.hash.ext` once per flush, shared by css url()s and file registrations.
+function emitter(outDir: string): (file: string) => Promise<string> {
 	let done = new Map<string, Promise<string>>();
 	return file => {
 		let hit = done.get(file);
@@ -136,7 +147,7 @@ function emitter(outDir: string, publicPath: string): (file: string) => Promise<
 			let { mkdir, writeFile } = await import('node:fs/promises');
 			await mkdir(outDir, { recursive: true });
 			await writeFile(path.join(outDir, name), bytes);
-			return publicPath + name;
+			return name;
 		})();
 		done.set(file, hit);
 		return hit;
@@ -270,7 +281,7 @@ async function flushCssGroup(
 			cssModules: cfg.cssModules,
 			assets: ctx.assets,
 			utils: ctx.utils,
-			url: ctx.url,
+			url: async file => href(ctx.publicPath, await ctx.emit(file)),
 		});
 
 		let code = result.code;
@@ -317,7 +328,7 @@ function toBuildError(err: unknown, fallbackFile?: string): BuildError {
 
 export async function flush(opts: {
 	outDir: string;
-	/** Prefix for urls of files emitted from css `url()`s. @default '/' */
+	/** Prefix for the public urls of emitted files. @default '/' */
 	publicPath?: string;
 	assets?: loaders.LoaderMap;
 	utils?: Loader.Utilities;
@@ -329,7 +340,8 @@ export async function flush(opts: {
 	let ctx: FlushContext = {
 		assets: opts.assets,
 		utils: opts.utils,
-		url: emitter(opts.outDir, opts.publicPath ?? '/'),
+		publicPath: opts.publicPath ?? '/',
+		emit: emitter(opts.outDir),
 	};
 
 	let jobs = [...GROUPS.entries()].map(async ([_groupKey, regs]) => {
@@ -338,8 +350,12 @@ export async function flush(opts: {
 		try {
 			if (kind === 'js') {
 				await flushJsGroup(regs, opts.outDir, outputs, warnings, ctx);
-			} else {
+			} else if (kind === 'css') {
 				await flushCssGroup(regs, opts.outDir, outputs, warnings, ctx);
+			} else {
+				await Promise.all(regs.map(async reg => {
+					outputs.set(reg.placeholder, { filename: await ctx.emit(reg.entry), dependencies: [reg.entry] });
+				}));
 			}
 		} catch (err) {
 			errors.push(toBuildError(err, regs.map(r => r.entry).join(', ')));

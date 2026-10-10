@@ -1,4 +1,5 @@
 import { join, resolve } from 'node:path';
+import * as mime from 'mrmime';
 import * as bundler from './bundler';
 import * as fs from './fs';
 
@@ -6,9 +7,11 @@ import type { Argv, Config } from 'bongo';
 
 // `<bongo:script …/>`, `<bongo:script …></bongo:script>`,
 // `<bongo:style …/>`, `<bongo:style …></bongo:style>`,
-// `<bongo:client …/>`, `<bongo:client …></bongo:client>`.
+// `<bongo:client …/>`, `<bongo:client …></bongo:client>`,
+// `<bongo:asset …/>`, `<bongo:asset …></bongo:asset>`.
 // Tolerant of inner text (for forward-compat with elements that allow children).
-const BONGO_TAG = /<bongo:(script|style|client)\b([^>]*?)(?:\s*\/>|>([\s\S]*?)<\/bongo:\1\s*>)/g;
+// Quoted attribute values may contain `>` and `/>`, eg `media="(width >= 600px)"`.
+const BONGO_TAG = /<bongo:(script|style|client|asset)\b((?:"[^"]*"|'[^']*'|[^>"'\/]|\/(?!>))*?)\s*(?:\/>|>([\s\S]*?)<\/bongo:\1\s*>)/g;
 
 // Path to bongo's bundled browser runtime. Resolves relative to this module:
 // — bundled (prod): sibling to packages/bongo/index.js, i.e. ./client.js.
@@ -59,12 +62,50 @@ function bool(v: AttrValue | undefined): boolean {
 
 const MODULE_FILE = /\.module\.css$/;
 
+const ATTR_ESCAPE: Record<string, string> = { '&': '&amp;', '"': '&quot;' };
+
+// `as` for a preload, by mime type; fonts and fetches must be requested in cors mode.
+function destination(type: string | undefined): string {
+	if (!type) return 'fetch';
+	if (type.startsWith('font/')) return 'font';
+	if (type.startsWith('image/')) return 'image';
+	if (type === 'text/css') return 'style';
+	if (type === 'text/javascript') return 'script';
+	return 'fetch';
+}
+
+function preload(href: string, src: string, attrs: Attrs): string {
+	let off = (v: AttrValue | undefined) => v === 'false';
+	let known = mime.lookup(src);
+	if (known === 'application/octet-stream') known = undefined;
+	let type = off(attrs.type) ? undefined : str(attrs.type) || known;
+	let as = str(attrs.as) || destination(known);
+	let cors = off(attrs.crossorigin) ? undefined : attrs.crossorigin ?? (as === 'font' || as === 'fetch' || undefined);
+
+	let link: [string, AttrValue | undefined][] = [
+		['rel', 'preload'], ['href', href], ['as', as], ['type', type], ['crossorigin', cors],
+		['media', str(attrs.media)], ['fetchpriority', str(attrs.fetchpriority)],
+	];
+
+	let out = '<link';
+	for (let [name, value] of link) {
+		if (value === undefined) continue;
+		out += value === true ? ` ${name}` : ` ${name}="${value.replace(/[&"]/g, c => ATTR_ESCAPE[c])}"`;
+	}
+	return out + '/>';
+}
+
+/**
+ * Replace `<bongo:*>` elements in rendered HTML with asset links and placeholders.
+ * `from` names where the HTML was rendered, for errors (eg, "content/index.md → layouts/html.hbs").
+ */
 export function scanBongoTags(
 	html: string,
 	argv: Required<Argv>,
 	config: Required<Config>,
+	from?: string,
 ): string {
-	return html.replace(BONGO_TAG, (_match, kind: 'script' | 'style' | 'client', rawAttrs: string) => {
+	return html.replace(BONGO_TAG, (match, kind: 'script' | 'style' | 'client' | 'asset', rawAttrs: string) => {
 		let attrs = parseAttrs(rawAttrs);
 
 		if (kind === 'client') {
@@ -87,7 +128,14 @@ export function scanBongoTags(
 		if (!src) throw new Error(`<bongo:${kind}> missing required "src" attribute`);
 
 		let entry = join(argv.assets, src);
-		fs.assert(entry, `assets/${src}`);
+		if (!fs.exists(entry)) {
+			throw new Error(`Missing "assets/${src}" for ${match.trim()}` + (from ? `, rendering ${from}` : ''));
+		}
+
+		if (kind === 'asset') {
+			let placeholder = bundler.register(entry, { kind: 'file' });
+			return bool(attrs.preload) ? preload(placeholder, src, attrs) : placeholder;
+		}
 
 		if (kind === 'style') {
 			// `global` opts out of CSS-modules auto-detect. Default: any *.module.css

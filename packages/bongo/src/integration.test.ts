@@ -546,3 +546,64 @@ describe('build({ minify })', () => {
 		}
 	});
 });
+
+describe('integration: site-asset', () => {
+	async function read(root: string) {
+		let out = join(root, 'public');
+		let files = await readdir(out);
+		let html = await readFile(join(out, 'index.html'), 'utf8');
+		let sheet = html.match(/<link rel="stylesheet" href="\/docs\/([^"]+)"\/>/)![1];
+		return { files, html, css: await readFile(join(out, sheet), 'utf8') };
+	}
+
+	test('preloads and plain urls point at the same hashed copies as the css', async () => {
+		let root = await copyFixture('site-asset');
+		try {
+			await build({ cwd: root });
+			let { files, html, css } = await read(root);
+			let fonts = files.filter(f => /^fixture\.[\w-]{8}\.woff2$/.test(f));
+			let logos = files.filter(f => /^logo\.[\w-]{8}\.png$/.test(f));
+			expect(fonts).toHaveLength(1);
+			expect(logos).toHaveLength(1);
+
+			let font = `/docs/${fonts[0]}`;
+			let logo = `/docs/${logos[0]}`;
+			expect(css).toContain(`url("${font}")`);
+			expect(css).toContain(`url("${logo}")`);
+			expect(html).toContain(`<link rel="preload" href="${font}" as="font" type="font/woff2" crossorigin/>`);
+			expect(html).toContain(`<link rel="preload" href="${logo}" as="image" type="image/png" media="(width >= 600px)" fetchpriority="high"/>`);
+			expect(html).toContain(`<link rel="icon" href="${logo}"/>`);
+			expect(html).toContain(`<img class="content" src="${logo}" alt=""/>`);
+			expect(html).toContain(`<img class="partial" src="${logo}" alt=""/>`);
+			expect(html).not.toContain('bongo:asset');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('dev builds emit the same asset links', async () => {
+		let root = await copyFixture('site-asset');
+		try {
+			await build({ cwd: root });
+			let prod = (await read(root)).html;
+			bundler.reset();
+			await build({ cwd: root, dev: true });
+			let dev = (await read(root)).html;
+			let links = (html: string) => html.match(/<link rel="(preload|icon)"[^>]*>|<img [^>]*>/g);
+			expect(links(dev)).toEqual(links(prod));
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a missing file fails with the tag and where it was rendered', async () => {
+		let root = await copyFixture('site-asset');
+		try {
+			await rm(join(root, 'assets/fonts/fixture.woff2'));
+			let run = build({ cwd: root });
+			expect(run).rejects.toThrow('Missing "assets/fonts/fixture.woff2" for <bongo:asset preload src="fonts/fixture.woff2" />, rendering content/index.html → layouts/html.hbs');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});

@@ -1,5 +1,6 @@
 import { parse, join } from 'node:path';
 import * as tempura from './tempura/index';
+import { href } from './bundler';
 import { loadModule } from './config';
 import * as log from './log';
 import * as fs from './fs';
@@ -197,7 +198,7 @@ export async function substitute(html: string, opts: SubstituteOptions): Promise
 		let p = token as Placeholder;
 		let info = outputs.get(p);
 		if (!info) throw new Error(`Unresolved external placeholder: ${token}`);
-		return publicPath + info.filename;
+		return href(publicPath, info.filename);
 	});
 
 	return html;

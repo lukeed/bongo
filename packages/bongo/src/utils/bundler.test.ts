@@ -251,6 +251,34 @@ describe('flush() — CSS url() assets', () => {
 	});
 });
 
+describe('flush() — files', () => {
+	test('a file registration and a css url() share one hashed copy', async () => {
+		let { dir, outDir } = await tmp({
+			'style.css': '@font-face { font-family: F; src: url(fonts/f.woff2); }',
+			'fonts/f.woff2': 'wOF2',
+		});
+		try {
+			let font = bundler.register(join(dir, 'fonts/f.woff2'), { kind: 'file' });
+			let style = bundler.register(join(dir, 'style.css'), { kind: 'css' });
+			let result = await bundler.flush({ outDir, publicPath: '/docs/' });
+			expect(result.errors).toEqual([]);
+
+			let copies = (await readdir(outDir)).filter(f => f.endsWith('.woff2'));
+			expect(copies).toHaveLength(1);
+			expect(result.outputs.get(font)).toEqual({ filename: copies[0], dependencies: [join(dir, 'fonts/f.woff2')] });
+			let css = await readFile(join(outDir, result.outputs.get(style)!.filename), 'utf8');
+			expect(css).toContain(`url("${bundler.href('/docs/', copies[0])}")`);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('href percent-encodes names so urls are safe in css and html attributes', () => {
+		expect(bundler.href('/', 'style.ab12cd34.css')).toBe('/style.ab12cd34.css');
+		expect(bundler.href('/docs/', "my font's (bold).1a2b3c4d.woff2")).toBe('/docs/my%20font%27s%20%28bold%29.1a2b3c4d.woff2');
+	});
+});
+
 describe('flush() — CSS', () => {
 	test('emits a hashed CSS file and reports dependencies', async () => {
 		let { dir, outDir } = await tmp({

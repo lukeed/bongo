@@ -269,6 +269,89 @@ describe('scanBongoTags', () => {
 // rewriteTransitionAttrs tests
 // ---------------------------------------------------------------------------
 
+describe('scanBongoTags — <bongo:asset>', () => {
+	const TOKEN = /__BONGO_BUNDLE:[a-f0-9]{16}__/;
+
+	async function scan(html: string, files: Record<string, string> = {}, from?: string): Promise<string> {
+		let dir = await tmpAssets(files);
+		try {
+			return scanBongoTags(html, makeArgv(dir), makeConfig(), from);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	}
+
+	test('without preload, becomes the bare url token, even inside an attribute', async () => {
+		let out = await scan(`<img src="<bongo:asset src='img/a.png'/>" alt="">`, { 'img/a.png': 'x' });
+		expect(out).toMatch(/^<img src="__BONGO_BUNDLE:[a-f0-9]{16}__" alt="">$/);
+	});
+
+	test('the same file always maps to the same token', async () => {
+		let out = await scan(`<bongo:asset src="img/a.png" /> <bongo:asset preload src=img/a.png />`, { 'img/a.png': 'x' });
+		let tokens = out.match(new RegExp(TOKEN.source, 'g'))!;
+		expect(tokens).toHaveLength(2);
+		expect(tokens[0]).toBe(tokens[1]);
+	});
+
+	test('preload infers as, type, and crossorigin from the extension', async () => {
+		let files = { 'f.woff2': 'x', 'a.png': 'x', 'a.svg': 'x', 'a.css': 'x', 'a.js': 'x', 'a.json': 'x', 'a.bin': 'x' };
+		let out = await scan([
+			'<bongo:asset preload src="f.woff2" />',
+			'<bongo:asset preload src="a.png" />',
+			'<bongo:asset preload src="a.svg" />',
+			'<bongo:asset preload src="a.css" />',
+			'<bongo:asset preload src="a.js" />',
+			'<bongo:asset preload src="a.json" />',
+			'<bongo:asset preload src="a.bin" />',
+		].join('\n'), files);
+		let lines = out.replace(new RegExp(TOKEN.source, 'g'), 'URL').split('\n');
+		expect(lines).toEqual([
+			'<link rel="preload" href="URL" as="font" type="font/woff2" crossorigin/>',
+			'<link rel="preload" href="URL" as="image" type="image/png"/>',
+			'<link rel="preload" href="URL" as="image" type="image/svg+xml"/>',
+			'<link rel="preload" href="URL" as="style" type="text/css"/>',
+			'<link rel="preload" href="URL" as="script" type="text/javascript"/>',
+			'<link rel="preload" href="URL" as="fetch" type="application/json" crossorigin/>',
+			'<link rel="preload" href="URL" as="fetch" crossorigin/>',
+		]);
+	});
+
+	test('explicit attributes override the inferred ones', async () => {
+		let out = await scan(
+			'<bongo:asset preload src="a.bin" as="image" type="image/x-icon" crossorigin="use-credentials" media="(width >= 600px)" fetchpriority="high" />',
+			{ 'a.bin': 'x' },
+		);
+		expect(out.replace(TOKEN, 'URL')).toBe('<link rel="preload" href="URL" as="image" type="image/x-icon" crossorigin="use-credentials" media="(width >= 600px)" fetchpriority="high"/>');
+	});
+
+	test('type and crossorigin can be turned off, and crossorigin follows an overridden as', async () => {
+		let out = await scan(
+			'<bongo:asset preload src="f.woff2" type=false crossorigin=false />\n<bongo:asset preload src="a.dat" as="font" />',
+			{ 'f.woff2': 'x', 'a.dat': 'x' },
+		);
+		expect(out.replace(new RegExp(TOKEN.source, 'g'), 'URL').split('\n')).toEqual([
+			'<link rel="preload" href="URL" as="font"/>',
+			'<link rel="preload" href="URL" as="font" crossorigin/>',
+		]);
+	});
+
+	test('escapes attribute values', async () => {
+		let out = await scan(`<bongo:asset preload src="a.png" media='a"b&c' />`, { 'a.png': 'x' });
+		expect(out).toContain(' media="a&quot;b&amp;c"');
+	});
+
+	test('a missing file names the asset, the tag, and where it was rendered', async () => {
+		let run = () => scan('<p><bongo:asset preload src="fonts/gone.woff2" /></p>', {}, 'content/index.html → layouts/html.hbs');
+		expect(run()).rejects.toThrow('Missing "assets/fonts/gone.woff2"');
+		expect(run()).rejects.toThrow('<bongo:asset preload src="fonts/gone.woff2" />');
+		expect(run()).rejects.toThrow('content/index.html → layouts/html.hbs');
+	});
+
+	test('missing src throws', async () => {
+		expect(scan('<bongo:asset preload />')).rejects.toThrow(/<bongo:asset> missing required "src"/);
+	});
+});
+
 describe('rewriteTransitionAttrs', () => {
 	test('transition:name adds view-transition-name to style', () => {
 		let html = '<aside transition:name="sidebar">content</aside>';

@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="{{ $site.lang }}">
+<head>
+<title>{{ $page.title }}</title>
+<bongo:asset preload src="fonts/fixture.woff2" />
+<bongo:asset preload src="img/logo.png" fetchpriority="high" media="(width >= 600px)" />
+<link rel="icon" href="<bongo:asset src='img/logo.png' />"/>
+<bongo:style src="style.css"></bongo:style>
+</head>
+<body>
+{{{ $page.content }}}
+{{#partial src="logo" }}
+</body>
+</html>
