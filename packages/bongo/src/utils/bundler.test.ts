@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, writeFile, rm, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, rm, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
@@ -189,6 +189,68 @@ describe('flush() — JS', () => {
 	});
 });
 
+describe('flush() — CSS url() assets', () => {
+	test('emits each referenced file once with a content hash and rewrites urls under publicPath', async () => {
+		let { dir, outDir } = await tmp({
+			'a.css': '@import "./theme/fonts.css";\n.a { background: url(img/hero.svg); }',
+			'b.css': '.b { background: url("./img/hero.svg#icon"); }',
+			'theme/fonts.css': '@font-face { font-family: F; src: url(../fonts/f.woff2) format("woff2"); }',
+			'img/hero.svg': '<svg/>',
+			'fonts/f.woff2': 'wOF2',
+		});
+		try {
+			let a = bundler.register(join(dir, 'a.css'), { kind: 'css' });
+			let b = bundler.register(join(dir, 'b.css'), { kind: 'css' });
+			let result = await bundler.flush({ outDir, publicPath: '/docs/' });
+			expect(result.errors).toEqual([]);
+
+			let files = (await readdir(outDir)).sort();
+			let svg = files.filter(f => /^hero\.[\w-]{8}\.svg$/.test(f));
+			let font = files.filter(f => /^f\.[\w-]{8}\.woff2$/.test(f));
+			expect(svg).toHaveLength(1);
+			expect(font).toHaveLength(1);
+			expect(await readFile(join(outDir, font[0]), 'utf8')).toBe('wOF2');
+
+			let cssA = await readFile(join(outDir, result.outputs.get(a)!.filename), 'utf8');
+			let cssB = await readFile(join(outDir, result.outputs.get(b)!.filename), 'utf8');
+			expect(cssA).toContain(`url("/docs/${font[0]}")`);
+			expect(cssA).toContain(`url("/docs/${svg[0]}")`);
+			expect(cssB).toContain(`url("/docs/${svg[0]}#icon")`);
+			expect(result.outputs.get(a)!.dependencies).toContain(join(dir, 'fonts/f.woff2'));
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('a changed asset changes both its name and the css hash', async () => {
+		let { dir, outDir } = await tmp({ 'a.css': '.a { background: url(x.png); }', 'x.png': 'one' });
+		try {
+			let a = bundler.register(join(dir, 'a.css'), { kind: 'css' });
+			let first = (await bundler.flush({ outDir })).outputs.get(a)!.filename;
+			await writeFile(join(dir, 'x.png'), 'two');
+			bundler.reset();
+			let again = bundler.register(join(dir, 'a.css'), { kind: 'css' });
+			let second = (await bundler.flush({ outDir })).outputs.get(again)!.filename;
+			expect(second).not.toBe(first);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('reports a missing file as a build error naming the css file', async () => {
+		let { dir, outDir } = await tmp({ 'theme.css': '.a { background: url(gone.png); }' });
+		try {
+			bundler.register(join(dir, 'theme.css'), { kind: 'css' });
+			let result = await bundler.flush({ outDir });
+			expect(result.errors).toHaveLength(1);
+			expect(result.errors[0].message).toContain('"gone.png"');
+			expect(result.errors[0].message).toContain(join(dir, 'theme.css'));
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('flush() — CSS', () => {
 	test('emits a hashed CSS file and reports dependencies', async () => {
 		let { dir, outDir } = await tmp({
@@ -303,6 +365,32 @@ describe('watch()', () => {
 				await new Promise(r => setTimeout(r, 20));
 			}
 			expect(changed).toContain(part);
+		} finally {
+			unsub();
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('rebuilds when a file referenced by url() changes', async () => {
+		let { dir, outDir } = await tmp({
+			'site/style.css': '.a { background: url(../media/bg.png); }',
+			'media/bg.png': 'one',
+		});
+		let changed: string[] = [];
+		let unsub = () => {};
+		try {
+			bundler.register(join(dir, 'site/style.css'), { kind: 'css' });
+			await bundler.flush({ outDir });
+			unsub = await bundler.watch(diff => { changed.push(diff.file); });
+			await new Promise(r => setTimeout(r, 150));
+
+			let bg = join(dir, 'media/bg.png');
+			await writeFile(bg, 'two');
+			let start = Date.now();
+			while (!changed.includes(bg) && Date.now() - start < 3000) {
+				await new Promise(r => setTimeout(r, 20));
+			}
+			expect(changed).toContain(bg);
 		} finally {
 			unsub();
 			await rm(dir, { recursive: true, force: true });

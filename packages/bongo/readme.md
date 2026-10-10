@@ -212,6 +212,28 @@ All CSS is handled by [LightningCSS](https://lightningcss.dev): `@import` bundli
 
 `.module.css` files automatically enable CSS modules. Non-module files can opt in explicitly when registering the entry.
 
+### Files in `url()`
+
+Fonts, images, and other files that CSS references with a relative `url()` can live next to the CSS under `assets/`. Each `url()` resolves against the CSS file that contains it, including files pulled in with `@import`.
+
+```css
+/* assets/theme/fonts.css */
+@font-face {
+	font-family: Inter;
+	src: url("../fonts/inter.woff2") format("woff2");
+}
+```
+
+bongo copies each referenced file to the output once, with a content hash in its name, and rewrites the `url()` to its public path under `publicPath`, for example `url("/inter.3f9a1c2e.woff2")`. A `?query` or `#fragment` on the URL is kept. Linked and inline styles behave the same, and `bongo dev` rebuilds when a referenced file changes.
+
+These URLs are left as written:
+
+- external URLs, such as `https:`, `//cdn.example.com/…`, and `data:`
+- root-relative URLs, such as `/img/logo.png`, which point at files from `content/`
+- fragment-only URLs, such as `url(#gradient)`
+
+If a relative `url()` points at a file that does not exist, the build fails with an error that names the URL and the CSS file that contains it.
+
 ## Dev Server
 
 `bongo dev` starts the HTTP server and runs the initial build behind it. File changes in `assets/`, `layouts/`, `partials/`, or `content/` trigger a rebuild.

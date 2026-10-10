@@ -1,4 +1,4 @@
-import { extname, resolve } from 'node:path';
+import { dirname, extname, resolve } from 'node:path';
 import * as lightningcss from 'lightningcss';
 import type { Loader } from 'bongo';
 import * as browsers from './browsers';
@@ -15,6 +15,8 @@ export type BundleOptions = {
 	cssModules?: boolean;
 	assets?: loaders.LoaderMap;
 	utils?: Loader.Utilities;
+	/** Emits a local file referenced by `url()` and returns its public URL. Unset leaves every url() as written. */
+	url?: (file: string) => Promise<string>;
 };
 
 export type BundleResult = {
@@ -49,11 +51,25 @@ function inlineSourceMap(code: Buffer, map: Buffer): Buffer {
 	return Buffer.concat([code, Buffer.from(comment)]);
 }
 
-function normalizeDependencies(deps: unknown): string[] {
-	if (!deps || !Array.isArray(deps)) return [];
-	return (deps as unknown[])
-		.map(d => (typeof d === 'string' ? d : (d as { url?: string }).url ?? ''))
-		.filter(Boolean);
+const EXTERNAL = /^([a-z][a-z\d+.-]*:|\/|#)/i;
+const UNQUOTED = /^[^\s"'()\\\x00-\x1f\x7f]+$/;
+
+// Same quoting as lightningcss: minified output drops quotes when the url allows it.
+function serialize(url: string, minify: boolean): string {
+	if (minify && UNQUOTED.test(url)) return `url(${url})`;
+	return `url("${url.replace(/["\\\n]/g, c => (c === '\n' ? '\\a ' : '\\' + c))}")`;
+}
+
+// Local `url()` values resolve against the file that contains them, keeping any `?query` or `#hash`.
+function locate(url: string, from: string): [file: string, suffix: string] {
+	let cut = url.search(/[?#]/);
+	let path = cut < 0 ? url : url.slice(0, cut);
+	try { path = decodeURIComponent(path); } catch { /* keep as written */ }
+	let file = resolve(dirname(from), path);
+	if (!fs.exists(file)) {
+		throw new Error(`Missing "${url}" referenced in ${resolve(from)}`);
+	}
+	return [file, cut < 0 ? '' : url.slice(cut)];
 }
 
 export async function bundle(opts: BundleOptions): Promise<BundleResult> {
@@ -137,13 +153,30 @@ export async function bundle(opts: BundleOptions): Promise<BundleResult> {
 		targets: resolveTargets(opts.targets),
 		resolver,
 		inputSourceMap,
+		analyzeDependencies: opts.url ? true : undefined,
 	});
 
 	let code = Buffer.isBuffer(result.code) ? result.code : Buffer.from(result.code);
 	let map = result.map ? (Buffer.isBuffer(result.map) ? result.map : Buffer.from(result.map)) : undefined;
 
-	let deps = normalizeDependencies(result.dependencies);
-	for (let d of [...loaderDeps, ...imported]) {
+	let files = new Set<string>();
+	if (opts.url) {
+		let text = code.toString('utf8');
+		for (let dep of result.dependencies || []) {
+			if (dep.type !== 'url') continue;
+			let value = dep.url;
+			if (value && !EXTERNAL.test(value)) {
+				let [file, suffix] = locate(value, dep.loc.filePath);
+				files.add(file);
+				value = await opts.url(file) + suffix;
+			}
+			text = text.replace(`url("${dep.placeholder}")`, () => serialize(value, opts.minify ?? false));
+		}
+		code = Buffer.from(text);
+	}
+
+	let deps: string[] = [];
+	for (let d of [...loaderDeps, ...imported, ...files]) {
 		if (!deps.includes(d)) deps.push(d);
 	}
 

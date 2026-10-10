@@ -119,7 +119,29 @@ export function register(entry: string, cfg: BundleConfig): Placeholder {
 type FlushContext = {
 	assets?: loaders.LoaderMap;
 	utils?: Loader.Utilities;
+	url: (file: string) => Promise<string>;
 };
+
+// Copies a css-referenced file into outDir as `name.hash.ext`, once per flush.
+function emitter(outDir: string, publicPath: string): (file: string) => Promise<string> {
+	let done = new Map<string, Promise<string>>();
+	return file => {
+		let hit = done.get(file);
+		if (hit) return hit;
+		hit = (async () => {
+			let bytes = await fs.read(file);
+			let hash = createHash('sha256').update(bytes).digest('hex').slice(0, 8);
+			let ext = path.extname(file);
+			let name = `${path.basename(file, ext)}.${hash}${ext}`;
+			let { mkdir, writeFile } = await import('node:fs/promises');
+			await mkdir(outDir, { recursive: true });
+			await writeFile(path.join(outDir, name), bytes);
+			return publicPath + name;
+		})();
+		done.set(file, hit);
+		return hit;
+	};
+}
 
 // Extensions rolldown's resolver + oxc transform handle natively. If every
 // entry in a JS group falls under this set, the loader plugin is pointless —
@@ -248,6 +270,7 @@ async function flushCssGroup(
 			cssModules: cfg.cssModules,
 			assets: ctx.assets,
 			utils: ctx.utils,
+			url: ctx.url,
 		});
 
 		let code = result.code;
@@ -294,6 +317,8 @@ function toBuildError(err: unknown, fallbackFile?: string): BuildError {
 
 export async function flush(opts: {
 	outDir: string;
+	/** Prefix for urls of files emitted from css `url()`s. @default '/' */
+	publicPath?: string;
 	assets?: loaders.LoaderMap;
 	utils?: Loader.Utilities;
 }): Promise<FlushResult> {
@@ -301,7 +326,11 @@ export async function flush(opts: {
 	let errors: BuildError[] = [];
 	let outputs: Map<Placeholder, OutputInfo> = new Map();
 
-	let ctx: FlushContext = { assets: opts.assets, utils: opts.utils };
+	let ctx: FlushContext = {
+		assets: opts.assets,
+		utils: opts.utils,
+		url: emitter(opts.outDir, opts.publicPath ?? '/'),
+	};
 
 	let jobs = [...GROUPS.entries()].map(async ([_groupKey, regs]) => {
 		if (regs.length === 0) return;

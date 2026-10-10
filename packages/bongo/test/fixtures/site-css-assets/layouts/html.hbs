@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="{{ $site.lang }}">
+<head>
+<title>{{ $page.title }}</title>
+<bongo:style src="style.css"></bongo:style>
+<bongo:style src="inline.css" inline></bongo:style>
+</head>
+<body>
+{{{ $page.content }}}
+<bongo:script src="main.ts"></bongo:script>
+</body>
+</html>

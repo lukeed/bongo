@@ -222,3 +222,95 @@ describe('bundle', () => {
 		}
 	});
 });
+
+describe('bundle — url() assets', () => {
+	let urls = (dir: string, seen: string[] = []) => async (file: string) => {
+		seen.push(file);
+		return '/out/' + file.slice(dir.length + 1).replace(/\//g, '_');
+	};
+
+	test('resolves each url() relative to the file that contains it, through @import', async () => {
+		let dir = await makeFixtureDir({
+			'entry.css': `@import './theme/fonts.css';\n.hero { background: url(img/hero.svg); }`,
+			'theme/fonts.css': `@font-face { font-family: F; src: url("../fonts/f.woff2") format("woff2"); }`,
+			'img/hero.svg': '<svg/>',
+			'fonts/f.woff2': 'wOF2',
+		});
+		try {
+			let seen: string[] = [];
+			let result = await css.bundle({ entry: join(dir, 'entry.css'), url: urls(dir, seen) });
+			let code = result.code.toString('utf8');
+			expect(code).toContain('url("/out/fonts_f.woff2")');
+			expect(code).toContain('url("/out/img_hero.svg")');
+			expect(seen.sort()).toEqual([join(dir, 'fonts/f.woff2'), join(dir, 'img/hero.svg')]);
+			expect(result.dependencies).toContain(join(dir, 'fonts/f.woff2'));
+			expect(result.dependencies).toContain(join(dir, 'img/hero.svg'));
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('keeps query strings and fragments, and decodes escaped paths', async () => {
+		let dir = await makeFixtureDir({
+			'entry.css': `.a { src: url(f.woff2?v=2#iefix); } .b { background: url(icons.svg#home); } .c { background: url("with%20space.png"); }`,
+			'f.woff2': 'x',
+			'icons.svg': '<svg/>',
+			'with space.png': 'x',
+		});
+		try {
+			let code = (await css.bundle({ entry: join(dir, 'entry.css'), url: urls(dir) })).code.toString('utf8');
+			expect(code).toContain('url("/out/f.woff2?v=2#iefix")');
+			expect(code).toContain('url("/out/icons.svg#home")');
+			expect(code).toContain('url("/out/with space.png")');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('leaves external, protocol-relative, data, fragment, and root urls exactly as before', async () => {
+		let source = [
+			'.a { background: url(https://cdn.example.com/a.png); }',
+			'.b { background: url(//cdn.example.com/b.png); }',
+			`.c { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E"); }`,
+			'.d { fill: url(#grad); }',
+			'.e { background: url(/img/e.png); }',
+		].join('\n');
+		let dir = await makeFixtureDir({ 'entry.css': source });
+		try {
+			for (let minify of [false, true]) {
+				let entry = join(dir, 'entry.css');
+				let seen: string[] = [];
+				let before = (await css.bundle({ entry, minify })).code.toString('utf8');
+				let after = (await css.bundle({ entry, minify, url: urls(dir, seen) })).code.toString('utf8');
+				expect(after).toBe(before);
+				expect(seen).toEqual([]);
+			}
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('serializes rewritten urls like lightningcss when minifying', async () => {
+		let dir = await makeFixtureDir({ 'entry.css': '.a { background: url(a.png); }', 'a.png': 'x' });
+		try {
+			let code = (await css.bundle({ entry: join(dir, 'entry.css'), minify: true, url: urls(dir) })).code.toString('utf8');
+			expect(code).toBe('.a{background:url(/out/a.png)}');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('fails with the css file and url when a referenced file is missing', async () => {
+		let dir = await makeFixtureDir({
+			'entry.css': `@import './theme/fonts.css';`,
+			'theme/fonts.css': `@font-face { font-family: F; src: url("../fonts/gone.woff2"); }`,
+		});
+		try {
+			let run = css.bundle({ entry: join(dir, 'entry.css'), url: urls(dir) });
+			expect(run).rejects.toThrow('"../fonts/gone.woff2"');
+			expect(run).rejects.toThrow(join(dir, 'theme/fonts.css'));
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+});

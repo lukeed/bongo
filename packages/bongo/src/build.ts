@@ -407,8 +407,10 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	}
 
 	// Flush: run every bundle group in parallel.
+	let publicPath = derivePublicPath($site.url);
 	let flushResult = await bundler.flush({
 		outDir: dest,
+		publicPath,
 		assets: ASSETS,
 		utils: loader_utils,
 	});
@@ -426,7 +428,6 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	}
 
 	// Pass 2: substitute placeholders and write pages.
-	let publicPath = derivePublicPath($site.url);
 	let readOutput = (filename: string) => fs.read(join(dest, filename), 'utf8');
 
 	await Promise.all(pages.map(async page => {

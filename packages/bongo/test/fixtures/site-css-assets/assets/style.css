@@ -1,0 +1,9 @@
+@import "./theme/fonts.css";
+
+.hero {
+  background: url(img/hero.svg);
+}
+
+.cdn {
+  background: url(https://cdn.example.com/x.png);
+}

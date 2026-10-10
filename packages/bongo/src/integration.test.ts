@@ -445,3 +445,38 @@ describe('build({ only })', () => {
 		}
 	});
 });
+
+describe('integration: site-css-assets', () => {
+	test('emits css url() files hashed under publicPath, for linked and inline styles', async () => {
+		let root = await copyFixture('site-css-assets');
+		try {
+			await build({ cwd: root });
+			let out = join(root, 'public');
+			let files = await readdir(out);
+			let font = files.find(f => /^fixture\.[\w-]{8}\.woff2$/.test(f));
+			let svg = files.filter(f => /^hero\.[\w-]{8}\.svg$/.test(f));
+			expect(font).toBeDefined();
+			expect(svg).toHaveLength(1);
+
+			let html = await readFile(join(out, 'index.html'), 'utf8');
+			let href = html.match(/<link rel="stylesheet" href="\/docs\/([^"]+)"\/>/)![1];
+			let style = await readFile(join(out, href), 'utf8');
+			expect(style).toContain(`url("/docs/${font}")`);
+			expect(style).toContain(`url("/docs/${svg[0]}")`);
+			expect(style).toContain('url("https://cdn.example.com/x.png")');
+			expect(html).toContain(`url("/docs/${svg[0]}#icon")`);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('fails the build when a url() file is missing', async () => {
+		let root = await copyFixture('site-css-assets');
+		try {
+			await rm(join(root, 'assets/fonts/fixture.woff2'));
+			expect(build({ cwd: root })).rejects.toThrow(/Build failed/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
