@@ -474,7 +474,7 @@ describe('integration: site-css-assets', () => {
 		let root = await copyFixture('site-css-assets');
 		try {
 			await rm(join(root, 'assets/fonts/fixture.woff2'));
-			expect(build({ cwd: root })).rejects.toThrow(/Build failed/);
+			await expect(build({ cwd: root })).rejects.toThrow(/Build failed/);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -601,7 +601,7 @@ describe('integration: site-asset', () => {
 		try {
 			await rm(join(root, 'assets/fonts/fixture.woff2'));
 			let run = build({ cwd: root });
-			expect(run).rejects.toThrow('Missing "assets/fonts/fixture.woff2" for <bongo:asset preload src="fonts/fixture.woff2" />, rendering content/index.html → layouts/html.hbs');
+			await expect(run).rejects.toThrow('Missing "assets/fonts/fixture.woff2" for <bongo:asset preload src="fonts/fixture.woff2" />, rendering content/index.html → layouts/html.hbs');
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

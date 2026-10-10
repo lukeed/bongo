@@ -342,13 +342,13 @@ describe('scanBongoTags — <bongo:asset>', () => {
 
 	test('a missing file names the asset, the tag, and where it was rendered', async () => {
 		let run = () => scan('<p><bongo:asset preload src="fonts/gone.woff2" /></p>', {}, 'content/index.html → layouts/html.hbs');
-		expect(run()).rejects.toThrow('Missing "assets/fonts/gone.woff2"');
-		expect(run()).rejects.toThrow('<bongo:asset preload src="fonts/gone.woff2" />');
-		expect(run()).rejects.toThrow('content/index.html → layouts/html.hbs');
+		await expect(run()).rejects.toThrow('Missing "assets/fonts/gone.woff2"');
+		await expect(run()).rejects.toThrow('<bongo:asset preload src="fonts/gone.woff2" />');
+		await expect(run()).rejects.toThrow('content/index.html → layouts/html.hbs');
 	});
 
 	test('missing src throws', async () => {
-		expect(scan('<bongo:asset preload />')).rejects.toThrow(/<bongo:asset> missing required "src"/);
+		await expect(scan('<bongo:asset preload />')).rejects.toThrow(/<bongo:asset> missing required "src"/);
 	});
 });
 

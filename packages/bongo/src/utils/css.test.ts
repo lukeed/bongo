@@ -307,8 +307,8 @@ describe('bundle — url() assets', () => {
 		});
 		try {
 			let run = css.bundle({ entry: join(dir, 'entry.css'), url: urls(dir) });
-			expect(run).rejects.toThrow('"../fonts/gone.woff2"');
-			expect(run).rejects.toThrow(join(dir, 'theme/fonts.css'));
+			await expect(run).rejects.toThrow('"../fonts/gone.woff2"');
+			await expect(run).rejects.toThrow(join(dir, 'theme/fonts.css'));
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
