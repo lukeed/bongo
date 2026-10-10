@@ -11,7 +11,8 @@ const clients = new Set<ServerResponse>();
 export function send(msg: HmrMessage): void {
 	let data = JSON.stringify(msg);
 	for (let res of clients) {
-		res.write(`data: ${data}\n\n`);
+		if (res.destroyed || res.writableEnded) clients.delete(res);
+		else res.write(`data: ${data}\n\n`);
 	}
 }
 
@@ -35,12 +36,14 @@ export function start(argv: Required<Argv>): Promise<Server> {
 			'cache-control': 'no-cache',
 		});
 
-		res.socket!.setTimeout(0);
+		// a pipelined response has no socket until earlier ones finish; the connection is on `req`
+		req.socket.setTimeout(0);
 
 		req.once('close', () => {
 			clients.delete(res);
 			res.end();
 		});
+		res.on('error', () => clients.delete(res));
 
 		res.write('event: status\ndata: open\n\n');
 
