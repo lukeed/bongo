@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach } from 'bun:test';
-import { mkdir, cp, rm, readFile, readdir } from 'node:fs/promises';
+import { mkdir, mkdtemp, cp, rm, readFile, readdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -477,6 +477,72 @@ describe('integration: site-css-assets', () => {
 			expect(build({ cwd: root })).rejects.toThrow(/Build failed/);
 		} finally {
 			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('build({ minify })', () => {
+	async function outputs(root: string) {
+		let out = join(root, 'public');
+		let files = await readdir(out);
+		let css = files.find(f => /^style\.[\w-]+\.css$/.test(f))!;
+		let js = files.find(f => /^main\.[\w-]+\.js$/.test(f))!;
+		return {
+			css: await readFile(join(out, css), 'utf8'),
+			js: await readFile(join(out, js), 'utf8'),
+			html: await readFile(join(out, 'index.html'), 'utf8'),
+		};
+	}
+
+	async function withPath<T>(dir: string, run: () => Promise<T>): Promise<T> {
+		let prev = process.env.PATH;
+		process.env.PATH = dir;
+		try { return await run(); }
+		finally { process.env.PATH = prev; }
+	}
+
+	test('minifies css and js, and skips html without the minify CLI', async () => {
+		let root = await copyFixture('site-css-assets');
+		let empty = await mkdtemp(join(tmpdir(), 'bongo-path-'));
+		try {
+			await build({ cwd: root });
+			let plain = await outputs(root);
+			bundler.reset();
+			await withPath(empty, () => build({ cwd: root, minify: true }));
+			let small = await outputs(root);
+
+			expect(plain.css).toContain('\n  background');
+			expect(small.css).not.toContain('\n');
+			expect(small.css.length).toBeLessThan(plain.css.length);
+			expect(small.js.length).toBeLessThan(plain.js.length);
+			expect(small.html).toContain('<p>Fixture   page</p>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+			await rm(empty, { recursive: true, force: true });
+		}
+	});
+
+	test('minifies html in place with the minify CLI when it is on PATH', async () => {
+		let root = await copyFixture('site-css-assets');
+		let bin = await mkdtemp(join(tmpdir(), 'bongo-path-'));
+		let calls = join(bin, 'calls.log');
+		await writeFile(join(bin, 'minify'), [
+			'#!/bin/sh',
+			`echo "$@" >> "${calls}"`,
+			'[ "$1" = "--version" ] && { echo "minify v0.0.0"; exit 0; }',
+			'for f in "$@"; do case "$f" in -*) ;; *) /usr/bin/tr -s " " < "$f" > "$f.tmp" && /bin/mv "$f.tmp" "$f";; esac; done',
+		].join('\n'), { mode: 0o755 });
+		try {
+			await withPath(bin, () => build({ cwd: root, minify: true }));
+			let { html } = await outputs(root);
+			expect(html).toContain('<p>Fixture page</p>');
+			let log = await readFile(calls, 'utf8');
+			let args = log.trim().split('\n').at(-1)!.split(' ');
+			expect(args.slice(0, 2)).toEqual(['-q', '-i']);
+			expect(args.slice(2).every(f => f.endsWith('.html'))).toBe(true);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+			await rm(bin, { recursive: true, force: true });
 		}
 	});
 });

@@ -4,6 +4,7 @@ import { dim, green } from 'kleur/colors';
 
 import * as fs from './utils/fs';
 import * as log from './utils/log';
+import * as minify from './utils/minify';
 import * as bundler from './utils/bundler';
 import { load } from './utils/config';
 import * as loaders from './utils/loaders';
@@ -439,25 +440,8 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		await fs.write(page.output, html);
 	}));
 
-	if (argv.minify) {
-		const exec = require('node:util').promisify(
-			require('node:child_process').exec
-		);
-
-		try {
-			let { stdout, stderr } = await exec('minify --version');
-			if (stderr.length || stdout.length < 1) throw 1;
-		} catch (err) {
-			log.error('`--minify` requires the `minify` CLI on your $PATH.');
-			log.error('See https://github.com/tdewolff/minify for install instructions.');
-			return process.exit(1);
-		}
-
-		let cwd = process.cwd();
-		let input = relative(cwd, argv.dest);
-		log.info(`compressing... ${input}`);
-		let output = relative(cwd, argv.cwd) || '.';
-		await exec(`minify -r "${input}" -o "${output}"`);
+	if (argv.minify && !await minify.html(pages.map(page => page.output))) {
+		log.info(`${dim('--minify:')} HTML left as-is; install tdewolff/minify to minify it`);
 	}
 
 	// Refresh the frontmatter-sig snapshot for the next narrow rebuild. Only

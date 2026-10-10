@@ -74,6 +74,7 @@ export function scanBongoTags(
 				kind: 'js',
 				format: 'esm',
 				target: config.$build.target,
+				minify: argv.minify || undefined,
 			});
 			// Always emit the aria-live announcer at this location so it is
 			// parsed before the bootstrap script runs. The runtime looks it up
@@ -97,6 +98,7 @@ export function scanBongoTags(
 				kind: 'css',
 				targets: config.$build.target,
 				cssModules,
+				minify: argv.minify || undefined,
 			});
 
 			if (bool(attrs.inline)) {
@@ -109,7 +111,7 @@ export function scanBongoTags(
 		let format: 'esm' | 'cjs' = str(attrs.format) === 'cjs' ? 'cjs' : 'esm';
 		let target = str(attrs.target) ?? config.$build.target;
 
-		let placeholder = bundler.register(entry, { kind: 'js', format, target });
+		let placeholder = bundler.register(entry, { kind: 'js', format, target, minify: argv.minify || undefined });
 
 		if (bool(attrs.inline)) {
 			return `<script data-bongo-inline="${placeholder}"></script>`;

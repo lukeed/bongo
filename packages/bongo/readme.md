@@ -28,6 +28,10 @@ bongo build -C site --minify
 bongo dev -C site --host --port 3000
 ```
 
+### Minify
+
+`--minify` minifies every JavaScript bundle with Rolldown and every stylesheet with LightningCSS, including inline ones. It also minifies the HTML pages with [tdewolff/minify](https://github.com/tdewolff/minify) when its `minify` CLI is on your `$PATH`. If the CLI is missing, the build still succeeds: it prints one notice and leaves the HTML as it is. Without `--minify`, nothing is minified.
+
 ## How It Works
 
 When you run `bongo build`:
@@ -38,7 +42,7 @@ When you run `bongo build`:
 4. Rendered HTML is scanned for `<bongo:style>`, `<bongo:script>`, and `<bongo:client>` elements. Assets are registered and replaced with placeholder tokens.
 5. Asset groups are flushed. JavaScript goes through Rolldown; CSS goes through LightningCSS. Output filenames include content hashes.
 6. Placeholders are substituted with external asset URLs or inline asset contents.
-7. Pages are written to `public/`.
+7. Pages are written to `public/`. With `--minify`, they are then minified when the `minify` CLI is available.
 
 ## Config
 
