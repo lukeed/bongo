@@ -1,4 +1,4 @@
-import { extname } from 'node:path';
+import { extname, resolve } from 'node:path';
 import * as lightningcss from 'lightningcss';
 import type { Loader } from 'bongo';
 import * as browsers from './browsers';
@@ -72,11 +72,9 @@ export async function bundle(opts: BundleOptions): Promise<BundleResult> {
 
 	let inputSourceMap: string | undefined;
 
-	// The resolver is only installed when the entry extension has a registered
-	// loader. A `.css` entry falls through to lightningcss's native reader,
-	// avoiding a JS↔native callback per file. Trade-off: a `.css` entry that
-	// `@imports` a non-CSS ext (e.g. `@import "shared.scss"`) won't route
-	// through loaders — use a non-`.css` entry when you need that.
+	// Loaders only run when the entry extension has a registered loader.
+	// A `.css` entry that `@imports` a non-CSS ext (e.g. `@import "shared.scss"`)
+	// won't route through loaders — use a non-`.css` entry when you need that.
 	let entryExt = extname(opts.entry).substring(1);
 	let needsLoader = opts.assets && opts.utils && opts.assets[entryExt] != null;
 
@@ -102,34 +100,34 @@ export async function bundle(opts: BundleOptions): Promise<BundleResult> {
 		if (map) inputSourceMap = map;
 	}
 
-	let resolver: lightningcss.Resolver | undefined;
-	if (needsLoader) {
-		let { assets, utils } = opts as { assets: loaders.LoaderMap; utils: Loader.Utilities };
-		resolver = {
-			async read(file) {
-				let cached = compiled.get(file);
-				if (cached != null) return cached;
+	// lightningcss inlines @imports without reporting them; record every read for the watcher
+	let imported = new Set<string>();
+	let resolver: lightningcss.Resolver = {
+		async read(file) {
+			if (resolve(file) !== resolve(opts.entry)) imported.add(resolve(file));
+			let cached = compiled.get(file);
+			if (cached != null) return cached;
 
-				let ext = extname(file).substring(1);
-				if (assets[ext]) {
-					let bytes = await fs.read(file);
-					let result = await loaders.run(
-						file,
-						new Uint8Array(bytes) as Uint8Array | string,
-						assets,
-						utils,
-					);
-					loaderDeps.add(file);
-					let text = typeof result.content === 'string'
-						? result.content
-						: new TextDecoder().decode(result.content);
-					compiled.set(file, text);
-					return text;
-				}
-				return fs.read(file, 'utf8') as Promise<string>;
-			},
-		};
-	}
+			let ext = extname(file).substring(1);
+			if (needsLoader && opts.assets![ext]) {
+				let { assets, utils } = opts as { assets: loaders.LoaderMap; utils: Loader.Utilities };
+				let bytes = await fs.read(file);
+				let result = await loaders.run(
+					file,
+					new Uint8Array(bytes) as Uint8Array | string,
+					assets,
+					utils,
+				);
+				loaderDeps.add(file);
+				let text = typeof result.content === 'string'
+					? result.content
+					: new TextDecoder().decode(result.content);
+				compiled.set(file, text);
+				return text;
+			}
+			return fs.read(file, 'utf8') as Promise<string>;
+		},
+	};
 
 	let result = await lightningcss.bundleAsync({
 		filename: opts.entry,
@@ -145,7 +143,7 @@ export async function bundle(opts: BundleOptions): Promise<BundleResult> {
 	let map = result.map ? (Buffer.isBuffer(result.map) ? result.map : Buffer.from(result.map)) : undefined;
 
 	let deps = normalizeDependencies(result.dependencies);
-	for (let d of loaderDeps) {
+	for (let d of [...loaderDeps, ...imported]) {
 		if (!deps.includes(d)) deps.push(d);
 	}
 

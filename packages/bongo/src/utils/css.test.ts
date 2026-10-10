@@ -47,9 +47,27 @@ describe('bundle', () => {
 			let code = result.code.toString('utf8');
 			expect(code).toContain('.a');
 			expect(code).toContain('.b');
-			// lightningcss reports transitive @import'd files as dependencies
-			// (dependency count may be 0 if lightningcss inlined the import — accept either)
-			expect(Array.isArray(result.dependencies)).toBe(true);
+			// lightningcss inlines @import'd files; they must still be reported for the watcher
+			expect(result.dependencies).toEqual([join(dir, 'other.css')]);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('reports nested and parent-directory @imports', async () => {
+		let dir = await makeFixtureDir({
+			'site/entry.css': `@import './parts/a.css';\n@import '../shared/b.css';\n.x { color: red; }`,
+			'site/parts/a.css': `@import './c.css';\n.a { color: red; }`,
+			'site/parts/c.css': '.c { color: red; }',
+			'shared/b.css': '.b { color: blue; }',
+		});
+		try {
+			let result = await css.bundle({ entry: join(dir, 'site/entry.css') });
+			expect(result.dependencies.sort()).toEqual([
+				join(dir, 'shared/b.css'),
+				join(dir, 'site/parts/a.css'),
+				join(dir, 'site/parts/c.css'),
+			]);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}

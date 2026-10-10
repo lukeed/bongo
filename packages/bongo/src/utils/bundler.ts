@@ -338,10 +338,9 @@ export async function flush(opts: {
 	// `dependencies` — the entry (bare .css with no imports) would otherwise
 	// be invisible to the watcher.
 	if (WATCH && WATCH.active) {
-		for (let reg of REGISTRATIONS.values()) WATCH.files.add(reg.entry);
-		for (let info of outputs.values()) {
-			for (let dep of info.dependencies) WATCH.files.add(dep);
-		}
+		let files = [...REGISTRATIONS.values()].map(reg => reg.entry);
+		for (let info of outputs.values()) files.push(...info.dependencies);
+		await follow(WATCH, files);
 	}
 
 	return { outputs, warnings, errors };
@@ -354,10 +353,54 @@ export async function flush(opts: {
 type WatchState = {
 	callback: (diff: WatchDiff) => void;
 	files: Set<string>;
+	dirs: Map<string, fs.WatchDisposer>;
 	active: boolean;
 };
 
 let WATCH: WatchState | null = null;
+
+function changed(file: string): void {
+	if (!WATCH || !WATCH.active) return;
+	if (!WATCH.files.has(file)) return;
+
+	// Find placeholders whose dep graph or entry path contains this file.
+	let hits: Set<Placeholder> = new Set();
+	for (let [placeholder, info] of LAST_OUTPUTS.entries()) {
+		if (info.dependencies.includes(file)) hits.add(placeholder);
+	}
+	for (let reg of REGISTRATIONS.values()) {
+		if (reg.entry === file) hits.add(reg.placeholder);
+	}
+
+	if (hits.size === 0) return;
+
+	WATCH.callback({ file, changed: hits, reload: true });
+}
+
+// Track files and watch their dirs; a new parent dir replaces its child watchers so events never double up.
+async function follow(state: WatchState, files: Iterable<string>): Promise<void> {
+	let fresh = new Set<string>();
+	for (let file of files) {
+		state.files.add(file);
+		let dir = path.dirname(file);
+		let under = (root: string) => dir === root || dir.startsWith(root + path.sep);
+		if ([...state.dirs.keys()].some(under) || [...fresh].some(under)) continue;
+		for (let other of fresh) if (other.startsWith(dir + path.sep)) fresh.delete(other);
+		fresh.add(dir);
+	}
+
+	for (let dir of fresh) {
+		let stop = await fs.watch([dir], changed);
+		if (!state.active) return stop();
+		state.dirs.set(dir, stop);
+		for (let [other, close] of state.dirs) {
+			if (other.startsWith(dir + path.sep)) {
+				close();
+				state.dirs.delete(other);
+			}
+		}
+	}
+}
 
 // NOTE: utils/fs.ts `watch()` is directory-based — it accepts a list of
 // directories, sets up FSWatcher per dir, and emits absolute file paths via
@@ -370,40 +413,19 @@ let WATCH: WatchState | null = null;
 // instead of only flipping a flag (critical on Linux where inotify emits an
 // ENOENT error when a watched path is removed before the watcher is closed).
 export async function watch(cb: (diff: WatchDiff) => void): Promise<Unsubscribe> {
-	let state: WatchState = { callback: cb, files: new Set(), active: true };
+	let state: WatchState = { callback: cb, files: new Set(), dirs: new Map(), active: true };
 	WATCH = state;
 
 	// Seed known files from current REGISTRATIONS and LAST_OUTPUTS.
-	for (let reg of REGISTRATIONS.values()) state.files.add(reg.entry);
-	for (let info of LAST_OUTPUTS.values()) {
-		for (let dep of info.dependencies) state.files.add(dep);
-	}
-
-	// Derive unique parent dirs to pass to fs.watch (dir-based watcher).
-	let dirs = [...new Set([...state.files].map(f => path.dirname(f)))];
-
-	let disposer = await fs.watch(dirs, async (file: string) => {
-		if (!WATCH || !WATCH.active) return;
-		if (!WATCH.files.has(file)) return;
-
-		// Find placeholders whose dep graph or entry path contains this file.
-		let changed: Set<Placeholder> = new Set();
-		for (let [placeholder, info] of LAST_OUTPUTS.entries()) {
-			if (info.dependencies.includes(file)) changed.add(placeholder);
-		}
-		for (let reg of REGISTRATIONS.values()) {
-			if (reg.entry === file) changed.add(reg.placeholder);
-		}
-
-		if (changed.size === 0) return;
-
-		WATCH.callback({ file, changed, reload: true });
-	});
+	let files = [...REGISTRATIONS.values()].map(reg => reg.entry);
+	for (let info of LAST_OUTPUTS.values()) files.push(...info.dependencies);
+	await follow(state, files);
 
 	return () => {
 		if (WATCH === state) WATCH = null;
 		state.active = false;
-		disposer();
+		for (let stop of state.dirs.values()) stop();
+		state.dirs.clear();
 	};
 }
 

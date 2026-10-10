@@ -278,6 +278,36 @@ describe('watch()', () => {
 			await rm(dir, { recursive: true, force: true });
 		}
 	});
+
+	test('follows dependencies found later, in directories outside the entry', async () => {
+		let { dir, outDir } = await tmp({
+			'site/style.css': '.a { color: red; }',
+			'shared/part.css': '.b { color: blue; }',
+		});
+		let changed: string[] = [];
+		let unsub = () => {};
+		try {
+			let entry = join(dir, 'site/style.css');
+			bundler.register(entry, { kind: 'css' });
+			await bundler.flush({ outDir });
+			unsub = await bundler.watch(diff => { changed.push(diff.file); });
+
+			await writeFile(entry, '@import "../shared/part.css";\n.a { color: red; }');
+			await bundler.flush({ outDir });
+			await new Promise(r => setTimeout(r, 150));
+
+			let part = join(dir, 'shared/part.css');
+			await writeFile(part, '.b { color: green; }');
+			let start = Date.now();
+			while (!changed.includes(part) && Date.now() - start < 3000) {
+				await new Promise(r => setTimeout(r, 20));
+			}
+			expect(changed).toContain(part);
+		} finally {
+			unsub();
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
 });
 
 describe('hmr()', () => {
