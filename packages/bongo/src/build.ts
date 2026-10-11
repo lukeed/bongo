@@ -5,6 +5,7 @@ import { dim, green } from 'kleur/colors';
 import * as attrs from './utils/attrs';
 import * as data from './utils/data';
 import * as fs from './utils/fs';
+import * as images from './utils/images';
 import * as log from './utils/log';
 import * as minify from './utils/minify';
 import * as bundler from './utils/bundler';
@@ -492,13 +493,14 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	// Flush: run every bundle group in parallel.
 	let publicPath = derivePublicPath($site.url);
+	let cache = join(argv.cwd, 'node_modules', '.cache', 'bongo', 'images');
 	watch.step('bundling assets');
 	let flushResult = await bundler.flush({
 		outDir: dest,
 		publicPath,
 		assets: ASSETS,
 		utils: loader_utils,
-		cache: join(argv.cwd, 'node_modules', '.cache', 'bongo', 'images'),
+		cache,
 		dev: argv.dev,
 	});
 
@@ -547,6 +549,9 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	// touch unrelated entries, so pages skipped by `narrowOnly` above retain
 	// their prior sig (which matches since they weren't re-read).
 	for (let item of scanned) FRONTMATTER_SIG.set(item.rel, item.sig);
+
+	// after this build's own files are out; a racing build re-encodes what it loses
+	await images.prune(cache, config.$images);
 
 	if (!argv.dev) {
 		log.info(`${green('done')} ${dim('in ' + log.elapsed(Date.now() - t0))}`);

@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach, spyOn } from 'bun:test';
-import { mkdir, mkdtemp, cp, rm, readFile, readdir, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, cp, rm, readFile, readdir, symlink, utimes, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -955,6 +955,34 @@ describe('integration: site-image', () => {
 			bundler.reset();
 			await build({ cwd: root });
 			expect(await readFile(join(root, 'public', name), 'utf8')).toBe('cached');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a build prunes cached images unused for 30 days, unless $images.prune is false', async () => {
+		let root = await copyFixture('site-image');
+		try {
+			let cache = join(root, 'node_modules/.cache/bongo/images');
+			let old = async () => {
+				await mkdir(cache, { recursive: true });
+				await writeFile(join(cache, 'gone.webp'), 'x');
+				let when = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+				await utimes(join(cache, 'gone.webp'), when, when);
+			};
+
+			await old();
+			await writeFile(join(root, 'bongo.config.ts'), `export default { $site: { url: 'https://example.com/docs/' }, $images: { prune: false } };`);
+			await build({ cwd: root });
+			expect(await readdir(cache)).toContain('gone.webp');
+
+			bundler.reset();
+			await writeFile(join(root, 'bongo.config.ts'), `export default { $site: { url: 'https://example.com/docs/' } };`);
+			await build({ cwd: root });
+			let left = await readdir(cache);
+			expect(left).not.toContain('gone.webp');
+			expect(left).toContain('.pruned');
+			expect(left.length).toBeGreaterThan(10);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

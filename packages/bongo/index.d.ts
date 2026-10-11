@@ -150,6 +150,8 @@ export namespace Images {
 		sizes?: string;
 		/** Process `<img>` elements in content that have a relative `src`. @default true */
 		content?: boolean;
+		/** Delete cached images that no build has used for this many days, checked at most once a day; `false` keeps them all. @default 30 */
+		prune?: number | false;
 	};
 }
 

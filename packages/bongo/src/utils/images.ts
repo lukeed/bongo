@@ -1,9 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
 import { basename, extname, join } from 'node:path';
-
-import * as fs from './fs';
 
 import type { Images } from 'bongo';
 import type { Attrs } from './tags';
@@ -60,6 +58,7 @@ const QUALITY: Quality = { avif: 50, webp: 80, jpeg: 80 };
 const LOSSY: Format[] = ['avif', 'webp', 'jpeg'];
 const RASTER = /\.(jpe?g|png|webp)$/i;
 const LIMIT = availableParallelism();
+const DAY = 24 * 60 * 60 * 1000;
 const PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 const UNPROCESSED = 'images: copied as-is; resizing them needs Bun, eg: bunx --bun bongo';
 
@@ -241,14 +240,29 @@ async function write(job: Job, out: string): Promise<string> {
 }
 
 // Path of the cached encode for a job, encoding it first when the cache misses.
-function ensure(job: Job): Promise<string> {
+// A hit older than a day gets its time of last use, which `prune()` reads, set to now.
+async function ensure(job: Job): Promise<string> {
 	let out = join(job.cache, `${job.key}.${EXTENSION[job.format]}`);
-	if (fs.exists(out)) return Promise.resolve(out);
+	let used = await stat(out).then(info => info.mtimeMs, () => undefined);
+	if (used !== undefined) {
+		if (Date.now() - used > DAY) await utimes(out, new Date(), new Date()).catch(() => {});
+		return out;
+	}
 	let hit = INFLIGHT.get(out);
 	if (hit) return hit;
 	hit = slot(() => write(job, out)).finally(() => INFLIGHT.delete(out));
 	INFLIGHT.set(out, hit);
 	return hit;
+}
+
+// Another build may prune the entry between ensure() and its use; then it is encoded again.
+async function use<T>(job: Job, read: (file: string) => Promise<T>): Promise<T> {
+	try {
+		return await read(await ensure(job));
+	} catch (err) {
+		if (!(err instanceof Error && 'code' in err && err.code === 'ENOENT')) throw err;
+		return read(await ensure(job));
+	}
 }
 
 /**
@@ -337,7 +351,7 @@ export async function prepare(file: string, settings: Settings, ctx: Context): P
 		for (let job of jobs) SERVED.set(job.filename, job);
 	} else {
 		await mkdir(ctx.outDir, { recursive: true });
-		await Promise.all(fresh.map(async job => copyFile(await ensure(job), join(ctx.outDir, job.filename))));
+		await Promise.all(fresh.map(job => use(job, file => copyFile(file, join(ctx.outDir, job.filename)))));
 	}
 
 	let variants = jobs.map(job => ({ format: job.format, width: job.width, filename: job.filename }));
@@ -351,7 +365,35 @@ export async function prepare(file: string, settings: Settings, ctx: Context): P
  */
 export function serve(filename: string): Promise<Buffer> | undefined {
 	let job = SERVED.get(filename);
-	return job && ensure(job).then(file => readFile(file));
+	return job && use(job, file => readFile(file));
+}
+
+/**
+ * Delete cache entries that no build has used for `$images.prune` days, 30 by default; `false` keeps them all.
+ * It checks at most once a day. A build that loses an entry to a prune running in another build encodes it again.
+ * @example await images.prune('node_modules/.cache/bongo/images', config.$images)
+ */
+export async function prune(dir: string, options: Images.Options): Promise<void> {
+	let days = options.prune ?? 30;
+	if (days === false) return;
+	if (!(days > 0 && Number.isFinite(days))) throw new Error(`Invalid $images.prune "${days}"; use a number of days, or false`);
+
+	let marker = join(dir, '.pruned');
+	let checked = await stat(marker).then(info => info.mtimeMs, () => 0);
+	if (Date.now() - checked < DAY) return;
+	try {
+		var names = await readdir(dir);
+	} catch {
+		return;
+	}
+	await writeFile(marker, '');
+
+	let cutoff = Date.now() - days * DAY;
+	await Promise.all(names.filter(name => name !== '.pruned').map(async name => {
+		let file = join(dir, name);
+		let used = await stat(file).then(info => info.mtimeMs, () => Infinity);
+		if (used < cutoff) await rm(file, { force: true });
+	}));
 }
 
 /**

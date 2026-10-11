@@ -1,6 +1,7 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { copyFile, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import * as fsp from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -328,6 +329,108 @@ describe('serve', () => {
 			await expect(images.serve(info.filename)!).rejects.toThrow(`"${copy}" changed after the build read it`);
 		} finally {
 			await done();
+		}
+	});
+});
+
+describe('prune', () => {
+	const DAY = 24 * 60 * 60 * 1000;
+
+	async function cache(ages: Record<string, number>): Promise<{ dir: string; done: () => Promise<void> }> {
+		let root = await mkdtemp(join(tmpdir(), 'bongo-prune-'));
+		let dir = join(root, 'cache');
+		await mkdir(dir);
+		for (let [name, days] of Object.entries(ages)) await age(join(dir, name), days, 'x');
+		return { dir, done: () => rm(root, { recursive: true, force: true }) };
+	}
+
+	async function age(file: string, days: number, text?: string): Promise<void> {
+		if (text !== undefined) await writeFile(file, text);
+		let when = new Date(Date.now() - days * DAY);
+		await utimes(file, when, when);
+	}
+
+	test('drops entries no build has used for 30 days, checking at most once a day', async () => {
+		let { dir, done } = await cache({ 'old.webp': 31, 'recent.webp': 29, 'crashed.webp.1a2b.tmp': 31 });
+		try {
+			await images.prune(dir, {});
+			expect((await readdir(dir)).sort()).toEqual(['.pruned', 'recent.webp']);
+
+			await age(join(dir, 'later.webp'), 40, 'x');
+			await images.prune(dir, {});
+			expect((await readdir(dir)).sort()).toEqual(['.pruned', 'later.webp', 'recent.webp']);
+
+			await age(join(dir, '.pruned'), 2);
+			await images.prune(dir, {});
+			expect((await readdir(dir)).sort()).toEqual(['.pruned', 'recent.webp']);
+		} finally {
+			await done();
+		}
+	});
+
+	test('$images.prune sets the days, false keeps everything, and other values fail', async () => {
+		let { dir, done } = await cache({ 'a.webp': 8, 'b.webp': 6 });
+		try {
+			await images.prune(dir, { prune: false });
+			expect((await readdir(dir)).sort()).toEqual(['a.webp', 'b.webp']);
+
+			await images.prune(dir, { prune: 7 });
+			expect((await readdir(dir)).sort()).toEqual(['.pruned', 'b.webp']);
+
+			for (let prune of [0, -1, NaN, Infinity]) {
+				await expect(images.prune(dir, { prune })).rejects.toThrow(`Invalid $images.prune "${prune}"; use a number of days, or false`);
+			}
+		} finally {
+			await done();
+		}
+	});
+
+	test('does nothing when there is no cache yet', async () => {
+		let root = await mkdtemp(join(tmpdir(), 'bongo-prune-'));
+		try {
+			await images.prune(join(root, 'cache'), {});
+			expect(await readdir(root)).toEqual([]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a build marks the entries it uses, at most once a day', async () => {
+		let first = await setup();
+		try {
+			let opts = images.settings({ formats: 'webp' }, {});
+			await images.prepare(PHOTO, opts, first.ctx);
+			let [a, b] = (await readdir(first.cache)).sort();
+			await age(join(first.cache, a), 10);
+			await age(join(first.cache, b), 0.5);
+			let before = (await stat(join(first.cache, b))).mtimeMs;
+
+			await images.prepare(PHOTO, opts, images.context({ ...first.ctx, outDir: join(first.root, 'again') }));
+			expect(Date.now() - (await stat(join(first.cache, a))).mtimeMs).toBeLessThan(60_000);
+			expect((await stat(join(first.cache, b))).mtimeMs).toBe(before);
+		} finally {
+			await first.done();
+		}
+	});
+
+	test('an entry that another build prunes while this one uses it is encoded again', async () => {
+		let first = await setup();
+		let spy = spyOn(fsp, 'copyFile');
+		try {
+			let opts = images.settings({ formats: 'webp', widths: '320' }, {});
+			await images.prepare(PHOTO, opts, first.ctx);
+
+			spy.mockImplementationOnce(async src => {
+				await rm(String(src));
+				throw Object.assign(new Error('pruned'), { code: 'ENOENT' });
+			});
+			let outDir = join(first.root, 'again');
+			let info = await images.prepare(PHOTO, opts, images.context({ ...first.ctx, outDir }));
+			expect(await meta(join(outDir, info.filename))).toEqual({ format: 'webp', width: 320, height: 240 });
+			expect(await readdir(first.cache)).toHaveLength(1);
+		} finally {
+			spy.mockRestore();
+			await first.done();
 		}
 	});
 });
