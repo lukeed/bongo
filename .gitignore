@@ -9,6 +9,7 @@ node_modules
 /packages/*/index.js
 /packages/*/client.js
 /packages/*/highlight.js
+/packages/*/twinkleplop.js
 
 /example/public
 
