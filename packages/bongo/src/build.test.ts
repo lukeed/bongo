@@ -115,6 +115,24 @@ describe('output files', () => {
 		}
 	});
 
+	test('only a second extension with a known content type makes an output file', async () => {
+		let root = await site({
+			'content/v1.2.hbs': '<p>{{ $pages.length }}</p>',
+			'content/robots.txt.hbs': 'User-agent: *',
+			'content/manifest.webmanifest.hbs': '{ "name": "{{ $site.title }}" }',
+			'content/logo.svg.hbs': '<svg/>',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'v1.2/index.html')).toBe('<html><p>1</p></html>');
+			expect(await read(root, 'robots.txt')).toBe('User-agent: *');
+			expect(await read(root, 'manifest.webmanifest')).toBe('{ "name": "T" }');
+			expect(await read(root, 'logo.svg')).toBe('<svg/>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('a .html.hbs file is still a page', async () => {
 		let root = await site({
 			'content/about.html.hbs': '<p>{{ $pages.length }}</p>',

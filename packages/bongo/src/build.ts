@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { extname, join } from 'node:path';
 import { dim, green } from 'kleur/colors';
+import * as mime from 'mrmime';
 
 import * as attrs from './utils/attrs';
 import * as data from './utils/data';
@@ -65,9 +66,6 @@ type CollectedPage = {
 	params: Template.Params;
 	from: string;     // what rendered it, for errors (eg, "content/index.md → layouts/html.hbs")
 };
-
-// `sitemap.xml.hbs` or `robots.txt.hbs`: an output file, written as rendered, never a page
-const OUTPUT_FILE = /\.(?!html?$)[^.]+$/i;
 
 type ScanItem = {
 	input: string;           // absolute source path
@@ -225,7 +223,9 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		idx = name.lastIndexOf('.');
 		let ext = name.substring(idx + 1);
 		let basename = name.substring(0, idx);
-		let kind: ScanItem['kind'] = ext === 'hbs' && OUTPUT_FILE.test(basename) ? 'output' : 'page';
+		// `sitemap.xml.hbs` is an output file, but `v1.2.hbs` is a page, since `2` has no content type
+		let inner = extname(basename).substring(1);
+		let kind: ScanItem['kind'] = ext === 'hbs' && !/^html?$/i.test(inner) && mime.lookup(inner) ? 'output' : 'page';
 		let params: Template.Params = {};
 		let src = '';
 		let raw = '';

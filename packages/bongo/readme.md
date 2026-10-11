@@ -360,7 +360,7 @@ The current page's own `$page.content` is empty while its body is compiling. It 
 
 ## Output files
 
-A `.hbs` file in `content/` with a second extension that is not `.html` is an output file, not a page. bongo writes it to its own path, without the `.hbs`:
+A `.hbs` file in `content/` is an output file, not a page, when its second extension is a file type with a known content type, other than `.html`, such as `.xml`, `.txt`, `.json`, `.svg`, or `.webmanifest`. `content/v1.2.hbs` stays a page, because `.2` is not a file type. bongo writes an output file to its own path, without the `.hbs`:
 
 | File | Output |
 | --- | --- |
