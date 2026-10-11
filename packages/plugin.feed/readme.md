@@ -106,7 +106,9 @@ Each one becomes an `<item>` in RSS or an `<entry>` in Atom, in the same order.
 The build fails, and the error names the file, when:
 
 - an element has an attribute that it does not support, or misses one that it needs,
+- a `<feed:item>` has a `date` that is not a valid date,
 - a feed has no `<feed:channel>` or no `title`,
+- an output file has a `<feed:channel>` but no `format: rss` or `format: atom`,
 - the `path` of a `<feed:link>` is not an output file, or that file has no `format: rss` or `format: atom`.
 
 ## License

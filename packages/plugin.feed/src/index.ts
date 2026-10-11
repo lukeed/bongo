@@ -78,10 +78,12 @@ function item(raw: string): Item {
 	for (let key of REQUIRED) {
 		if (!helpers.text(props[key])) throw new Error(`<feed:item> missing required "${key}" attribute`);
 	}
+	let date = helpers.text(props.date);
+	if (helpers.time(date) === undefined) throw new Error(`<feed:item> "date" is not a valid date: "${date}"`);
 	return {
 		href: helpers.text(props.href),
 		title: helpers.text(props.title),
-		date: helpers.text(props.date),
+		date,
 		summary: helpers.text(props.summary),
 		content: helpers.text(props.content),
 		id: helpers.text(props.id),
@@ -110,8 +112,7 @@ function rss(meta: Channel, items: Item[]): string {
 		out += `<title>${helpers.xml(it.title)}</title>\n`;
 		out += `<link>${helpers.xml(url)}</link>\n`;
 		out += `<guid isPermaLink="${it.id ? 'false' : 'true'}">${helpers.xml(it.id || url)}</guid>\n`;
-		let pub = helpers.utc(it.date);
-		if (pub) out += `<pubDate>${pub}</pubDate>\n`;
+		out += `<pubDate>${helpers.utc(it.date)}</pubDate>\n`;
 		if (it.summary) out += `<description>${helpers.xml(it.summary)}</description>\n`;
 		// `]]>` cannot appear inside CDATA, so it is split across two sections
 		if (it.content) out += `<content:encoded><![CDATA[${it.content.replace(/]]>/g, ']]]]><![CDATA[>')}]]></content:encoded>\n`;
@@ -144,8 +145,7 @@ function atom(meta: Channel, items: Item[]): string {
 		out += `<title>${helpers.xml(it.title)}</title>\n`;
 		out += `<id>${helpers.xml(it.id || url)}</id>\n`;
 		out += `<link href="${helpers.xml(url)}"/>\n`;
-		let updated = helpers.iso(it.date);
-		if (updated) out += `<updated>${updated}</updated>\n`;
+		out += `<updated>${helpers.iso(it.date)}</updated>\n`;
 		if (it.author) out += `<author><name>${helpers.xml(it.author)}</name></author>\n`;
 		if (it.summary) out += `<summary>${helpers.xml(it.summary)}</summary>\n`;
 		if (it.content) out += `<content type="html">${helpers.xml(it.content)}</content>\n`;
@@ -194,7 +194,9 @@ export function feed(): Partial<Config> {
 			transform(html, ctx) {
 				if (ctx.kind === 'page') return html.includes('<feed:link') ? link(html, ctx) : html;
 				let kind = format(ctx.params);
-				return kind ? channel(html, ctx, kind) : html;
+				if (kind) return channel(html, ctx, kind);
+				if (CHANNEL.test(html)) throw new Error('<feed:channel> needs "format: rss" or "format: atom" in its frontmatter');
+				return html;
 			},
 		},
 	};

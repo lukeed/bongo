@@ -134,6 +134,12 @@ describe('<feed:channel> errors', () => {
 		await expect(run('<feed:item href="/x" title="t" date="2025-01-01" />', output({ format: 'rss', title: 'T' }))).rejects.toThrow('A feed must contain a <feed:channel>...</feed:channel> block');
 	});
 
+	test('errors when a file has a <feed:channel> but no valid format', async () => {
+		let message = '<feed:channel> needs "format: rss" or "format: atom" in its frontmatter';
+		await expect(run('<feed:channel></feed:channel>', output({ title: 'T' }))).rejects.toThrow(message);
+		await expect(run('<feed:channel></feed:channel>', output({ title: 'T', format: 'json' }))).rejects.toThrow(message);
+	});
+
 	test('errors when the feed has no title', async () => {
 		await expect(run('<feed:channel></feed:channel>', output({ format: 'rss' }))).rejects.toThrow('<feed:channel> "/feed.xml" missing required "title" in frontmatter');
 	});
@@ -156,6 +162,10 @@ describe('<feed:item> attribute validation', () => {
 
 	test('errors on unknown attributes', async () => {
 		await expect(rss('<feed:item href="/x" title="t" date="2025-01-01" guid="oops" />')).rejects.toThrow(/unknown attribute "guid"/);
+	});
+
+	test('errors when date is not a valid date', async () => {
+		await expect(rss('<feed:item href="/x" title="t" date="last tuesday" />')).rejects.toThrow('<feed:item> "date" is not a valid date: "last tuesday"');
 	});
 
 	test('omits optional elements when their attribute is absent', async () => {
