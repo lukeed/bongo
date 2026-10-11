@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
+import { realpathSync } from 'node:fs';
 import { mkdir, writeFile, rm, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -451,6 +452,38 @@ describe('watch()', () => {
 			await new Promise(r => setTimeout(r, 150));
 			expect(changed).toContain(join(dir, 'assets/a.svg'));
 			expect(changed).not.toContain(join(dir, 'content/b.svg'));
+		} finally {
+			unsub();
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('tracks package stylesheets without watching node_modules', async () => {
+		let { dir, outDir } = await tmp({
+			'site/style.css': '@import "theme";\n.a { color: red; }',
+			'node_modules/theme/package.json': JSON.stringify({ name: 'theme', style: 'theme.css' }),
+			'node_modules/theme/theme.css': '.t { color: red; }',
+		});
+		let changed: string[] = [];
+		let unsub = () => {};
+		try {
+			let entry = join(dir, 'site/style.css');
+			let placeholder = bundler.register(entry, { kind: 'css' });
+			let result = await bundler.flush({ outDir });
+			let theme = realpathSync(join(dir, 'node_modules/theme/theme.css'));
+			expect(result.outputs.get(placeholder)!.dependencies).toContain(theme);
+			unsub = await bundler.watch(diff => { changed.push(diff.file); });
+			await new Promise(r => setTimeout(r, 150));
+
+			await writeFile(theme, '.t { color: blue; }');
+			await writeFile(entry, '@import "theme";\n.a { color: blue; }');
+			let start = Date.now();
+			while (!changed.length && Date.now() - start < 3000) {
+				await new Promise(r => setTimeout(r, 20));
+			}
+			await new Promise(r => setTimeout(r, 150));
+			expect(changed).toContain(entry);
+			expect(changed).not.toContain(theme);
 		} finally {
 			unsub();
 			await rm(dir, { recursive: true, force: true });

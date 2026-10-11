@@ -698,6 +698,77 @@ describe('integration: site-css-assets', () => {
 	});
 });
 
+describe('integration: css package imports', () => {
+	let store = 'node_modules/.store/fake-theme@1/node_modules';
+
+	async function project(style: string): Promise<string> {
+		let root = await site({
+			'layouts/html.hbs': '<head><bongo:style src="style.css" /></head>{{{ $page.content }}}',
+			'content/index.html': '<p>home</p>',
+			'assets/style.css': style,
+			'node_modules/@twinkleplop/theme-github/package.json': JSON.stringify({
+				name: '@twinkleplop/theme-github',
+				exports: {
+					'.': { types: './dist/index.d.ts', default: './dist/index.css' },
+					'./dark': { types: './dist/dark.d.ts', default: './dist/dark.css' },
+				},
+			}),
+			'node_modules/@twinkleplop/theme-github/dist/index.css': ':root { --twp-keyword: #cf222e; }',
+			'node_modules/@twinkleplop/theme-github/dist/dark.css': '[data-theme=dark] { --twp-keyword: #ff7b72; }',
+			[`${store}/fake-theme/package.json`]: JSON.stringify({
+				name: 'fake-theme',
+				exports: {
+					'.': { style: './dist/base.css', import: './index.mjs', default: './index.js' },
+					'./themes/*': { style: './dist/themes/*.css', default: './dist/themes/*.js' },
+				},
+			}),
+			[`${store}/fake-theme/index.mjs`]: 'export {};',
+			[`${store}/fake-theme/index.js`]: '',
+			[`${store}/fake-theme/dist/base.css`]: '@import "fake-core";\n@font-face { font-family: Fake; src: url("../fonts/fake.woff2") format("woff2"); }',
+			[`${store}/fake-theme/dist/themes/dark.css`]: '.fake-dark { color: #eee; }',
+			[`${store}/fake-theme/fonts/fake.woff2`]: 'wOF2',
+			[`${store}/fake-core/package.json`]: JSON.stringify({ name: 'fake-core', style: 'core.css' }),
+			[`${store}/fake-core/core.css`]: '.fake-core { margin: 0; }',
+		});
+		await symlink(join(root, store, 'fake-theme'), join(root, 'node_modules/fake-theme'));
+		return root;
+	}
+
+	test('bundles stylesheets from packages in node_modules, with the files their url()s name', async () => {
+		let root = await project([
+			'@import "@twinkleplop/theme-github";',
+			'@import "@twinkleplop/theme-github/dark";',
+			'@import "fake-theme";',
+			'@import "fake-theme/themes/dark";',
+			'body { margin: 0; }',
+		].join('\n'));
+		try {
+			await build({ cwd: root });
+			let out = join(root, 'public');
+			let font = (await readdir(out)).find(f => /^fake\.[\w-]{8}\.woff2$/.test(f));
+			expect(font).toBeDefined();
+			let html = await readFile(join(out, 'index.html'), 'utf8');
+			let css = await readFile(join(out, html.match(/<link rel="stylesheet" href="\/([^"]+)"\/>/)![1]), 'utf8');
+			expect(css).toContain('--twp-keyword: #cf222e');
+			expect(css).toContain('--twp-keyword: #ff7b72');
+			expect(css).toContain('.fake-core');
+			expect(css).toContain('.fake-dark');
+			expect(css).toContain(`url("/${font}")`);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('fails the build with the import and the css file that has it', async () => {
+		let root = await project('@import "missing-theme";');
+		try {
+			await expect(build({ cwd: root })).rejects.toThrow(/^Build failed: Cannot resolve @import "missing-theme" in \S+\/assets\/style\.css/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('build({ minify })', () => {
 	async function outputs(root: string) {
 		let out = join(root, 'public');

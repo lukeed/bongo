@@ -24,17 +24,4 @@ export const resolve_plugin: Plugin = {
 	}
 };
 
-/**
- * Preserve dynamic import() expressions in output
- */
-export const imports_plugin: Plugin = {
-	name: 'imports',
-	renderDynamicImport() {
-		return {
-			left: 'import(',
-			right: ')',
-		};
-	}
-};
-
-export const plugins: Plugin[] = [resolve_plugin, imports_plugin];
+export const plugins: Plugin[] = [resolve_plugin];

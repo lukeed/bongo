@@ -37,6 +37,19 @@ describe('copy', () => {
 	});
 });
 
+describe('isFile', () => {
+	test('is true for a file or a link to one, and false for a folder or a missing path', () => {
+		let dir = sandbox();
+		writeFileSync(join(dir, 'a.css'), '');
+		symlinkSync(join(dir, 'a.css'), join(dir, 'link.css'));
+		mkdirSync(join(dir, 'sub'));
+		expect(fs.isFile(join(dir, 'a.css'))).toBe(true);
+		expect(fs.isFile(join(dir, 'link.css'))).toBe(true);
+		expect(fs.isFile(join(dir, 'sub'))).toBe(false);
+		expect(fs.isFile(join(dir, 'gone.css'))).toBe(false);
+	});
+});
+
 describe('empty', () => {
 	function project(): { root: string; out: string; keep: string[] } {
 		let root = sandbox();

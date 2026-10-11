@@ -36,20 +36,20 @@
     "node": ">=22"
   },
   "dependencies": {
-    "md4x": "^0.0.25"
+    "md4x": "^0.0.30"
   },
   "devDependencies": {
     "@twinkleplop/bash": "^0.1.7",
     "@twinkleplop/markdown-core": "^0.2.1",
     "@twinkleplop/theme-github": "^0.2.4",
     "@twinkleplop/typescript": "^0.1.7",
-    "shiki": "^4.0.2",
-    "sugar-high": "^1.1.0"
+    "shiki": "^4.5.0",
+    "sugar-high": "^2.6.0"
   },
   "peerDependencies": {
     "@twinkleplop/markdown-core": ">=0.2.0",
     "shiki": ">=4.0.0",
-    "sugar-high": ">=1.0.0"
+    "sugar-high": ">=2.0.0"
   },
   "peerDependenciesMeta": {
     "@twinkleplop/markdown-core": {

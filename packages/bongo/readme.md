@@ -541,6 +541,26 @@ All CSS is handled by [LightningCSS](https://lightningcss.dev): `@import` bundli
 
 `.module.css` files automatically enable CSS modules. Non-module files can opt in explicitly when registering the entry.
 
+### Packages in `@import`
+
+An `@import` can name a package in `node_modules`:
+
+```css
+@import "@twinkleplop/theme-github";
+@import "@twinkleplop/theme-github/dark";
+@import "some-pkg/dist/theme.css";
+```
+
+bongo first looks for the path next to the CSS file, so `@import "theme.css"` still loads the `theme.css` beside it. If that file does not exist, bongo looks for the package in the `node_modules` folder next to the CSS file, then in the `node_modules` folder of each parent folder, so workspaces and hoisted packages work. It follows symlinks. In the package, bongo uses the first of these that is a file:
+
+1. A `.css` target in the `exports` of its `package.json`, with the `style`, `import`, or `require` condition, in that order. The `default` condition applies with each one.
+2. The `style` field, when you import the package itself.
+3. The path after the package name, as a file in the package. For `some-pkg/dist/theme.css`, this is `dist/theme.css`.
+
+Relative (`./`, `../`), absolute (`/`), and URL imports do not change. A `url()` in a package stylesheet resolves against that stylesheet, as described below, so the fonts and images that a theme package ships work. If nothing resolves, the build fails with an error that names the `@import` and the CSS file that contains it.
+
+`bongo dev` does not watch `node_modules`. After you update a package, save the CSS file that imports it, or restart `bongo dev`.
+
 ### Files in `url()`
 
 Fonts, images, and other files that CSS references with a relative `url()` can live next to the CSS under `assets/`. Each `url()` resolves against the CSS file that contains it, including files pulled in with `@import`.
