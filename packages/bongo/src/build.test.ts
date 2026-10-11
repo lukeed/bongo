@@ -103,6 +103,18 @@ describe('output files', () => {
 		}
 	});
 
+	test('{{ }} escapes text into well-formed XML', async () => {
+		let root = await site({
+			'content/t.xml.hbs': '---\ntitle: "Use <slot> & \\"friends\\""\n---\n<t a="{{ params.title }}">{{ params.title }}</t>',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 't.xml')).toBe('<t a="Use &lt;slot> &amp; &quot;friends&quot;">Use &lt;slot> &amp; &quot;friends&quot;</t>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('a .html.hbs file is still a page', async () => {
 		let root = await site({
 			'content/about.html.hbs': '<p>{{ $pages.length }}</p>',

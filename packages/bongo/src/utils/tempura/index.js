@@ -3,7 +3,7 @@
 const ESCAPE = /[&"<]/g, CHARS = {
 	'"': '&quot;',
 	'&': '&amp;',
-	'<': '&lt',
+	'<': '&lt;',
 };
 
 const ENDLINES = /[\r\n]+$/g;
