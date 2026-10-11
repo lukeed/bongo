@@ -257,7 +257,7 @@ function ensure(job: Job): Promise<string> {
  * @example images.settings({ widths: '320,640' }, { formats: ['webp'] }) //=> { widths: [320, 640], formats: ['webp'], quality: { avif: 50, webp: 80, jpeg: 80 } }
  */
 export function settings(attrs: Attrs, options: Images.Options): Settings {
-	let widths = attrs.widths === undefined ? options.widths ?? [640, 1280, 1920] : list(attrs.widths).map(Number);
+	let widths = attrs.widths === undefined ? options.widths ?? [640, 960, 1280, 1920, 2880] : list(attrs.widths).map(Number);
 	if (!widths.length || !widths.every(w => Number.isInteger(w) && w > 0)) {
 		throw new Error(`Invalid widths "${attrs.widths ?? widths}"`);
 	}

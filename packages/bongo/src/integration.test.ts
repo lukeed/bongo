@@ -841,15 +841,15 @@ describe('integration: site-image', () => {
 			await build({ cwd: root });
 			let { files, html, find, set } = await read(root);
 
-			let widths = [640, 1280, 1920];
+			let widths = [640, 960, 1280, 1920, 2400];
 			for (let ext of ['webp', 'jpg']) {
 				for (let w of widths) expect(find('hero', w, ext)).toBeDefined();
 			}
-			expect(files.filter(f => f.startsWith('hero-'))).toHaveLength(6);
+			expect(files.filter(f => f.startsWith('hero-'))).toHaveLength(10);
 
 			let logo = files.find(f => /^logo\.[a-f0-9]{8}\.svg$/.test(f));
 			let spin = files.find(f => /^spin\.[a-f0-9]{8}\.gif$/.test(f));
-			expect(html).toContain(`<picture><source type="image/webp" srcset="${set('hero', widths, 'webp')}" sizes="100vw"/><img src="/docs/${find('hero', 1920, 'jpg')}" srcset="${set('hero', widths, 'jpg')}" sizes="100vw" alt="Hero" fetchpriority="high" loading="eager" decoding="async" width="2400" height="1200"/></picture>`);
+			expect(html).toContain(`<picture><source type="image/webp" srcset="${set('hero', widths, 'webp')}" sizes="100vw"/><img src="/docs/${find('hero', 2400, 'jpg')}" srcset="${set('hero', widths, 'jpg')}" sizes="100vw" alt="Hero" fetchpriority="high" loading="eager" decoding="async" width="2400" height="1200"/></picture>`);
 			expect(html).toContain(`<picture><img src="/docs/${logo}" alt="Logo" class="logo" loading="lazy" decoding="async" width="120" height="40"/></picture>`);
 			expect(html).toContain(`<picture><img src="/docs/${spin}" alt="" loading="lazy" decoding="async" width="20" height="30"/></picture>`);
 			expect(html).not.toContain('bongo');

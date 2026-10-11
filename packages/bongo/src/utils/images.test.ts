@@ -56,7 +56,7 @@ async function setup(dev = false) {
 describe('settings', () => {
 	test('uses the defaults', () => {
 		expect(images.settings({}, {})).toEqual({
-			widths: [640, 1280, 1920],
+			widths: [640, 960, 1280, 1920, 2880],
 			formats: ['webp', 'original'],
 			quality: { avif: 50, webp: 80, jpeg: 80 },
 		});
