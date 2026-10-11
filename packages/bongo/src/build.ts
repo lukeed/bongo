@@ -323,6 +323,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 				{ $page, $pages: Pages, $section, $tags, params: item.params, ...config }
 			)
 			: item.body;
+		rendered_content = tags.scanImages(rendered_content, argv as Required<Argv>, config, `content/${item.rel}`, item.path);
 		$page.content = rendered_content;
 
 		// lookup priority –> need "" for `/layouts/*` root
@@ -404,7 +405,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			rendered_content += `</script>`;
 		}
 
-		rendered_content = tags.scanBongoTags(rendered_content, argv as Required<Argv>, config, chain.join(' → '));
+		rendered_content = tags.scanBongoTags(rendered_content, argv as Required<Argv>, config, chain.join(' → '), item.path);
 		rendered_content = tags.rewriteTransitionAttrs(rendered_content);
 
 		pages.push({ output: item.output, html: rendered_content });
@@ -417,6 +418,8 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		publicPath,
 		assets: ASSETS,
 		utils: loader_utils,
+		cache: join(argv.cwd, 'node_modules', '.cache', 'bongo', 'images'),
+		dev: argv.dev,
 	});
 
 	if (flushResult.errors.length > 0) {

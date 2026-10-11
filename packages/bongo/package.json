@@ -48,6 +48,17 @@
     "sirv": "^3.0.0",
     "tempura": "^0.3.1"
   },
+  "devDependencies": {
+    "sharp": "^0.35.5"
+  },
+  "peerDependencies": {
+    "sharp": ">=0.34.0"
+  },
+  "peerDependenciesMeta": {
+    "sharp": {
+      "optional": true
+    }
+  },
   "publishConfig": {
     "access": "public"
   }

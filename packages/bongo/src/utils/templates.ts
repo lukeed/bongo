@@ -2,8 +2,10 @@ import { parse, join } from 'node:path';
 import * as tempura from './tempura/index';
 import { href } from './bundler';
 import { loadModule } from './config';
+import * as images from './images';
 import * as log from './log';
 import * as fs from './fs';
+import * as tags from './tags';
 
 import type { Argv, Config, Template } from 'bongo';
 import type { Args } from './tempura/index';
@@ -156,6 +158,7 @@ export type SubstituteOptions = {
 const PLACEHOLDER_RE = /__BONGO_BUNDLE:[a-f0-9]{16}__/g;
 const INLINE_STYLE_RE = /<style data-bongo-inline="(__BONGO_BUNDLE:[a-f0-9]{16}__)"><\/style>/g;
 const INLINE_SCRIPT_RE = /<script([^>]*)data-bongo-inline="(__BONGO_BUNDLE:[a-f0-9]{16}__)"([^>]*)><\/script>/g;
+const IMAGE_RE = /<img data-bongo-image="(__BONGO_BUNDLE:[a-f0-9]{16}__)"((?:"[^"]*"|'[^']*'|[^>"'])*?)\s*\/?>/g;
 
 export async function substitute(html: string, opts: SubstituteOptions): Promise<string> {
 	let { outputs, publicPath, readFile } = opts;
@@ -193,7 +196,14 @@ export async function substitute(html: string, opts: SubstituteOptions): Promise
 		html = html.replace(match, replacement);
 	}
 
-	// Pass 2c: external placeholders in href/src — swap in {publicPath}{filename}.
+	// Pass 2c: images — each stand-in <img> becomes its <source> set and final <img>.
+	html = html.replace(IMAGE_RE, (_match, token: string, attrs: string) => {
+		let info = outputs.get(token as Placeholder)?.image;
+		if (!info) throw new Error(`Unresolved image placeholder: ${token}`);
+		return images.render(info, tags.parseAttrs(attrs), name => href(publicPath, name));
+	});
+
+	// Pass 2d: external placeholders in href/src — swap in {publicPath}{filename}.
 	html = html.replace(PLACEHOLDER_RE, (token) => {
 		let p = token as Placeholder;
 		let info = outputs.get(p);

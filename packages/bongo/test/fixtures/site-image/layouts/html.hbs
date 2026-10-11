@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="{{ $site.lang }}">
+<head>
+<title>{{ $page.title }}</title>
+</head>
+<body>
+<bongo:image src="img/hero.jpg" alt="Hero" sizes="100vw" fetchpriority="high" />
+<bongo:image src="img/logo.svg" alt="Logo" class="logo" />
+<bongo:image src="img/spin.gif" alt="" width="20" />
+<main>{{{ $page.content }}}</main>
+</body>
+</html>

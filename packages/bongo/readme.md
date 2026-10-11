@@ -39,8 +39,8 @@ When you run `bongo build`:
 1. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` by walking upward from `cwd`. Bun and Deno import TypeScript config files natively. Node bundles the config through Rolldown to a temp `.mjs` and dynamic-imports it.
 2. Layouts and partials are collected from `layouts/` and `partials/`. Handlebars files (`.hbs`) are compiled with tempura. JavaScript and TypeScript partials are loaded as modules.
 3. Content files are passed through registered loaders, then rendered through the matching layout chain.
-4. Rendered HTML is scanned for `<bongo:style>`, `<bongo:script>`, and `<bongo:client>` elements. Assets are registered and replaced with placeholder tokens.
-5. Asset groups are flushed. JavaScript goes through Rolldown; CSS goes through LightningCSS. Output filenames include content hashes.
+4. Rendered HTML is scanned for `<bongo:*>` elements, and each page's content for `<img>` elements with a relative `src`. Assets are registered and replaced with placeholder tokens.
+5. Asset groups are flushed. JavaScript goes through Rolldown; CSS goes through LightningCSS; images go through sharp. Output filenames include content hashes.
 6. Placeholders are substituted with external asset URLs or inline asset contents.
 7. Pages are written to `public/`. With `--minify`, they are then minified when the `minify` CLI is available.
 
@@ -80,6 +80,7 @@ Config fields:
 - `$assets` — loader map keyed by file extension.
 - `$utils` — helper functions available in templates.
 - `$partials` — programmatic partial functions.
+- `$images` — image defaults; see [Images](#images).
 - `plugins` — array of partial config objects, merged in order.
 
 ## Loaders
@@ -119,7 +120,7 @@ No manual configuration is required.
 
 ## Templates
 
-Templates use [tempura](https://github.com/lukeed/tempura) syntax. Asset entrypoints are declared with `<bongo:style>`, `<bongo:script>`, `<bongo:client>`, and `<bongo:asset>` custom elements.
+Templates use [tempura](https://github.com/lukeed/tempura) syntax. Asset entrypoints are declared with `<bongo:style>`, `<bongo:script>`, `<bongo:client>`, `<bongo:asset>`, and `<bongo:image>` custom elements. `<bongo:image>` is described in [Images](#images).
 
 ```hbs
 {{! layouts/html.hbs }}
@@ -242,6 +243,115 @@ If `transition:animate` is present without `transition:name`, an automatic name 
 Content files ending in `.hbs` are tempura-compiled with the same context as layouts: `$site`, `$page`, `$pages`, `$section`, `$tags`, `$assets`, `$utils`, plus `params` as an alias for `$page.params`.
 
 The current page's own `$page.content` is empty while its body is compiling. It is the value produced by that compile.
+
+## Images
+
+bongo resizes and converts images with [sharp](https://sharp.pixelplumbing.com). sharp is an optional peer dependency. Install it when your site has JPEG, PNG, WebP, AVIF, or TIFF images:
+
+```sh
+bun add -d sharp
+```
+
+Without sharp, a build that must resize an image fails, and the error names the image. SVG and GIF images do not need sharp.
+
+bongo adds `width` and `height` to images. If your CSS limits the width of images, also give them `height: auto`, so they keep their aspect ratio:
+
+```css
+img { max-width: 100%; height: auto; }
+```
+
+### `<bongo:image>`
+
+```hbs
+<bongo:image src="img/hero.jpg" alt="A hero" sizes="(min-width: 800px) 720px, 100vw" />
+```
+
+With the default settings and a 2400×1600 source, this becomes the following, on one line:
+
+```html
+<picture>
+  <source type="image/avif" srcset="/hero-640.1a2b3c4d.avif 640w, /hero-1280.2b3c4d5e.avif 1280w, /hero-1920.3c4d5e6f.avif 1920w" sizes="(min-width: 800px) 720px, 100vw"/>
+  <img src="/hero-1920.4d5e6f7a.webp" srcset="/hero-640.5e6f7a8b.webp 640w, /hero-1280.6f7a8b9c.webp 1280w, /hero-1920.4d5e6f7a.webp 1920w" sizes="(min-width: 800px) 720px, 100vw" alt="A hero" loading="lazy" decoding="async" width="2400" height="1600"/>
+</picture>
+```
+
+The path in `src` tells bongo where the file is:
+
+- `img/hero.jpg` is relative to `assets/`, as for `<bongo:asset>`.
+- `./hero.jpg`, `../hero.jpg`, and `/blog/post/hero.jpg` resolve against the URL of the page, as a browser resolves them, and bongo reads the file from `content/`. For `content/blog/post.md`, which is served at `/blog/post/`, `./hero.jpg` is `content/blog/post/hero.jpg`. A root-relative path is relative to the site root, not to `publicPath`, so `{{ post.path }}{{ post.params.cover }}` works in a list of posts.
+
+`<bongo:image>` attributes:
+
+- `src="..."` — the image. Required.
+- `sizes="..."` — defaults to `$images.sizes`.
+- `widths="640,1280"`, `formats="avif,webp"`, `quality="60"` — override `$images` for this image.
+- `width`, `height` — default to the size of the source. If you give only one, bongo calculates the other from the aspect ratio.
+- `loading` — defaults to `lazy`, or to `eager` when `fetchpriority="high"`.
+- `decoding` — defaults to `async`.
+- All other attributes, such as `alt`, `class`, and `fetchpriority`, go on the `<img>`.
+
+A `sizes` value that starts with `auto` lets the browser use the width of the image in the layout. Browsers use `auto` only for lazy images, so bongo removes it from eager images.
+
+### Content images
+
+bongo also processes each `<img>` in content whose `src` is a relative path. This includes Markdown images, such as `![A hero](hero.jpg)`, and `<img>` elements that you write in Markdown, HTML, or `.hbs` content. The path resolves against the URL of the page, as for `./` paths.
+
+The `<img>` stays where it is. bongo does not add a `<picture>`, so CSS such as `p > img` still applies. The `<img>` gets a `src`, `srcset`, and `sizes` in the last format in `$images.formats`, its `width` and `height`, `loading="lazy"`, and `decoding="async"`. Attributes that you write, such as `width`, `sizes`, or `loading`, stay as you wrote them.
+
+bongo does not change an `<img>` that:
+
+- has a `srcset`,
+- is in a `<picture>`,
+- has an absolute URL, a root-relative path such as `/img/a.png`, or a `data:` URL in `src`.
+
+To leave all content images as written, set `$images.content` to `false`. To get a `<picture>` with all formats in Markdown, write a `<bongo:image>`.
+
+### Processing
+
+- bongo makes one file for each width in `widths` that is smaller than the source. If one or more widths are not smaller, bongo makes one file at the width of the source instead. bongo never enlarges an image.
+- Files are named `name-width.hash.ext`. The hash comes from the contents of the source and the encoder settings.
+- bongo applies the EXIF orientation, and removes the metadata.
+- bongo copies SVG, GIF, and animated images once under a hashed name, as for `<bongo:asset>`. It adds their `width` and `height` when it can read them. For SVG, they come from the `width`, `height`, or `viewBox` attributes.
+
+### Cache
+
+bongo keeps encoded images in `node_modules/.cache/bongo/images`. A rebuild copies unchanged images from there, and encodes only new or changed images. To clear the cache, delete the directory.
+
+### Dev
+
+`bongo dev` does not encode images when it builds. It reads the size of each image and writes the pages, so the first build stays fast. The dev server encodes a file the first time that the browser asks for it, and then serves it from the cache. A browser asks for only one file per image, so most files are never encoded in dev. When you change an image, bongo rebuilds, and the page reloads with the new URLs.
+
+### Errors
+
+A missing image fails the build. The error shows the element and the files that rendered it:
+
+```
+Missing "content/blog/post/hero.jpg" for <img src="hero.jpg" alt="">, rendering content/blog/post.md
+```
+
+An image path that resolves outside `assets/` or `content/` also fails the build.
+
+### Image config
+
+```ts
+export default {
+	$images: {
+		widths: [640, 1280, 1920],
+		formats: ['avif', 'webp'],
+		quality: { avif: 50, webp: 80, jpeg: 80 },
+		sizes: 'auto, 100vw',
+		content: true,
+	},
+};
+```
+
+These are the defaults.
+
+- `widths` — output widths, in pixels.
+- `formats` — `avif`, `webp`, `jpeg`, or `png`, best first. The last format is the fallback in the `<img>`, and the only format for content images, so use one that all browsers support, such as `webp` or `jpeg`.
+- `quality` — from 1 to 100. Give one number for all formats, or one number for each format. PNG stays lossless unless you set a quality for it.
+- `sizes` — the `sizes` of images that do not have one.
+- `content` — process `<img>` elements in content.
 
 ## CSS
 
@@ -421,7 +531,7 @@ The Navigation API is available in Chrome and Edge, and is behind a flag or unsu
 
 The augmentation adds:
 
-- `<bongo:client>`, `<bongo:script>`, and `<bongo:style>` intrinsic elements.
+- `<bongo:asset>`, `<bongo:client>`, `<bongo:image>`, `<bongo:script>`, and `<bongo:style>` intrinsic elements.
 - `transition:name` and `transition:animate` on every HTML element.
 - `transition:disable` and `prefetch:disable` on anchors.
 

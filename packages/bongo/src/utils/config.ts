@@ -123,6 +123,9 @@ export function merge(base: Required<Config>, custom: Partial<Config>) {
 	if (custom.$build) {
 		Object.assign(base.$build, custom.$build);
 	}
+	if (custom.$images) {
+		Object.assign(base.$images, custom.$images);
+	}
 	for (let key in custom.$utils) {
 		if (typeof custom.$utils[key] !== 'object') {
 			base.$utils[key] = custom.$utils[key];
@@ -168,6 +171,7 @@ export async function load(root: string): Promise<Required<Config>> {
 			// custom partials
 		},
 		$build: {},
+		$images: {},
 		plugins: [
 			// any user plugins
 		]
