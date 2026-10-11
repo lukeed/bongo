@@ -73,14 +73,15 @@ type ScanItem = {
 	sig: string;             // sha256 of the raw frontmatter block (empty block ⇒ constant hash)
 };
 
+// Frontmatter is typed, so `title: 2024` is a number; page text fields take any scalar as text.
+function text(value: unknown): string {
+	let type = typeof value;
+	return type === 'string' || type === 'number' || type === 'boolean' ? String(value) : '';
+}
+
 function parseTags(value: unknown): string[] {
-	if (Array.isArray(value)) {
-		return value.filter((v): v is string => typeof v === 'string').map(s => s.trim()).filter(Boolean);
-	}
-	if (typeof value === 'string') {
-		return value.split(',').map(s => s.trim()).filter(Boolean);
-	}
-	return [];
+	let list = Array.isArray(value) ? value.map(text) : text(value).split(',');
+	return list.map(s => s.trim()).filter(Boolean);
 }
 
 export type BuildOptions = {
@@ -142,7 +143,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	// Pass-through assets (copies, direct writes) emit to disk immediately.
 	let scanned: ScanItem[] = [];
 
-	await fs.list(content, async (input, rel, name) => {
+	async function scan(input: string, rel: string, name: string): Promise<void> {
 		let idx = rel.lastIndexOf('.');
 		let urlpath = '/' + rel.substring(0, idx);
 		let output = join(dest, rel);
@@ -221,12 +222,17 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			path: urlpath,
 			output,
 			section,
-			title: (params.title as string) || '',
-			summary: (params.summary as string) || '',
+			title: text(params.title),
+			summary: text(params.summary),
 			tags: parseTags(params.tags),
 			sig: frontmatterSig(raw),
 		});
-	});
+	}
+
+	await fs.list(content, (input, rel, name) => scan(input, rel, name).catch(err => {
+		let reason = err instanceof Error ? err.message : String(err);
+		throw new Error(`${join('content', rel)}: ${reason}`, { cause: err });
+	}));
 
 	// Narrow-rebuild safety: if opts.only was set but the target's frontmatter
 	// hash diverges from the last build's snapshot (or the target no longer

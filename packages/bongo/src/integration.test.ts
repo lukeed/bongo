@@ -28,6 +28,20 @@ async function copyFixture(name: string): Promise<string> {
 	return target;
 }
 
+async function site(files: Record<string, string>): Promise<string> {
+	let root = join(tmpdir(), `bongo-it-${randomBytes(6).toString('hex')}`);
+	let all: Record<string, string> = {
+		'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' } };`,
+		'layouts/html.hbs': '{{{ $page.content }}}',
+		...files,
+	};
+	for (let [rel, text] of Object.entries(all)) {
+		await mkdir(join(root, rel, '..'), { recursive: true });
+		await writeFile(join(root, rel), text);
+	}
+	return root;
+}
+
 async function runBuild(): Promise<string> {
 	let target = await copyFixture('site-basic');
 	await build({ cwd: target });
@@ -297,6 +311,50 @@ describe('integration: site-hbs-content', () => {
 			let postA = await readFile(join(out, 'blog', 'post-a', 'index.html'), 'utf8');
 			expect(postA).toContain('data-tags="alpha,demo"');
 			expect(postA).toContain('This page has 2 tags.');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('integration: typed frontmatter', () => {
+	test('pages see typed params, text title and summary, and tags from lists', async () => {
+		let root = await site({
+			'content/post.html': [
+				'---',
+				'title: 2024',
+				'summary: true',
+				'count: 3',
+				'hidden: true',
+				'tags: [a, 2, "c"]',
+				'author:',
+				'  name: Luke',
+				'---',
+				'<p>x</p>',
+			].join('\n'),
+			'content/legacy.html': '---\ntitle: Legacy\ntags: x, y\n---\n<p>y</p>',
+			'layouts/html.hbs': [
+				'<i data-title="{{ $page.title }}" data-title-type="{{ typeof $page.title }}" data-summary="{{ $page.summary }}"',
+				' data-count="{{ typeof $page.params.count }}" data-hidden="{{ $page.params.hidden === true }}"',
+				' data-tags="{{ $page.tags.join(\'|\') }}" data-author="{{ $page.params.author && $page.params.author.name }}"></i>',
+			].join(''),
+		});
+		try {
+			await build({ cwd: root });
+			let post = await readFile(join(root, 'public/post/index.html'), 'utf8');
+			expect(post).toBe('<i data-title="2024" data-title-type="string" data-summary="true" data-count="number" data-hidden="true" data-tags="a|2|c" data-author="Luke"></i>');
+			let legacy = await readFile(join(root, 'public/legacy/index.html'), 'utf8');
+			expect(legacy).toContain('data-tags="x|y"');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a frontmatter error names the content file and line', async () => {
+		let root = await site({ 'content/blog/bad.html': '---\ntitle: a\ntitle: b\n---\n<p>x</p>' });
+		try {
+			let file = join('content', 'blog', 'bad.html');
+			await expect(build({ cwd: root })).rejects.toThrow(`${file}: Invalid frontmatter: duplicate key "title" at line 3`);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

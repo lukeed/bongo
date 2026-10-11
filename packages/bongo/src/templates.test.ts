@@ -99,6 +99,62 @@ describe('frontmatter', () => {
 		let result = frontmatter(input);
 		expect(result.value.phrase).toBe('Hello World');
 	});
+
+	test('types values as YAML does', () => {
+		let input = [
+			'---',
+			'title: Hello',
+			'count: 42',
+			'hidden: true',
+			'draft: false',
+			'cover: null',
+			'version: "1.0"',
+			'date: 2020-12-06T11:31:00-08:00',
+			'tags: [a, b]',
+			'authors:',
+			'  - name: Luke',
+			'    url: https://lukeed.com',
+			'meta:',
+			'  og:image: hero.png',
+			'---',
+			'Body',
+		].join('\n');
+		expect(frontmatter(input).value).toEqual({
+			title: 'Hello',
+			count: 42,
+			hidden: true,
+			draft: false,
+			cover: null,
+			version: '1.0',
+			date: '2020-12-06T11:31:00-08:00',
+			tags: ['a', 'b'],
+			authors: [{ name: 'Luke', url: 'https://lukeed.com' }],
+			meta: { 'og:image': 'hero.png' },
+		});
+	});
+
+	test('accepts an empty block', () => {
+		let input = '---\n---\nBody';
+		expect(frontmatter(input)).toEqual({ offset: 7, value: {} });
+		expect(frontmatter('---\n# nothing yet\n---\nBody').value).toEqual({});
+	});
+
+	test('needs the closing fence on its own line', () => {
+		let input = '---\ntitle: a\n---\nsummary: Fast --- mutates\n';
+		let result = frontmatter('---\nsummary: Fast --- mutates\ntitle: a\n---\nBody');
+		expect(result.value).toEqual({ summary: 'Fast --- mutates', title: 'a' });
+		expect(frontmatter(input).offset).toBe(16);
+	});
+
+	test('names the line of a syntax error, counted from the top of the file', () => {
+		expect(() => frontmatter('---\ntitle: a\ntitle: b\n---\n')).toThrow('Invalid frontmatter: duplicate key "title" at line 3');
+		expect(() => frontmatter('---\ntitle: a\n  oops: b\n---\n')).toThrow('Invalid frontmatter: bad indentation at line 3');
+	});
+
+	test('must be a map', () => {
+		expect(() => frontmatter('---\n- a\n- b\n---\n')).toThrow('Invalid frontmatter: expected "key: value" lines');
+		expect(() => frontmatter('---\njust text\n---\n')).toThrow('Invalid frontmatter: expected "key: value" lines');
+	});
 });
 
 describe('collect', () => {

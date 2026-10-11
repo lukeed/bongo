@@ -1,7 +1,7 @@
 ---
-title: The Nested #each Fix in tempura
+title: "The Nested #each Fix in tempura"
 date: 2026-04-10
-summary: Tracing and fixing a bug where nested #each loops produced incorrect scoped variable bindings in tempura.
+summary: "Tracing and fixing a bug where nested #each loops produced incorrect scoped variable bindings in tempura."
 tags: tempura, bun, ssg
 ---
 

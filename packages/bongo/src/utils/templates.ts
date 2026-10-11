@@ -4,6 +4,7 @@ import { href } from './bundler';
 import { loadModule } from './config';
 import * as log from './log';
 import * as fs from './fs';
+import * as yaml from './yaml';
 
 import type { Argv, Config, Template } from 'bongo';
 import type { Args } from './tempura/index';
@@ -204,37 +205,31 @@ export async function substitute(html: string, opts: SubstituteOptions): Promise
 	return html;
 }
 
-// Strip surrounding matching quotes from a string value.
-// If the string is surrounded by matching `"..."` or `'...'`, remove them.
-// Mismatched or missing quotes are left intact.
-function unquote(raw: string): string {
-	if (raw.length >= 2) {
-		let first = raw.charAt(0);
-		let last = raw.charAt(raw.length - 1);
-		if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
-			return raw.slice(1, -1);
-		}
-	}
-	return raw;
+function isMap(value: unknown): value is Template.Params {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+const FRONTMATTER = /^---\r?\n(?:([\s\S]*?)\r?\n)?---(?=\r?\n|$)/;
+
+/**
+ * Parse the `---` fenced YAML block at the top of `content`; see `yaml.parse` for the subset.
+ * `offset` is where the body starts, or 0 when there is no block.
+ * @example frontmatter('---\ntitle: Hi\ndraft: true\n---\nBody') //=> { offset: 29, value: { title: 'Hi', draft: true } }
+ */
 export function frontmatter(content: string): {
 	offset: number;
 	value: Template.Params
 } {
-	let value: Template.Params = {};
+	let match = FRONTMATTER.exec(content);
+	if (!match) return { offset: 0, value: {} };
 
-	if (content.substring(0, 3) !== '---') {
-		return { offset: 0, value };
+	try {
+		var value = yaml.parse(match[1] || '', 2);
+	} catch (err) {
+		throw new Error(`Invalid frontmatter: ${err instanceof Error ? err.message : err}`, { cause: err });
 	}
 
-	let match = /^---\r?\n([\s\S]+?)\r?\n---/.exec(content);
-	if (match == null) 	return { offset: 0, value };
-
-	match[1].split('\n').forEach(pair => {
-		let [key, ...v] = pair.split(':');
-		value[key.trim()] = unquote(v.join(':').trim());
-	});
-
+	if (value == null) return { offset: match[0].length, value: {} };
+	if (!isMap(value)) throw new Error('Invalid frontmatter: expected "key: value" lines');
 	return { offset: match[0].length, value };
 }
