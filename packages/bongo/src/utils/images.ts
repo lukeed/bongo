@@ -279,7 +279,9 @@ export async function prepare(file: string, settings: Settings, ctx: Context): P
 	let fresh = jobs.filter(job => !ctx.jobs.has(job.filename));
 	for (let job of fresh) ctx.jobs.set(job.filename, job);
 
-	if (!ctx.dev) {
+	if (ctx.dev) {
+		for (let job of jobs) SERVED.set(job.filename, job);
+	} else {
 		await mkdir(ctx.outDir, { recursive: true });
 		await Promise.all(fresh.map(async job => copyFile(await ensure(job), join(ctx.outDir, job.filename))));
 	}
@@ -289,15 +291,8 @@ export async function prepare(file: string, settings: Settings, ctx: Context): P
 }
 
 /**
- * Make the files of a finished dev flush available to `serve()`.
- * @example images.publish(ctx)
- */
-export function publish(ctx: Context): void {
-	SERVED = ctx.jobs;
-}
-
-/**
- * Bytes of a file the last flush listed, by its output name, encoded on first request. Undefined for other names.
+ * Bytes of a file that a dev flush listed, by its output name, encoded on first request. Undefined for other names.
+ * The source must still have the contents the name was made from.
  * @example let body = await images.serve('hero-640.3f9a1c2e.webp')
  */
 export function serve(filename: string): Promise<Buffer> | undefined {

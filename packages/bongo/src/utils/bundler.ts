@@ -392,7 +392,6 @@ export async function flush(opts: {
 	await Promise.all(jobs);
 
 	LAST_OUTPUTS = outputs;
-	images.publish(ctx.images);
 
 	// Propagate build errors/clears to the browser overlay via HMR sender.
 	if (HMR_SEND) {

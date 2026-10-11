@@ -202,7 +202,6 @@ describe('serve', () => {
 			expect(existsSync(outDir)).toBe(false);
 			expect(existsSync(cache)).toBe(false);
 
-			images.publish(ctx);
 			let body = await images.serve(info.filename)!;
 			expect((await sharp(body).metadata()).width).toBe(800);
 			expect(await readdir(cache)).toHaveLength(1);
@@ -219,7 +218,6 @@ describe('serve', () => {
 			let copy = join(root, 'photo.png');
 			await copyFile(PHOTO, copy);
 			let info = await images.prepare(copy, images.settings({ formats: 'webp' }, {}), ctx);
-			images.publish(ctx);
 			await sharp(PHOTO).negate().toFile(join(root, 'flipped.png'));
 			await copyFile(join(root, 'flipped.png'), copy);
 			await expect(images.serve(info.filename)!).rejects.toThrow(`"${copy}" changed after the build read it`);

@@ -87,7 +87,6 @@ describe('images', () => {
 		copyFileSync(join(import.meta.dirname, '../../test/fixtures/site-image/content/blog/post/photo.png'), photo);
 		let ctx = images.context({ outDir: opts.dest, cache: join(opts.dest, '.cache'), dev: true, emit: async file => file });
 		let info = await images.prepare(photo, images.settings({ formats: 'webp' }, {}), ctx);
-		images.publish(ctx);
 
 		let server = await http.start(opts);
 		try {
