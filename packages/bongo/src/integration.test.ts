@@ -870,16 +870,16 @@ describe('integration: site-image', () => {
 		}
 	});
 
-	test('<img> in content gets a srcset in its own format, and its dimensions', async () => {
+	test('<img> in content gets a webp srcset up to its own width, and its dimensions', async () => {
 		let root = await copyFixture('site-image');
 		try {
 			await build({ cwd: root });
 			let { files, html, find, set } = await read(root, 'blog/post/index.html');
 			let diagram = files.find(f => /^diagram\.[a-f0-9]{8}\.svg$/.test(f));
-			expect(files.filter(f => /^(photo-(640|800)|portrait-400)\..*\.webp$/.test(f))).toEqual([]);
+			expect(files.filter(f => /^(photo|portrait)-\d+\.[a-f0-9]{8}\.(png|jpg)$/.test(f))).toEqual([]);
 
-			expect(html).toContain(`<figure><img src="/docs/${find('photo', 800, 'png')}" srcset="${set('photo', [640, 800], 'png')}" sizes="auto, 100vw" alt="A &quot;photo&quot;" class="shot" loading="lazy" decoding="async" width="800" height="600"/></figure>`);
-			expect(html).toContain(`<img src="/docs/${find('portrait', 400, 'jpg')}" srcset="${set('portrait', [400], 'jpg')}" sizes="auto, 100vw" alt="Portrait" loading="lazy" decoding="async" width="400" height="600"/>`);
+			expect(html).toContain(`<figure><img src="/docs/${find('photo', 800, 'webp')}" srcset="${set('photo', [640, 800], 'webp')}" sizes="auto, 100vw" alt="A &quot;photo&quot;" class="shot" loading="lazy" decoding="async" width="800" height="600"/></figure>`);
+			expect(html).toContain(`<img src="/docs/${find('portrait', 400, 'webp')}" srcset="${set('portrait', [400], 'webp')}" sizes="auto, 100vw" alt="Portrait" loading="lazy" decoding="async" width="400" height="600"/>`);
 			expect(html).toContain(`<img src="/docs/${diagram}" alt="Diagram" loading="lazy" decoding="async" width="300" height="150"/>`);
 			for (let kept of [
 				'<img src="https://cdn.example.com/x.png" alt="">',

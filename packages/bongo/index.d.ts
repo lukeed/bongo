@@ -142,7 +142,7 @@ export namespace Images {
 	type Options = {
 		/** Output widths in pixels. A source is never enlarged: wider ones become its own width. @default [640, 960, 1280, 1920, 2880] */
 		widths?: number[];
-		/** Output formats, best first; `original` is the format of each source. The last is the `<img>` fallback, and the only one content images use. `avif` needs an Apple Silicon M3+ Mac or Windows. @default ['webp', 'original'] */
+		/** Output formats, best first; `original` is the format of each source. Content images use only the first; the last is the `<img>` fallback of `<bongo:image>`. `avif` needs an Apple Silicon M3+ Mac or Windows. @default ['webp', 'original'] */
 		formats?: (Format | 'original')[];
 		/** Encoder quality from 1 to 100, for all lossy formats or per format. PNG is always lossless. @default { avif: 50, webp: 80, jpeg: 80 } */
 		quality?: number | Partial<Record<Format, number>>;

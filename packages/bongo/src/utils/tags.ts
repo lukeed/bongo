@@ -247,7 +247,7 @@ export function scanBongoTags(
 
 /**
  * Replace each `<img>` in a page's content whose `src` is a relative path with the stand-in that
- * `<bongo:image src="./…">` makes, in its last format only, so the markup keeps its shape.
+ * `<bongo:image src="./…">` makes, in its first, preferred format only, so the markup keeps its shape.
  * Images with a `srcset`, inside a `<picture>`, or with an absolute or root-relative url are left as written.
  * @example scanImages('<img src="hero.jpg" alt="">', argv, config, 'content/blog/post.md', '/blog/post/')
  */
@@ -279,7 +279,7 @@ export function scanImages(
 
 		try {
 			let formats = images.settings({}, options).formats;
-			settings ||= images.settings({ formats: formats[formats.length - 1] }, options);
+			settings ||= images.settings({ formats: formats[0] }, options);
 		} catch (err) {
 			throw new Error(`${reason(err)} for ${match}, rendering ${from}`);
 		}

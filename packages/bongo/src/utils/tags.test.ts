@@ -482,15 +482,15 @@ describe('scanImages', () => {
 		]);
 	});
 
-	test('registers the same file and settings as <bongo:image> in the last format', async () => {
+	test('registers the same file and settings as <bongo:image> in the first, preferred format', async () => {
 		let dir = await tmpAssets({});
 		try {
 			await mkdir(join(dir, 'content/blog/post'), { recursive: true });
 			await writeFile(join(dir, 'content/blog/post/a.png'), 'x');
-			let config = { ...makeConfig(), $images: { formats: ['avif', 'jpeg'] } } as Required<Config>;
+			let config = { ...makeConfig(), $images: { formats: ['webp', 'jpeg'] } } as Required<Config>;
 			let token = (html: string) => html.match(TOKEN)![0];
 			let img = token(scanImages('<img src="a.png">', makeArgv(dir), config, FROM, '/blog/post/'));
-			let element = token(scanBongoTags('<bongo:image src="./a.png" formats="jpeg" />', makeArgv(dir), config, FROM, '/blog/post/'));
+			let element = token(scanBongoTags('<bongo:image src="./a.png" formats="webp" />', makeArgv(dir), config, FROM, '/blog/post/'));
 			expect(img).toBe(element);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
