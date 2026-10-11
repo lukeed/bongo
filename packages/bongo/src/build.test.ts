@@ -197,6 +197,26 @@ describe('output files', () => {
 	});
 });
 
+describe('urls', () => {
+	test('page and output file urls keep the subfolder of $site.url', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/sub', title: 'T', lang: 'en' } };`,
+			'layouts/html.hbs': '{{ $page.url }}',
+			'content/index.html': '',
+			'content/post.html': '',
+			'content/urls.txt.hbs': '{{ $page.url }}{{#each $pages as p}} {{ p.url }}{{/each}}',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toBe('https://example.com/sub/');
+			expect(await read(root, 'post/index.html')).toBe('https://example.com/sub/post/');
+			expect(await read(root, 'urls.txt')).toBe('https://example.com/sub/urls.txt https://example.com/sub/ https://example.com/sub/post/');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('$hooks.transform', () => {
 	test('changes each page, after its asset links resolve, and each output file, and knows what each one is', async () => {
 		let root = await site({

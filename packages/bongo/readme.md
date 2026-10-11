@@ -229,7 +229,7 @@ The `publicPath` prefix applied to external asset URLs is derived from `$site.ur
 - Root-served site (`https://example.com`) -> `publicPath = /`
 - Subpath-served site (`https://example.com/blog/`) -> `publicPath = /blog/`
 
-No manual configuration is required.
+No manual configuration is required. The absolute `url` of each page, in `$page.url` and `$pages`, includes the subpath too: `content/post.md` is `https://example.com/blog/post/`.
 
 ## Templates
 

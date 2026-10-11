@@ -78,6 +78,7 @@ type ScanItem = {
 	body: string;            // frontmatter stripped, loaders run; `.hbs` still raw for walk-2 compile
 	params: Template.Params;
 	path: string;            // URL path (e.g. '/blog/post-1/')
+	url: string;             // absolute URL, under the subfolder of `$site.url` if any
 	output: string;          // absolute output path
 	section: string;         // derived from rel's dirname
 	title: string;
@@ -166,6 +167,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	const { config, $data } = opts.inputs ?? await prepare(argv);
 	const { $site, $assets: ASSETS } = config;
+	// a page path resolves under `$site.url`, so a site in a subfolder keeps it
+	let site = $site.url.endsWith('/') ? $site.url : $site.url + '/';
 	const debug = argv.debug ? log.debug : () => {};
 
 	debug('[build.argv]', argv);
@@ -306,6 +309,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			body: src,
 			params,
 			path: urlpath,
+			url: new URL(urlpath.substring(1), site).href,
 			output,
 			section,
 			title: text(params.title),
@@ -348,7 +352,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 		let info: Template.PageInfo = {
 			path: item.path,
-			url: new URL(item.path, $site.url).href,
+			url: item.url,
 			title: item.title,
 			summary: item.summary,
 			section: item.section,
@@ -410,7 +414,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			path: item.path,
 			params: item.params,
 			content: '',                       // filled below (and again after layout)
-			url: new URL(item.path, $site.url).href,
+			url: item.url,
 			summary: item.summary,
 			title: item.title,
 			section: item.section,
