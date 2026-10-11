@@ -26,7 +26,10 @@ CLI options:
 ```sh
 bongo build -C site --minify
 bongo dev -C site --host --port 3000
+bongo build --debug
 ```
+
+`--debug` logs each stage of a build, such as `loading the config and data/` or `bundling assets`, and how long it took. Without it, a stage that is still running after 15 seconds prints `still <stage>` every 15 seconds, so a build that waits on something, like a top-level `await` in your config, says what it waits on.
 
 ### Minify
 

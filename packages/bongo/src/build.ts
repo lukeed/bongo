@@ -115,13 +115,32 @@ export type Inputs = {
  */
 export async function prepare(argv: Argv): Promise<Inputs> {
 	normalize(argv);
-	let [loaded, store] = await Promise.all([load(argv.cwd), data.load(argv.data)]);
+	let watch = log.watchdog({ debug: argv.debug });
+	watch.step('loading the config and data/');
+	try {
+		var [loaded, store] = await Promise.all([load(argv.cwd), data.load(argv.data)]);
+	} finally {
+		watch.stop();
+	}
 	return { config: loaded.config, $data: store.value, files: [...loaded.files, ...store.files] };
 }
 
+/**
+ * Build the site into `public/`.
+ * @example await build({ cwd: 'site', minify: true });
+ */
 export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> {
-	let t0 = Date.now();
 	normalize(argv);
+	let watch = log.watchdog({ debug: argv.debug });
+	try {
+		await run(argv, opts, watch);
+	} finally {
+		watch.stop();
+	}
+}
+
+async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog): Promise<void> {
+	let t0 = Date.now();
 
 	const { config, $data } = opts.inputs ?? await prepare(argv);
 	const { $site, $assets: ASSETS } = config;
@@ -149,6 +168,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	};
 
 	// sets `templates` caches
+	watch.step('compiling layouts and partials');
 	await templates.collect(argv, context);
 
 	const isPage = /(hbs|html?)$/;
@@ -266,6 +286,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		});
 	}
 
+	watch.step('reading content/');
 	await fs.list(content, (input, rel, name) => scan(input, rel, name).catch(err => {
 		let reason = err instanceof Error ? err.message : String(err);
 		throw new Error(`${join('content', rel)}: ${reason}`, { cause: err });
@@ -335,6 +356,8 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	for (let [tag, pages] of TagsMap) {
 		$tags.push({ tag, pages });
 	}
+
+	watch.step('rendering pages');
 
 	// Walk 2 — render layouts with $pages + $section + $tags context.
 	// If `only` is set, skip rendering every item except the matching one — walk 1
@@ -461,6 +484,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 
 	// Flush: run every bundle group in parallel.
 	let publicPath = derivePublicPath($site.url);
+	watch.step('bundling assets');
 	let flushResult = await bundler.flush({
 		outDir: dest,
 		publicPath,
@@ -485,6 +509,8 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		debug('[bundler.warning]', w.message);
 	}
 
+	watch.step('writing pages');
+
 	// Pass 2: substitute placeholders and write pages.
 	let readOutput = (filename: string) => fs.read(join(dest, filename), 'utf8');
 
@@ -497,6 +523,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		await fs.write(page.output, html);
 	}));
 
+	if (argv.minify) watch.step('minifying html');
 	if (argv.minify && !await minify.html(pages.map(page => page.output))) {
 		log.info(`${dim('--minify:')} HTML left as-is; install tdewolff/minify to minify it`);
 	}

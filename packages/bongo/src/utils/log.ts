@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { dim, cyan } from 'kleur/colors';
+import { cyan, dim, yellow } from 'kleur/colors';
 
 // Status line for normal progress output. Callers may pre-color parts of
 // `msg` (e.g. wrap success text in green) — this helper only owns the `~>`
@@ -15,6 +15,47 @@ export function debug(...msg: any[]) {
 }
 
 export const error = console.error.bind(console);
+
+export type Watchdog = {
+	/** Start the next stage, which ends the current one. */
+	step(name: string): void;
+	stop(): void;
+};
+
+/**
+ * Track the stages of a long task. Under `debug` it logs each stage and its time.
+ * Always, a stage that is still running is named every `every` ms, so a wait that never ends says what it waits on.
+ * @example let watch = log.watchdog({ debug: argv.debug }); watch.step('loading config'); …; watch.stop();
+ */
+export function watchdog(options: { debug?: boolean; every?: number } = {}): Watchdog {
+	let { debug: verbose = false, every = 15_000 } = options;
+	let name = '';
+	let t0 = Date.now();
+
+	let timer = setInterval(() => {
+		if (name) info(`${yellow('still')} ${name} ${dim(`(${elapsed(Date.now() - t0)})`)}`);
+	}, every);
+	timer.unref?.();
+
+	let end = () => {
+		if (verbose && name) debug('[stage]', `${name}: ${elapsed(Date.now() - t0)}`);
+	};
+
+	return {
+		step(next) {
+			end();
+			name = next;
+			t0 = Date.now();
+			if (verbose) debug('[stage]', name);
+			timer.refresh();
+		},
+		stop() {
+			end();
+			name = '';
+			clearInterval(timer);
+		},
+	};
+}
 
 export function elapsed(ms: number): string {
 	return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`;

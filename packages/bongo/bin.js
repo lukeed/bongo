@@ -36,6 +36,7 @@ if (argv.h) {
 	output += '\n    -H, --host       Host to bind; bare flag exposes network  (default localhost)';
 	output += '\n    -p, --port       Port to bind  (default 3000)';
 	output += '\n    -m, --minify     Compress built assets  (default false)';
+	output += '\n    -d, --debug      Log each build stage and its time  (default false)';
 	output += '\n    -v, --version    Displays current version';
 	output += '\n    -h, --help       Displays this message';
 	output += '\n';

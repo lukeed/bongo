@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach } from 'bun:test';
+import { describe, expect, test, beforeEach, spyOn } from 'bun:test';
 import { mkdir, mkdtemp, cp, rm, readFile, readdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -127,6 +127,28 @@ describe('integration: site-basic', () => {
 			expect(hashedCss.length).toBeGreaterThanOrEqual(1);
 			expect(hashedJs.length).toBeGreaterThanOrEqual(1);
 		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('integration: --debug', () => {
+	test('names each stage of the build', async () => {
+		let root = await copyFixture('site-basic');
+		let spy = spyOn(console, 'log').mockImplementation(() => {});
+		try {
+			await build({ cwd: root, debug: true });
+			let stages = spy.mock.calls.filter(args => args[1] === '[stage]' && !String(args[2]).includes(': ')).map(args => args[2]);
+			expect(stages).toEqual([
+				'loading the config and data/',
+				'compiling layouts and partials',
+				'reading content/',
+				'rendering pages',
+				'bundling assets',
+				'writing pages',
+			]);
+		} finally {
+			spy.mockRestore();
 			await rm(root, { recursive: true, force: true });
 		}
 	});
