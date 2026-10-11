@@ -594,7 +594,7 @@ describe('dev rebuilds', () => {
 		return site({
 			'assets/style.css': 'body { color: red }',
 			'assets/extra.css': '.extra { color: blue }',
-			'assets/main.ts': 'console.log("main");',
+			'assets/main.ts': 'export let main = "main";\nconsole.log(main);',
 			'layouts/html.hbs': '<bongo:style src="style.css" />{{{ $page.content }}}',
 			'content/index.html': page,
 			'content/about.html': '<p>about</p>',

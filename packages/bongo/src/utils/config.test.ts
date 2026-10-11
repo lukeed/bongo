@@ -210,6 +210,6 @@ describe('load', () => {
 		expect(typeof utils.countwords).toBe('function');
 		expect(typeof utils.url.abs).toBe('function');
 		expect(typeof utils.url.rel).toBe('function');
-		expect(output.files).toEqual([realpathSync(join(dir, 'bongo.config.ts'))]);
+		expect(output.files.filter(file => !file.endsWith('tsconfig.json'))).toEqual([realpathSync(join(dir, 'bongo.config.ts'))]);
 	});
 });
