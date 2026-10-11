@@ -37,6 +37,18 @@ describe('copy', () => {
 	});
 });
 
+describe('rmdir', () => {
+	test('tolerates another remover deleting the folder first', async () => {
+		let root = sandbox();
+		for (let i = 0; i < 50; i++) {
+			mkdirSync(join(root, `p/${i}`), { recursive: true });
+			writeFileSync(join(root, `p/${i}/index.html`), 'x');
+		}
+		await Promise.all([fs.rmdir(join(root, 'p')), fs.rmdir(join(root, 'p')), fs.rmdir(join(root, 'p'))]);
+		expect(existsSync(join(root, 'p'))).toBe(false);
+	});
+});
+
 describe('prune', () => {
 	test('deletes a file and the folders it leaves empty, up to the root', async () => {
 		let root = sandbox();

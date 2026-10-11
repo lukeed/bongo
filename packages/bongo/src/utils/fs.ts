@@ -8,9 +8,6 @@ import type { FSWatcher } from 'node:fs';
 
 export { exists };
 
-// @ts-ignore - Node 14.4
-const _rm = fs.rm || fs.rmdir;
-
 export const ls = fs.readdir;
 export const read = fs.readFile;
 
@@ -18,8 +15,9 @@ export function rm(file: string): Promise<void> {
 	return fs.rm(file, { force: true });
 }
 
+// force: another process, like a second bongo in the same folder, may remove it first
 export async function rmdir(path: string): Promise<void> {
-	!exists(path) || await _rm(path, { recursive: true });
+	await fs.rm(path, { recursive: true, force: true, maxRetries: 3 });
 }
 
 /**
