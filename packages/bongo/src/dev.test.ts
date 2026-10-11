@@ -44,23 +44,12 @@ async function serve(root: string): Promise<Server> {
 	if (!url) throw new Error(`dev did not start: ${output}`);
 
 	let messages: Message[] = [];
-	let abort = new AbortController();
-	let events = await fetch(url + '/~/reload', { signal: abort.signal });
-	(async () => {
-		let reader = events.body?.getReader();
-		let buffer = '';
-		while (reader) {
-			let { value, done } = await reader.read().catch(() => ({ value: undefined, done: true }));
-			if (done) return;
-			buffer += decoder.decode(value);
-			let parts = buffer.split('\n\n');
-			buffer = parts.pop() ?? '';
-			for (let part of parts) {
-				let data = /^data: (\{.*\})$/m.exec(part);
-				if (data) messages.push(JSON.parse(data[1]));
-			}
-		}
-	})();
+	let ws = new WebSocket(url.replace(/^http/, 'ws') + '/~/reload');
+	await new Promise((resolve, reject) => {
+		ws.onopen = resolve;
+		ws.onerror = () => reject(new Error(`the reload socket failed\n${output}`));
+	});
+	ws.onmessage = e => messages.push(JSON.parse(String(e.data)));
 
 	return {
 		url,
@@ -68,7 +57,7 @@ async function serve(root: string): Promise<Server> {
 		output: () => output,
 		page: () => fetch(url + '/').then(res => res.text()),
 		async stop() {
-			abort.abort();
+			ws.close();
 			proc.kill();
 			await proc.exited;
 		},

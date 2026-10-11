@@ -485,17 +485,20 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 		if (argv.dev) {
 			rendered_content += `<script>`;
-			rendered_content +=   `var es = new EventSource('${RELOAD}');`;
-			rendered_content +=   `es.onopen = () => console.log('[dev] live reload enabled');`;
-			rendered_content +=   `es.onmessage = (ev) => {`;
-			rendered_content +=     `try {`;
-			rendered_content +=       `var m = JSON.parse(ev.data);`;
-			rendered_content +=       `if (m.type === 'reload') location.reload();`;
-			rendered_content +=       `else if (m.type === 'hmr') console.warn('[dev] HMR not yet implemented; ignoring');`;
-			rendered_content +=       `else if (m.type === 'error') __bongo_err(m.errors);`;
-			rendered_content +=       `else if (m.type === 'error-clear') __bongo_err_clear();`;
-			rendered_content +=     `} catch (e) {}`;
-			rendered_content +=   `};`;
+			rendered_content +=   `(function __bongo_ws(again) {`;
+			rendered_content +=     `var ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '${RELOAD}');`;
+			rendered_content +=     `ws.onopen = function () { if (again) location.reload(); else console.log('[dev] live reload enabled'); };`;
+			rendered_content +=     `ws.onclose = function () { setTimeout(function () { __bongo_ws(true); }, 1000); };`;
+			rendered_content +=     `ws.onmessage = function (ev) {`;
+			rendered_content +=       `try {`;
+			rendered_content +=         `var m = JSON.parse(ev.data);`;
+			rendered_content +=         `if (m.type === 'reload') location.reload();`;
+			rendered_content +=         `else if (m.type === 'hmr') console.warn('[dev] HMR not yet implemented; ignoring');`;
+			rendered_content +=         `else if (m.type === 'error') __bongo_err(m.errors);`;
+			rendered_content +=         `else if (m.type === 'error-clear') __bongo_err_clear();`;
+			rendered_content +=       `} catch (e) {}`;
+			rendered_content +=     `};`;
+			rendered_content +=   `})(false);`;
 			rendered_content +=   `function __bongo_esc(s) { return String(s||'').replace(/[<>&]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]}); }`;
 			rendered_content +=   `function __bongo_err(errs) {`;
 			rendered_content +=     `__bongo_err_clear();`;

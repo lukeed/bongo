@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
@@ -10,12 +11,17 @@ import * as images from './images';
 import * as log from './log';
 
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
+import type { Socket } from 'node:net';
+import type { Duplex } from 'node:stream';
 import type { Argv } from 'bongo';
 import type { HmrMessage } from './bundler';
 
 export const RELOAD = '/~/reload';
 
-const clients = new Set<ServerResponse>();
+// Fixed by RFC 6455 to prove the server speaks WebSocket.
+const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+
+const clients = new Set<Duplex>();
 
 let ready: Promise<void> = Promise.resolve();
 
@@ -28,11 +34,43 @@ export function hold(task: Promise<unknown>): void {
 }
 
 export function send(msg: HmrMessage): void {
-	let data = JSON.stringify(msg);
-	for (let res of clients) {
-		if (res.destroyed || res.writableEnded) clients.delete(res);
-		else res.write(`data: ${data}\n\n`);
+	let data = frame(JSON.stringify(msg));
+	for (let socket of clients) {
+		if (socket.destroyed || !socket.writable) clients.delete(socket);
+		else socket.write(data);
 	}
+}
+
+// One unmasked text frame, as a server sends it.
+function frame(text: string): Buffer {
+	let body = Buffer.from(text);
+	let n = body.length;
+	let head = n < 126
+		? [0x81, n]
+		: n < 65536
+			? [0x81, 126, n >>> 8, n & 255]
+			: [0x81, 127, 0, 0, 0, 0, n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+	return Buffer.concat([Buffer.from(head), body]);
+}
+
+// Reloads use a WebSocket because browsers allow six HTTP/1.1 connections per host, and a stream per open tab starves page loads.
+function upgrade(req: IncomingMessage, socket: Duplex): void {
+	let key = req.headers['sec-websocket-key'];
+	if (req.url !== RELOAD || !key || req.headers.upgrade?.toLowerCase() !== 'websocket') return void socket.destroy();
+
+	let accept = createHash('sha1').update(key + GUID).digest('base64');
+	socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+	(socket as Socket).setTimeout?.(0);
+	clients.add(socket);
+
+	let drop = () => clients.delete(socket);
+	socket.on('close', drop);
+	socket.on('error', drop);
+	socket.on('data', (chunk: Buffer) => {
+		if ((chunk[0] & 0x0f) !== 0x8) return;
+		drop();
+		socket.end(Buffer.from([0x88, 2, 0x03, 0xe8]));
+	});
 }
 
 // localhost and wildcard hosts are reachable on both loopbacks, so a server on either one holds the port.
@@ -107,25 +145,8 @@ export async function start(argv: Required<Argv>): Promise<Server> {
 
 	const respond = (req: IncomingMessage, res: ServerResponse) => {
 		if (req.url !== RELOAD) return void ready.then(() => page(req, res));
-
-		res.writeHead(200, {
-			'connection': 'keep-alive',
-			'content-type': 'text/event-stream',
-			'cache-control': 'no-cache',
-		});
-
-		// a pipelined response has no socket until earlier ones finish; the connection is on `req`
-		req.socket.setTimeout(0);
-
-		req.once('close', () => {
-			clients.delete(res);
-			res.end();
-		});
-		res.on('error', () => clients.delete(res));
-
-		res.write('event: status\ndata: open\n\n');
-
-		clients.add(res);
+		res.writeHead(426, { 'upgrade': 'websocket', 'content-type': 'text/plain; charset=utf-8' });
+		res.end('Upgrade Required');
 	};
 
 	let last = argv.port + 10;
@@ -135,6 +156,7 @@ export async function start(argv: Required<Argv>): Promise<Server> {
 
 		// a fresh server for each try, since a server that failed to listen may not listen again
 		let server = createServer(respond);
+		server.on('upgrade', upgrade);
 		try {
 			await listen(server, port, argv.host);
 		} catch (err) {

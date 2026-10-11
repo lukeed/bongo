@@ -10,6 +10,7 @@ import * as http from './http';
 import * as images from './images';
 
 import type { Argv } from 'bongo';
+import type { HmrMessage } from './bundler';
 
 function argv(): Required<Argv> {
 	let dest = mkdtempSync(join(tmpdir(), 'bongo-http-'));
@@ -30,9 +31,62 @@ function raw(port: number, payload: string, wait = 150): Promise<string> {
 	});
 }
 
+function socket(port: number): Promise<WebSocket> {
+	return new Promise((resolve, reject) => {
+		let ws = new WebSocket(`ws://127.0.0.1:${port}${http.RELOAD}`);
+		ws.onopen = () => resolve(ws);
+		ws.onerror = () => reject(new Error('reload socket failed'));
+	});
+}
+
+function next(ws: WebSocket): Promise<unknown> {
+	return new Promise(resolve => {
+		ws.addEventListener('message', e => resolve(JSON.parse(String(e.data))), { once: true });
+	});
+}
+
 describe('send', () => {
-	test('is a function (SSE sender present)', () => {
-		expect(typeof http.send).toBe('function');
+	test('sends every message to every reload socket, whatever its size', async () => {
+		let opts = argv();
+		let server = await http.start(opts);
+		let a = await socket(opts.port);
+		let b = await socket(opts.port);
+		try {
+			for (let size of [10, 200, 70_000]) {
+				let msg: HmrMessage = { type: 'error', errors: [{ message: 'x'.repeat(size) }] };
+				let got = Promise.all([next(a), next(b)]);
+				http.send(msg);
+				expect(await got).toEqual([msg, msg]);
+			}
+		} finally {
+			a.close();
+			b.close();
+			server.close();
+		}
+	});
+
+	test('answers a closing client with a clean close', async () => {
+		let opts = argv();
+		let server = await http.start(opts);
+		try {
+			let ws = await socket(opts.port);
+			let closed = new Promise<number>(resolve => ws.onclose = e => resolve(e.code));
+			ws.close(1000);
+			expect(await closed).toBe(1000);
+		} finally {
+			server.close();
+		}
+	});
+
+	test('refuses a plain request to the reload path', async () => {
+		let opts = argv();
+		let server = await http.start(opts);
+		try {
+			let res = await fetch(`http://127.0.0.1:${opts.port}${http.RELOAD}`);
+			expect(res.status).toBe(426);
+		} finally {
+			server.close();
+		}
 	});
 });
 
@@ -136,14 +190,16 @@ describe('start', () => {
 		let opts = argv();
 		let server = await http.start(opts);
 		try {
-			let first = await raw(opts.port, 'GET /~/reload HTTP/1.1\r\nHost: x\r\n\r\n', 50);
-			expect(first).toContain('event: status');
+			let first = await socket(opts.port);
+			first.close();
+			await new Promise(r => setTimeout(r, 50));
 			expect(() => http.send({ type: 'reload' })).not.toThrow();
 
-			let late = raw(opts.port, 'GET /~/reload HTTP/1.1\r\nHost: x\r\n\r\n', 200);
-			await new Promise(r => setTimeout(r, 80));
+			let late = await socket(opts.port);
+			let got = next(late);
 			http.send({ type: 'reload' });
-			expect(await late).toContain('"type":"reload"');
+			expect(await got).toEqual({ type: 'reload' });
+			late.close();
 		} finally {
 			server.close();
 		}
@@ -182,7 +238,8 @@ describe('hold', () => {
 		http.hold(new Promise<void>(() => {}));
 		let server = await http.start(opts);
 		try {
-			expect(await raw(opts.port, 'GET /~/reload HTTP/1.1\r\nHost: x\r\n\r\n', 100)).toContain('event: status');
+			let ws = await socket(opts.port);
+			ws.close();
 		} finally {
 			server.close();
 			http.hold(Promise.resolve());

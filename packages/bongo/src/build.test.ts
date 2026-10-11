@@ -97,7 +97,7 @@ describe('output files', () => {
 		try {
 			await build({ cwd: root, dev: true });
 			expect(await read(root, 'notes.txt')).toBe(source);
-			expect(await read(root, 'index.html')).toContain('EventSource');
+			expect(await read(root, 'index.html')).toContain('WebSocket');
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
