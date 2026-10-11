@@ -184,6 +184,16 @@ describe('XML escaping', () => {
 	});
 });
 
+describe('quoted attribute values', () => {
+	test('may contain > and />, as {{ }} leaves > unescaped', async () => {
+		let out = await run('<feed:channel><feed:item href="/x" title="a -> b />" date="2025-01-01" summary=\'1 > 0\'></feed:item></feed:channel>', output({ format: 'rss', title: 'T' }));
+		expect(out).toContain('<title>a -&gt; b /&gt;</title>');
+		expect(out).toContain('<description>1 &gt; 0</description>');
+		let link = await run('<feed:link path="/feed.xml" title="a > b" />!', page([{ path: '/feed.xml', params: { format: 'rss' } }]));
+		expect(link).toBe('<link rel="alternate" type="application/rss+xml" title="a &gt; b" href="/feed.xml" />!');
+	});
+});
+
 describe('empty feeds', () => {
 	test('Atom <updated> falls back to current time, never 1970 epoch', async () => {
 		let before = Date.now();
@@ -234,7 +244,7 @@ describe('with bongo build', () => {
 			'layouts/html.hbs': '<!doctype html>\n<html lang="{{ $site.lang }}">\n<head>\n<title>{{ $page.title }}</title>\n<feed:link path="/blog/feed.xml" />\n</head>\n<body>\n{{{ $page.content }}}\n</body>\n</html>\n',
 			'content/index.html': '<h1>Home</h1>',
 			'content/blog/post-a.html': '---\ntitle: Post A\nsummary: First post\ndate: 2025-01-15T10:00:00Z\n---\n<h1>Post A</h1>',
-			'content/blog/post-b.html': '---\ntitle: Post B & "Friends" \\ co\nsummary: Second post\ndate: 2025-02-20T10:00:00Z\n---\n<h1>Post B</h1>',
+			'content/blog/post-b.html': '---\ntitle: Post B & "Friends" \\ <co> -> 1\nsummary: Second post\ndate: 2025-02-20T10:00:00Z\n---\n<h1>Post B</h1>',
 			'content/blog/feed.xml.hbs': FEED,
 		};
 		for (let [rel, text] of Object.entries(files)) {
@@ -256,7 +266,7 @@ describe('with bongo build', () => {
 			expect(xml).toContain('<description>Posts from the blog</description>');
 			expect(xml).toContain('<atom:link href="https://example.com/blog/feed.xml" rel="self" type="application/rss+xml"/>');
 			expect(xml).toContain('<title>Post A</title>\n<link>https://example.com/blog/post-a/</link>');
-			expect(xml).toContain('<title>Post B &amp; &quot;Friends&quot; \\ co</title>');
+			expect(xml).toContain('<title>Post B &amp; &quot;Friends&quot; \\ &lt;co&gt; -&gt; 1</title>');
 			expect(xml).not.toContain('<feed:');
 			expect(xml).not.toContain('<html');
 

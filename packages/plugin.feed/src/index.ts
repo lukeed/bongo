@@ -5,9 +5,10 @@ import type { Format } from './helpers';
 
 export type { Format };
 
-const LINK = /<feed:link\b([^>]*?)\s*\/?>(?:<\/feed:link\s*>)?/g;
-const CHANNEL = /<feed:channel\b([^>]*?)>([\s\S]*?)<\/feed:channel\s*>/;
-const ITEM = /<feed:item\b([^>]*?)\s*\/?>(?:<\/feed:item\s*>)?/g;
+// quoted values may hold `>` and `/>`, which `{{ }}` does not escape
+const LINK = /<feed:link\b((?:"[^"]*"|'[^']*'|[^>"'\/]|\/(?!>))*?)\s*\/?>(?:<\/feed:link\s*>)?/g;
+const CHANNEL = /<feed:channel\b((?:"[^"]*"|'[^']*'|[^>"'])*?)>([\s\S]*?)<\/feed:channel\s*>/;
+const ITEM = /<feed:item\b((?:"[^"]*"|'[^']*'|[^>"'\/]|\/(?!>))*?)\s*\/?>(?:<\/feed:item\s*>)?/g;
 
 const LINK_ATTRS = ['path', 'title'];
 const ITEM_ATTRS = ['href', 'title', 'date', 'summary', 'content', 'id', 'author', 'tags'];
