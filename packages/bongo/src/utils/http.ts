@@ -17,6 +17,16 @@ export const RELOAD = '/~/reload';
 
 const clients = new Set<ServerResponse>();
 
+let ready: Promise<void> = Promise.resolve();
+
+/**
+ * Hold page requests until `task` settles, whether it succeeds or fails; the reload stream is never held.
+ * @example http.hold(firstBuild);
+ */
+export function hold(task: Promise<unknown>): void {
+	ready = task.then(() => {}, () => {});
+}
+
 export function send(msg: HmrMessage): void {
 	let data = JSON.stringify(msg);
 	for (let res of clients) {
@@ -73,28 +83,30 @@ export async function start(argv: Required<Argv>): Promise<Server> {
 		},
 	});
 
-	const respond = (req: IncomingMessage, res: ServerResponse) => {
-		if (req.url !== RELOAD) {
-			let pathname = (req.url || '/').replace(/[?#].*/, '');
-			let name = pathname.slice(pathname.lastIndexOf('/') + 1);
-			try { name = decodeURIComponent(name); } catch { /* keep as written */ }
+	const page = (req: IncomingMessage, res: ServerResponse) => {
+		let pathname = (req.url || '/').replace(/[?#].*/, '');
+		let name = pathname.slice(pathname.lastIndexOf('/') + 1);
+		try { name = decodeURIComponent(name); } catch { /* keep as written */ }
 
-			// resized images are encoded on their first request, then read from the cache
-			let image = images.serve(name);
-			if (!image) return handler(req, res);
-			return void image.then(body => {
-				res.writeHead(200, {
-					'content-type': mime.lookup(name) || 'application/octet-stream',
-					'cache-control': 'public, max-age=31536000, immutable',
-				});
-				res.end(body);
-			}, err => {
-				let message = err instanceof Error ? err.message : String(err);
-				log.error(message);
-				res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
-				res.end(message);
+		// resized images are encoded on their first request, then read from the cache
+		let image = images.serve(name);
+		if (!image) return handler(req, res);
+		return void image.then(body => {
+			res.writeHead(200, {
+				'content-type': mime.lookup(name) || 'application/octet-stream',
+				'cache-control': 'public, max-age=31536000, immutable',
 			});
-		}
+			res.end(body);
+		}, err => {
+			let message = err instanceof Error ? err.message : String(err);
+			log.error(message);
+			res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+			res.end(message);
+		});
+	};
+
+	const respond = (req: IncomingMessage, res: ServerResponse) => {
+		if (req.url !== RELOAD) return void ready.then(() => page(req, res));
 
 		res.writeHead(200, {
 			'connection': 'keep-alive',

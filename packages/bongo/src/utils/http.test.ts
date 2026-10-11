@@ -150,6 +150,61 @@ describe('start', () => {
 	});
 });
 
+describe('hold', () => {
+	test('holds page requests until the task settles, then serves the finished output', async () => {
+		let opts = argv();
+		let release!: () => void;
+		http.hold(new Promise<void>(r => release = r));
+		let server = await http.start(opts);
+		try {
+			let settled = false;
+			let pending = fetch(`http://127.0.0.1:${opts.port}/late/`).then(res => {
+				settled = true;
+				return res;
+			});
+			await new Promise(r => setTimeout(r, 150));
+			expect(settled).toBe(false);
+
+			mkdirSync(join(opts.dest, 'late'));
+			writeFileSync(join(opts.dest, 'late/index.html'), '<h1>late</h1>');
+			release();
+			let res = await pending;
+			expect(res.status).toBe(200);
+			expect(await res.text()).toBe('<h1>late</h1>');
+		} finally {
+			server.close();
+			http.hold(Promise.resolve());
+		}
+	});
+
+	test('never holds the reload stream', async () => {
+		let opts = argv();
+		http.hold(new Promise<void>(() => {}));
+		let server = await http.start(opts);
+		try {
+			expect(await raw(opts.port, 'GET /~/reload HTTP/1.1\r\nHost: x\r\n\r\n', 100)).toContain('event: status');
+		} finally {
+			server.close();
+			http.hold(Promise.resolve());
+		}
+	});
+
+	test('releases held requests when the task fails', async () => {
+		let opts = argv();
+		let fail!: (err: Error) => void;
+		http.hold(new Promise<void>((_, reject) => fail = reject));
+		let server = await http.start(opts);
+		try {
+			let pending = fetch(`http://127.0.0.1:${opts.port}/`);
+			fail(new Error('first build broke'));
+			expect((await pending).status).toBe(200);
+		} finally {
+			server.close();
+			http.hold(Promise.resolve());
+		}
+	});
+});
+
 describe('images', () => {
 	test('serves the files the last dev flush listed, and passes other requests on', async () => {
 		let opts = argv();

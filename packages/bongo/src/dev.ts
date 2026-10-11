@@ -112,8 +112,10 @@ export async function dev(argv: Argv) {
 
 	// Start server before build so the banner + URL appear instantly.
 	// sirv reads files per-request in dev mode, so it only needs the
-	// directory to exist — pages land once the build finishes.
+	// directory to exist — page requests wait until the first build settles.
 	await fs.mkdir(join(flags.dest, '_'));
+	let built!: () => void;
+	http.hold(new Promise<void>(resolve => built = resolve));
 	await http.start(flags);
 	banner(flags.host, flags.port);
 
@@ -220,11 +222,14 @@ export async function dev(argv: Argv) {
 	stop = await follow();
 
 	let done = log.spin(`${dim('~>')} building`);
-	let inputs = await prepare(argv);
+	let inputs = await prepare(argv).catch(err => {
+		built();
+		throw err;
+	});
 	inputs.files.forEach(file => tracked.add(file));
 	stop();
 	stop = await follow();
-	await build(argv, { inputs });
+	await build(argv, { inputs }).finally(built);
 	done();
 
 	// Reload any page that connected before the build finished.

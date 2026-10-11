@@ -188,6 +188,23 @@ describe('dev', () => {
 });
 
 describe('output folder', () => {
+	test('holds requests made during the first build until it ends', async () => {
+		let root = await site({
+			'bongo.config.ts': `await new Promise(r => setTimeout(r, 1500));\nexport default { $site: { url: 'https://example.com/', title: 'x', lang: 'en' } };`,
+			'layouts/html.hbs': '{{{ $page.content }}}',
+			'content/index.html': '<p>home</p>',
+		});
+		let server = await serve(root);
+		try {
+			let res = await fetch(server.url + '/');
+			expect(res.status).toBe(200);
+			expect(await res.text()).toContain('<p>home</p>');
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('dev empties public/ before it serves', async () => {
 		let root = await site({
 			'bongo.config.ts': `await new Promise(r => setTimeout(r, 1500));\nexport default { $site: { url: 'https://example.com/', title: 'x', lang: 'en' } };`,
@@ -197,10 +214,9 @@ describe('output folder', () => {
 		});
 		let server = await serve(root);
 		try {
-			expect((await fetch(server.url + '/old/stale.html')).status).toBe(404);
 			expect(await readdir(join(root, 'public'))).not.toContain('old');
 			expect(await readdir(join(root, 'public'))).not.toContain('index.html');
-			await until(async () => (await server.page()).includes('<p>home</p>'), 'the first build', server);
+			expect((await fetch(server.url + '/old/stale.html')).status).toBe(404);
 		} finally {
 			await server.stop();
 			await rm(root, { recursive: true, force: true });
