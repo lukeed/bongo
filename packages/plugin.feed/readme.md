@@ -67,7 +67,7 @@ Use it in a layout or a page.
 
 | Attribute | Required | Notes |
 | --- | --- | --- |
-| `path` | yes | The URL path of the feed, such as `/blog/feed.xml`. It must be an output file with `format: rss` or `format: atom`. |
+| `path` | yes | The URL path of the feed, such as `/blog/feed.xml`. It must be an output file with `format: rss` or `format: atom`. For a site in a subfolder of `$site.url`, the link gets the subfolder, as asset links do. |
 | `title` | no | The link title. Defaults to the `title` of the feed. |
 
 ### `<feed:channel>…</feed:channel>`

@@ -24,8 +24,8 @@ function config(url = 'https://example.com'): Required<Config> {
 	};
 }
 
-function page(outputs: Build.File[]): Build.Context {
-	return { kind: 'page', path: '/', params: {}, outputs, config: config() };
+function page(outputs: Build.File[], url?: string): Build.Context {
+	return { kind: 'page', path: '/', params: {}, outputs, config: config(url) };
 }
 
 function output(params: Template.Params, path = '/feed.xml', url?: string): Build.Context {
@@ -53,6 +53,11 @@ describe('<feed:link>', () => {
 		let outputs = [{ path: '/feed.xml', params: { format: 'rss', title: 2024 } }];
 		expect(await run(`<feed:link path="/feed.xml" />`, page(outputs))).toContain('title="2024"');
 		expect(await run(`<feed:link path="/feed.xml" title="News &amp; notes" />`, page(outputs))).toContain('title="News &amp; notes"');
+	});
+
+	test('links under the subfolder of $site.url, as asset links do', async () => {
+		let out = await run(`<feed:link path="/blog/feed.xml" />`, page([{ path: '/blog/feed.xml', params: { format: 'rss', title: 'Blog' } }], 'https://example.com/sub'));
+		expect(out).toContain('href="/sub/blog/feed.xml"');
 	});
 
 	test('errors when the target is not an output file', async () => {
