@@ -94,7 +94,7 @@ function preload(href: string, src: string, props: attrs.Attrs): string {
 export function scanBongoTags(
 	html: string,
 	argv: Required<Argv>,
-	config: Required<Config>,
+	config: Pick<Required<Config>, '$build'>,
 	from?: string,
 ): string {
 	return html.replace(BONGO_TAG, (match, kind: 'script' | 'style' | 'client' | 'asset', rawAttrs: string) => {

@@ -4,6 +4,7 @@ import { extname, join, relative, sep } from 'node:path';
 import { dim, green } from 'kleur/colors';
 
 import * as attrs from './utils/attrs';
+import * as data from './utils/data';
 import * as fs from './utils/fs';
 import * as log from './utils/log';
 import * as minify from './utils/minify';
@@ -100,7 +101,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	let t0 = Date.now();
 	normalize(argv);
 
-	const config = await load(argv.cwd);
+	const [config, { value: $data }] = await Promise.all([load(argv.cwd), data.load(argv.data)]);
 	const { $site, $assets: ASSETS } = config;
 	const debug = argv.debug ? log.debug : () => {};
 
@@ -108,17 +109,21 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 
 	if (!opts.only) await fs.rmdir(argv.dest);
 
-	config.$assets = {
-		// @ts-ignore -> switcheroo
-		load(filename: string, encoding?: BufferEncoding) {
-			let file = join(argv.assets, filename);
-			fs.assert(file, `Missing "${filename}" asset!`);
-			return encoding ? fs.read(file, encoding) : fs.read(file);
-		}
+	const context: templates.Context = {
+		...config,
+		$data,
+		$assets: {
+			// @ts-ignore -> switcheroo
+			load(filename: string, encoding?: BufferEncoding) {
+				let file = join(argv.assets, filename);
+				fs.assert(file, `Missing "${filename}" asset!`);
+				return encoding ? fs.read(file, encoding) : fs.read(file);
+			}
+		},
 	};
 
 	// sets `templates` caches
-	await templates.collect(argv, config);
+	await templates.collect(argv, context);
 
 	const isPage = /(hbs|html?)$/;
 	const { Layouts, Partials } = templates;
@@ -329,7 +334,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		// body. Non-`.hbs` content bodies pass through raw.
 		let rendered_content = item.ext === 'hbs'
 			? await (await templates.compileContent(item.body))(
-				{ $page, $pages: Pages, $section, $tags, params: item.params, ...config }
+				{ $page, $pages: Pages, $section, $tags, params: item.params, ...context }
 			)
 			: item.body;
 		$page.content = rendered_content;
@@ -358,7 +363,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 
 			// Should always be defined as a fallback
 			if (!render) throw new Error('Missing "html.hbs" template');
-			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...config });
+			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...context });
 			chain.push(`layouts/${layout}`);
 		}
 
@@ -371,7 +376,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			}
 			// Should always be defined as a bare minimum
 			if (!render) throw new Error('Missing "html.hbs" template');
-			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...config });
+			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...context });
 			chain.push(`layouts/${layout}`);
 		}
 

@@ -12,6 +12,7 @@ export function normalize(argv: Argv): asserts argv is Required<Argv> {
 
 	argv.assets = resolve(argv.src, 'assets');
 	argv.content = resolve(argv.src, 'content');
+	argv.data = resolve(argv.src, 'data');
 	argv.partials = resolve(argv.src, 'partials');
 	argv.layouts = resolve(argv.src, 'layouts');
 

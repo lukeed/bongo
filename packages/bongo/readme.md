@@ -37,7 +37,7 @@ bongo dev -C site --host --port 3000
 When you run `bongo build`:
 
 1. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` by walking upward from `cwd`. Bun and Deno import TypeScript config files natively. Node bundles the config through Rolldown to a temp `.mjs` and dynamic-imports it.
-2. Layouts and partials are collected from `layouts/` and `partials/`. Handlebars files (`.hbs`) are compiled with tempura. JavaScript and TypeScript partials are loaded as modules.
+2. Files in `data/` are loaded as `$data`. Layouts and partials are collected from `layouts/` and `partials/`. Handlebars files (`.hbs`) are compiled with tempura. JavaScript and TypeScript partials are loaded as modules.
 3. Content files are passed through registered loaders, then rendered through the matching layout chain.
 4. Rendered HTML is scanned for `<bongo:style>`, `<bongo:script>`, and `<bongo:client>` elements. Assets are registered and replaced with placeholder tokens.
 5. Asset groups are flushed. JavaScript goes through Rolldown; CSS goes through LightningCSS. Output filenames include content hashes.
@@ -127,6 +127,32 @@ Older versions of bongo read every value as a string and split each line on its 
 - `note:` with no value is now `null`, not `''`.
 - A line that is not `key: value` is now an error, and so is a duplicate key.
 - `key:` followed by indented lines is now a nested map or list.
+
+## Data
+
+Put JSON, YAML, or module files in `data/` to use them in every template as `$data`. A file's key is its path without the extension:
+
+| File | Template value |
+| --- | --- |
+| `data/site.yaml` | `$data.site` |
+| `data/oss/history.json` | `$data.oss.history` |
+| `data/stats.ts` | `$data.stats`, the module's default export |
+
+```hbs
+<ul>
+{{#each $data.oss.history as row}}
+  <li>{{ row[0] }}: {{ row[1] }}</li>
+{{/each}}
+</ul>
+```
+
+- YAML files use the same subset as [Frontmatter](#frontmatter).
+- A `.ts`, `.mts`, `.js`, `.mjs`, or `.cjs` file must have a default export. It can use top-level `await`, for example to fetch data at build time.
+- Use brackets for a key that is not a valid name: `$data.oss['arr-filter']`.
+- Data from JSON and YAML files is read-only. Copy it before you sort it: `$data.posts.toSorted(...)`.
+- bongo skips files and folders whose names start with `.`. Any other file type fails the build. Two files with the same key, such as `data/a.json` and `data/a.yaml`, also fail the build.
+
+`$data` is available in layouts, partials, and `.hbs` content. Helpers in `$utils` do not get it automatically. Give them the value they need: `{{ $utils.total($data.oss.history) }}`.
 
 ## Loaders
 
@@ -285,8 +311,9 @@ If `transition:animate` is present without `transition:name`, an automatic name 
 - `$tags` — array of `{ tag, pages }` entries.
 - `$assets` — configured loader map.
 - `$utils` — configured helper functions.
+- `$data` — the files in `data/`. See [Data](#data).
 
-Content files ending in `.hbs` are tempura-compiled with the same context as layouts: `$site`, `$page`, `$pages`, `$section`, `$tags`, `$assets`, `$utils`, plus `params` as an alias for `$page.params`.
+Content files ending in `.hbs` are tempura-compiled with the same context as layouts: `$site`, `$page`, `$pages`, `$section`, `$tags`, `$assets`, `$utils`, `$data`, plus `params` as an alias for `$page.params`.
 
 The current page's own `$page.content` is empty while its body is compiling. It is the value produced by that compile.
 

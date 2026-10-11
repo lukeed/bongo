@@ -361,6 +361,47 @@ describe('integration: typed frontmatter', () => {
 	});
 });
 
+describe('integration: $data', () => {
+	test('layouts, content, and partials read data/ files as $data', async () => {
+		let root = await site({
+			'data/oss/history.json': '[["2015-02", 12], ["2015-03", 30]]',
+			'data/site.yaml': 'name: bongo\nlinks:\n  - label: GitHub\n    href: https://github.com',
+			'partials/links.hbs': '{{#each $data.site.links as link}}<a href="{{ link.href }}">{{ link.label }}</a>{{/each}}',
+			'content/index.hbs': '---\ntitle: Home\n---\n<p>{{ $data.site.name }}: {{ $data.oss.history.length }} months</p>',
+			'layouts/html.hbs': '<main>{{{ $page.content }}}</main><footer>{{#partial src="links" }}</footer><i>{{ $data.oss.history[1][1] }}</i>',
+		});
+		try {
+			await build({ cwd: root });
+			let html = await readFile(join(root, 'public/index.html'), 'utf8');
+			expect(html).toBe('<main>\n<p>bongo: 2 months</p></main><footer><a href="https://github.com">GitHub</a></footer><i>30</i>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a site without data/ gets an empty $data', async () => {
+		let root = await site({
+			'content/index.html': '<p>x</p>',
+			'layouts/html.hbs': '{{ Object.keys($data).length }}',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await readFile(join(root, 'public/index.html'), 'utf8')).toBe('0');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a broken data file fails the build and names the file', async () => {
+		let root = await site({ 'data/bad.yaml': 'a: 1\na: 2', 'content/index.html': '<p>x</p>' });
+		try {
+			await expect(build({ cwd: root })).rejects.toThrow(`${join('data', 'bad.yaml')}: duplicate key "a" at line 2`);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('integration: site-sections', () => {
 	test('exposes $pages and $section in templates; sets $page.section', async () => {
 		let root = await copyFixture('site-sections');

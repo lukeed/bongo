@@ -12,6 +12,12 @@ import type { OutputInfo, Placeholder } from './bundler';
 
 type Cache = Map<string, Template.Compiler>;
 
+/** What layouts, partials, and `.hbs` content see, on top of `$page`, `$pages`, `$section`, and `$tags`. */
+export type Context = Omit<Required<Config>, '$assets'> & {
+	$assets: { load(filename: string, encoding?: BufferEncoding): Promise<string | Buffer> };
+	$data: Record<string, unknown>;
+};
+
 export const Layouts: Cache = new Map;
 export const Partials: Cache = new Map;
 
@@ -35,7 +41,7 @@ export const blocks: {
 	},
 };
 
-function makeBlocks(_argv: Required<Argv>, _config: Required<Config>) {
+function makeBlocks(_argv: Required<Argv>, _config: Context) {
 	return {
 		/**
 		 * Alternative partial format
@@ -64,7 +70,7 @@ export async function compileContent(src: string): Promise<Template.Compiler> {
 		async: true,
 		// `params` remains a top-level var (an alias to `$page.params`) so
 		// existing `.hbs` templates using `{{ params.title }}` keep working.
-		props: ['$site', '$page', '$pages', '$section', '$tags', '$assets', '$utils', 'params'],
+		props: ['$site', '$page', '$pages', '$section', '$tags', '$assets', '$utils', '$data', 'params'],
 		blocks: blocks as unknown as tempura.Blocks,
 	};
 	return tempura.compile(src, options);
@@ -74,13 +80,13 @@ function isCompiler(input: unknown): input is Template.Compiler {
 	return typeof input === 'function';
 }
 
-export async function collect(argv: Required<Argv>, config: Required<Config>): Promise<void> {
+export async function collect(argv: Required<Argv>, config: Context): Promise<void> {
 	let made = makeBlocks(argv, config);
 
 	// Re-assign onto the exported const so ESM consumers see the new closures.
 	Object.assign(blocks, made);
 
-	let props = ['$site', '$page', '$pages', '$section', '$tags', '$assets', '$utils'];
+	let props = ['$site', '$page', '$pages', '$section', '$tags', '$assets', '$utils', '$data'];
 	// tempura blocks is typed as Blocks (Record<string, Block>); we cast through
 	// unknown to satisfy the index signature without using `any`.
 	let options: tempura.Options = { async: true, props, blocks: blocks as unknown as tempura.Blocks };

@@ -9,6 +9,7 @@ export interface Argv {
 	dest?: string;
 	assets?: string;
 	content?: string;
+	data?: string;
 	partials?: string;
 	layouts?: string;
 	debug?: boolean;
