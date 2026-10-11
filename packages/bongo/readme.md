@@ -329,6 +329,8 @@ A missing image fails the build. The error shows the element and the files that 
 Missing "content/blog/post/hero.jpg" for <img src="hero.jpg" alt="">, rendering content/blog/post.md
 ```
 
+An image path that resolves outside `assets/` or `content/` also fails the build.
+
 ### Image config
 
 ```ts
