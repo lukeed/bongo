@@ -134,11 +134,11 @@ A fence in a language that is not in `languages` renders as escaped plain text. 
 
 The other options, such as `default_language`, `line_numbers`, and `render`, are the same as in the [twinkleplop markdown plugins](https://twinkleplop.pngwn.at/docs/markdown). Fences can mark lines with `{1,3-4}`, add a title with `[app.ts]`, and turn on line numbers with `ts:line-numbers`.
 
-Import the theme in your CSS. An `@import` path is relative to the CSS file, so point it at the theme in `node_modules`:
+Import the theme in your CSS by its package name:
 
 ```css
 /* assets/app.css */
-@import "../node_modules/@twinkleplop/theme-github/dist/index.css";
+@import "@twinkleplop/theme-github";
 
 .twinkleplop {
 	background: var(--twp-background);
@@ -149,4 +149,4 @@ Import the theme in your CSS. An `@import` path is relative to the CSS file, so 
 <bongo:style src="app.css"></bongo:style>
 ```
 
-The theme has light and dark colors. A `dark` class on an ancestor, such as `<html class="dark">`, selects the dark colors. To use one set only, import `dist/light.css` or `dist/dark.css`.
+The theme has light and dark colors. A `dark` class on an ancestor, such as `<html class="dark">`, selects the dark colors. To use one set only, import `@twinkleplop/theme-github/light` or `@twinkleplop/theme-github/dark`.

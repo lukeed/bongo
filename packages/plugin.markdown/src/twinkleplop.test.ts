@@ -141,7 +141,7 @@ describe('twinkleplop: site build', () => {
 				`};`,
 			].join('\n'),
 			'layouts/html.hbs': '<bongo:style src="app.css"></bongo:style>\n<main>{{{ $page.content }}}</main>',
-			'assets/app.css': '@import "../node_modules/@twinkleplop/theme-github/dist/index.css";\n',
+			'assets/app.css': '@import "@twinkleplop/theme-github";\n',
 			'content/index.md': '---\ntitle: Home\n---\n\n' + fence('ts', 'const x = 1;') + '\n' + fence('txt', 'a < b'),
 		};
 
