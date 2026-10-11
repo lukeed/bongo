@@ -151,6 +151,28 @@ describe('<feed:channel> Atom — same body, format-flip', () => {
 	});
 });
 
+describe('<feed:channel> stylesheet', () => {
+	let second = (out: string) => out.split('\n')[1];
+
+	test('links a CSS or XSL stylesheet from frontmatter, so browsers can show the feed as a page', async () => {
+		expect(second(await run(BODY, output({ format: 'rss', title: 'T', stylesheet: '/blog/feed.css' })))).toBe('<?xml-stylesheet type="text/css" href="/blog/feed.css"?>');
+		expect(second(await run(BODY, output({ format: 'atom', title: 'T', stylesheet: '/feed.xsl' })))).toBe('<?xml-stylesheet type="text/xsl" href="/feed.xsl"?>');
+	});
+
+	test('links under the subfolder of $site.url, and keeps a full URL as written', async () => {
+		expect(second(await run(BODY, output({ format: 'rss', title: 'T', stylesheet: '/feed.css' }, '/feed.xml', 'https://example.com/sub/')))).toBe('<?xml-stylesheet type="text/css" href="/sub/feed.css"?>');
+		expect(second(await run(BODY, output({ format: 'rss', title: 'T', stylesheet: 'https://cdn.example/feed.css?v=1&x=2' })))).toBe('<?xml-stylesheet type="text/css" href="https://cdn.example/feed.css?v=1&amp;x=2"?>');
+	});
+
+	test('is left out by default', async () => {
+		expect(await run(BODY, output({ format: 'rss', title: 'T' }))).not.toContain('xml-stylesheet');
+	});
+
+	test('errors on a stylesheet that is neither CSS nor XSL', async () => {
+		await expect(run(BODY, output({ format: 'rss', title: 'T', stylesheet: '/feed.js' }))).rejects.toThrow('<feed:channel> "stylesheet" must be a .css or .xsl file: "/feed.js"');
+	});
+});
+
 describe('<feed:channel> errors', () => {
 	test('errors when the feed has no <feed:channel>', async () => {
 		await expect(run('<feed:item href="/x" title="t" date="2025-01-01" />', output({ format: 'rss', title: 'T' }))).rejects.toThrow('A feed must contain a <feed:channel>...</feed:channel> block');

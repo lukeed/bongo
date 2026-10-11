@@ -84,8 +84,11 @@ It holds the `<feed:item>` elements and takes no attributes. The frontmatter of 
 | `copyright` | no | RSS `<copyright>`, Atom `<rights>`. |
 | `link` | no | The page that the feed is for, such as `/blog/`, as a path or a URL. RSS `<link>`, Atom `<link rel="alternate">`. Defaults to `$site.url`. |
 | `author` | no | Atom `<author>` of the feed, for entries that do not name their own. Defaults to `$site.title`. |
+| `stylesheet` | no | A `.css` or `.xsl` file, as a path or a URL, that browsers use to show the feed as a page. A path gets the subfolder of `$site.url`. |
 
 The URL of the feed comes from its path and `$site.url`. The latest item `date` becomes RSS `<lastBuildDate>` and Atom `<updated>`. An empty Atom feed gets the build time, because Atom requires `<updated>`.
+
+Without a `stylesheet`, a browser shows a feed as a tree of XML. With one, the feed starts with an `<?xml-stylesheet?>` instruction. Feed readers ignore it. Prefer CSS: browsers are removing XSLT, and Chrome turns it off in November 2026. CSS can style each element of the feed, such as `channel > title` or `item`, but it cannot make the `<link>` of an item clickable.
 
 ### `<feed:item … />`
 

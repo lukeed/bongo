@@ -13,6 +13,7 @@ const ITEM = /<feed:item\b((?:"[^"]*"|'[^']*'|[^>"'\/]|\/(?!>))*?)\s*\/?>(?:<\/f
 const LINK_ATTRS = ['path', 'title'];
 const ITEM_ATTRS = ['href', 'title', 'date', 'summary', 'content', 'id', 'author', 'tags'];
 const REQUIRED = ['href', 'title', 'date'];
+const SHEETS: Record<string, string> = { css: 'text/css', xsl: 'text/xsl' };
 
 type Item = {
 	href: string;
@@ -35,6 +36,7 @@ type Channel = {
 	self: string;
 	link: string;
 	site: string;
+	stylesheet: string;
 };
 
 // frontmatter is typed, so `title: 2024` is a number
@@ -96,7 +98,7 @@ function item(raw: string): Item {
 }
 
 function rss(meta: Channel, items: Item[]): string {
-	let out = '<?xml version="1.0" encoding="utf-8"?>\n';
+	let out = '<?xml version="1.0" encoding="utf-8"?>\n' + meta.stylesheet;
 	out += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"';
 	if (items.some(it => it.content)) out += ' xmlns:content="http://purl.org/rss/1.0/modules/content/"';
 	if (items.some(it => it.author)) out += ' xmlns:dc="http://purl.org/dc/elements/1.1/"';
@@ -131,7 +133,7 @@ function rss(meta: Channel, items: Item[]): string {
 }
 
 function atom(meta: Channel, items: Item[]): string {
-	let out = '<?xml version="1.0" encoding="utf-8"?>\n';
+	let out = '<?xml version="1.0" encoding="utf-8"?>\n' + meta.stylesheet;
 	out += `<feed xmlns="http://www.w3.org/2005/Atom"${meta.language ? ` xml:lang="${helpers.xml(meta.language)}"` : ''}>\n`;
 	out += `<title>${helpers.xml(meta.title)}</title>\n`;
 	out += `<id>${helpers.xml(meta.self)}</id>\n`;
@@ -161,6 +163,15 @@ function atom(meta: Channel, items: Item[]): string {
 	return out + '</feed>\n';
 }
 
+// Browsers show a feed as a page when it links a stylesheet; they are removing XSL support, not CSS.
+function stylesheet(raw: string, site: string): string {
+	if (!raw) return '';
+	let type = SHEETS[raw.replace(/[?#].*/, '').split('.').pop()?.toLowerCase() ?? ''];
+	if (!type) throw new Error(`<feed:channel> "stylesheet" must be a .css or .xsl file: "${raw}"`);
+	let href = /^https?:\/\//i.test(raw) || !site ? raw : new URL(helpers.url(raw, site)).pathname;
+	return `<?xml-stylesheet type="${type}" href="${helpers.xml(href)}"?>\n`;
+}
+
 function channel(html: string, ctx: Build.Context, kind: Format): string {
 	let match = CHANNEL.exec(html);
 	if (!match) throw new Error('A feed must contain a <feed:channel>...</feed:channel> block');
@@ -184,6 +195,7 @@ function channel(html: string, ctx: Build.Context, kind: Format): string {
 		self: helpers.url(ctx.path, site),
 		link: helpers.url(text(params.link) || '/', site),
 		site,
+		stylesheet: stylesheet(text(params.stylesheet).trim(), site),
 	};
 
 	return kind === 'atom' ? atom(meta, items) : rss(meta, items);
