@@ -1,17 +1,19 @@
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import * as mime from 'mrmime';
 import * as bundler from './bundler';
 import * as fs from './fs';
+import * as images from './images';
 
 import type { Argv, Config } from 'bongo';
 
 // `<bongo:script …/>`, `<bongo:script …></bongo:script>`,
 // `<bongo:style …/>`, `<bongo:style …></bongo:style>`,
 // `<bongo:client …/>`, `<bongo:client …></bongo:client>`,
-// `<bongo:asset …/>`, `<bongo:asset …></bongo:asset>`.
+// `<bongo:asset …/>`, `<bongo:asset …></bongo:asset>`,
+// `<bongo:image …/>`, `<bongo:image …></bongo:image>`.
 // Tolerant of inner text (for forward-compat with elements that allow children).
 // Quoted attribute values may contain `>` and `/>`, eg `media="(width >= 600px)"`.
-const BONGO_TAG = /<bongo:(script|style|client|asset)\b((?:"[^"]*"|'[^']*'|[^>"'\/]|\/(?!>))*?)\s*(?:\/>|>([\s\S]*?)<\/bongo:\1\s*>)/g;
+const BONGO_TAG = /<bongo:(script|style|client|asset|image)\b((?:"[^"]*"|'[^']*'|[^>"'\/]|\/(?!>))*?)\s*(?:\/>|>([\s\S]*?)<\/bongo:\1\s*>)/g;
 
 // Path to bongo's bundled browser runtime. Resolves relative to this module:
 // — bundled (prod): sibling to packages/bongo/index.js, i.e. ./client.js.
@@ -38,7 +40,7 @@ function clientOptions(attrs: Attrs): string {
 const ATTR = /([\w:-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
 
 type AttrValue = string | true;
-type Attrs = Record<string, AttrValue>;
+export type Attrs = Record<string, AttrValue>;
 
 export function parseAttrs(src: string): Attrs {
 	let attrs: Attrs = {};
@@ -74,6 +76,14 @@ function destination(type: string | undefined): string {
 	return 'fetch';
 }
 
+// `img/a.jpg` sits in assets/; `./a.jpg`, `../a.jpg`, and `/blog/a.jpg` resolve against the page url, in content/.
+function locate(src: string, argv: Required<Argv>, path: string): string {
+	if (!/^\.{0,2}\//.test(src)) return join(argv.assets, src);
+	let { pathname } = new URL(src, 'http://bongo' + path);
+	try { pathname = decodeURIComponent(pathname); } catch { /* keep as written */ }
+	return join(argv.content, pathname);
+}
+
 function preload(href: string, src: string, attrs: Attrs): string {
 	let off = (v: AttrValue | undefined) => v === 'false';
 	let known = mime.lookup(src);
@@ -98,14 +108,17 @@ function preload(href: string, src: string, attrs: Attrs): string {
 /**
  * Replace `<bongo:*>` elements in rendered HTML with asset links and placeholders.
  * `from` names where the HTML was rendered, for errors (eg, "content/index.md → layouts/html.hbs").
+ * `path` is the page's url path, which page-relative image sources resolve against.
  */
 export function scanBongoTags(
 	html: string,
 	argv: Required<Argv>,
 	config: Required<Config>,
 	from?: string,
+	path = '/',
 ): string {
-	return html.replace(BONGO_TAG, (match, kind: 'script' | 'style' | 'client' | 'asset', rawAttrs: string) => {
+	let where = from ? `, rendering ${from}` : '';
+	return html.replace(BONGO_TAG, (match, kind: 'script' | 'style' | 'client' | 'asset' | 'image', rawAttrs: string) => {
 		let attrs = parseAttrs(rawAttrs);
 
 		if (kind === 'client') {
@@ -127,9 +140,19 @@ export function scanBongoTags(
 		let src = str(attrs.src);
 		if (!src) throw new Error(`<bongo:${kind}> missing required "src" attribute`);
 
-		let entry = join(argv.assets, src);
+		let entry = kind === 'image' ? locate(src, argv, path) : join(argv.assets, src);
 		if (!fs.exists(entry)) {
-			throw new Error(`Missing "assets/${src}" for ${match.trim()}` + (from ? `, rendering ${from}` : ''));
+			throw new Error(`Missing "${relative(argv.src, entry)}" for ${match.trim()}${where}`);
+		}
+
+		if (kind === 'image') {
+			try {
+				var image = images.settings(attrs, config.$images);
+			} catch (err) {
+				throw new Error(`${err instanceof Error ? err.message : err} for ${match.trim()}${where}`);
+			}
+			let placeholder = bundler.register(entry, { kind: 'image', image });
+			return `<picture>${images.tag(placeholder, attrs, config.$images)}</picture>`;
 		}
 
 		if (kind === 'asset') {

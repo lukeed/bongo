@@ -1,10 +1,12 @@
 import { createHash } from 'node:crypto';
+import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import type { BundleError, Plugin, RolldownError } from 'rolldown';
 import type { Loader } from 'bongo';
 import * as browsers from './browsers';
 import * as css from './css';
 import * as fs from './fs';
+import * as images from './images';
 import * as loaders from './loaders';
 
 let rd: typeof import('rolldown');
@@ -25,13 +27,14 @@ declare const PlaceholderBrand: unique symbol;
 export type Placeholder = string & { readonly [PlaceholderBrand]: true };
 
 export type BundleConfig = {
-	kind: 'js' | 'css' | 'file';            // file: copied as-is under a hashed name
+	kind: 'js' | 'css' | 'file' | 'image';  // file: copied as-is under a hashed name
 	format?: 'esm' | 'cjs';                 // js only
 	target?: string | string[];              // js only (rolldown target)
 	targets?: import('./css').Targets;       // css only (lightningcss targets)
 	minify?: boolean;                        // default false
 	sourceMap?: 'inline' | false;            // default false
 	cssModules?: boolean;                    // css only; auto for *.module.css
+	image?: images.Settings;                 // image only
 };
 
 export type Warning = { file?: string; line?: number; column?: number; message: string };
@@ -41,6 +44,7 @@ export type OutputInfo = {
 	filename: string;                         // relative to outDir (the output root); hashed
 	dependencies: string[];                   // absolute paths of deps in the graph
 	exports?: Record<string, string>;         // CSS modules class map (css only)
+	image?: images.Info;                      // image only
 };
 
 export type FlushResult = {
@@ -121,6 +125,7 @@ type FlushContext = {
 	utils?: Loader.Utilities;
 	publicPath: string;
 	emit: (file: string) => Promise<string>;
+	images: images.Context;
 };
 
 /**
@@ -332,16 +337,27 @@ export async function flush(opts: {
 	publicPath?: string;
 	assets?: loaders.LoaderMap;
 	utils?: Loader.Utilities;
+	/** Directory that keeps encoded images between builds. @default tmpdir()/bongo/images */
+	cache?: string;
+	/** List image files for the dev server to encode on request, instead of writing them. @default false */
+	dev?: boolean;
 }): Promise<FlushResult> {
 	let warnings: Warning[] = [];
 	let errors: BuildError[] = [];
 	let outputs: Map<Placeholder, OutputInfo> = new Map();
 
+	let emit = emitter(opts.outDir);
 	let ctx: FlushContext = {
 		assets: opts.assets,
 		utils: opts.utils,
 		publicPath: opts.publicPath ?? '/',
-		emit: emitter(opts.outDir),
+		emit,
+		images: images.context({
+			outDir: opts.outDir,
+			cache: opts.cache ?? path.join(tmpdir(), 'bongo', 'images'),
+			dev: opts.dev ?? false,
+			emit,
+		}),
 	};
 
 	let jobs = [...GROUPS.entries()].map(async ([_groupKey, regs]) => {
@@ -352,6 +368,17 @@ export async function flush(opts: {
 				await flushJsGroup(regs, opts.outDir, outputs, warnings, ctx);
 			} else if (kind === 'css') {
 				await flushCssGroup(regs, opts.outDir, outputs, warnings, ctx);
+			} else if (kind === 'image') {
+				await Promise.all(regs.map(async reg => {
+					// a dev rebuild keeps registrations whose source was renamed or deleted since
+					if (!reg.cfg.image || !fs.exists(reg.entry)) return;
+					try {
+						let image = await images.prepare(reg.entry, reg.cfg.image, ctx.images);
+						outputs.set(reg.placeholder, { filename: image.filename, dependencies: [reg.entry], image });
+					} catch (err) {
+						errors.push(toBuildError(err, reg.entry));
+					}
+				}));
 			} else {
 				await Promise.all(regs.map(async reg => {
 					outputs.set(reg.placeholder, { filename: await ctx.emit(reg.entry), dependencies: [reg.entry] });
@@ -365,6 +392,7 @@ export async function flush(opts: {
 	await Promise.all(jobs);
 
 	LAST_OUTPUTS = outputs;
+	images.publish(ctx.images);
 
 	// Propagate build errors/clears to the browser overlay via HMR sender.
 	if (HMR_SEND) {
