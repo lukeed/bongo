@@ -1,9 +1,10 @@
-import { dirname, extname, resolve } from 'node:path';
+import { dirname, extname, resolve, sep } from 'node:path';
 import * as lightningcss from 'lightningcss';
 import type { Loader } from 'bongo';
 import * as browsers from './browsers';
 import * as fs from './fs';
 import * as loaders from './loaders';
+import * as packages from './packages';
 
 export type Targets = string | string[] | lightningcss.Targets;
 
@@ -52,6 +53,7 @@ function inlineSourceMap(code: Buffer, map: Buffer): Buffer {
 }
 
 const EXTERNAL = /^([a-z][a-z\d+.-]*:|\/|#)/i;
+const PATH = /^(\.{0,2}\/|[a-z][a-z\d+.-]*:)/i;
 const UNQUOTED = /^[^\s"'()\\\x00-\x1f\x7f]+$/;
 
 // Same quoting as lightningcss: minified output drops quotes when the url allows it.
@@ -119,6 +121,14 @@ export async function bundle(opts: BundleOptions): Promise<BundleResult> {
 	// lightningcss inlines @imports without reporting them; record every read for the watcher
 	let imported = new Set<string>();
 	let resolver: lightningcss.Resolver = {
+		resolve(specifier, from) {
+			// lightningcss's own resolve, so relative, absolute, and URL imports stay as they were
+			let file = specifier.startsWith('/') ? specifier : dirname(from) + sep + specifier;
+			if (PATH.test(specifier) || fs.isFile(file)) return file;
+			let found = packages.stylesheet(specifier, from);
+			if (found) return found;
+			throw new Error(`Cannot resolve @import "${specifier}" in ${resolve(from)}`);
+		},
 		async read(file) {
 			if (resolve(file) !== resolve(opts.entry)) imported.add(resolve(file));
 			let cached = compiled.get(file);

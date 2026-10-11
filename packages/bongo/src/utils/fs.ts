@@ -1,4 +1,4 @@
-import { createReadStream, createWriteStream, realpathSync, watch as fsw } from 'node:fs';
+import { createReadStream, createWriteStream, realpathSync, statSync, watch as fsw } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { existsSync as exists } from 'node:fs';
 import { homedir } from 'node:os';
@@ -11,6 +11,14 @@ export { exists };
 
 export const ls = fs.readdir;
 export const read = fs.readFile;
+
+/**
+ * Whether `path` is a file, after symlinks resolve.
+ * @example isFile('assets/style.css') //=> true
+ */
+export function isFile(path: string): boolean {
+	return statSync(path, { throwIfNoEntry: false })?.isFile() ?? false;
+}
 
 export function rm(file: string): Promise<void> {
 	return fs.rm(file, { force: true });

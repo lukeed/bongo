@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { realpathSync } from 'node:fs';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -311,6 +312,93 @@ describe('bundle — url() assets', () => {
 			let run = css.bundle({ entry: join(dir, 'entry.css'), url: urls(dir) });
 			await expect(run).rejects.toThrow('"../fonts/gone.woff2"');
 			await expect(run).rejects.toThrow(join(dir, 'theme/fonts.css'));
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('bundle — package @imports', () => {
+	let theme = {
+		'node_modules/theme/package.json': JSON.stringify({
+			name: 'theme',
+			exports: {
+				'.': { style: './dist/base.css', import: './index.mjs', default: './index.js' },
+				'./themes/*': { style: './dist/themes/*.css', default: './dist/themes/*.js' },
+			},
+		}),
+		'node_modules/theme/index.mjs': '',
+		'node_modules/theme/index.js': '',
+		'node_modules/theme/dist/base.css': '@font-face { font-family: T; src: url("../fonts/t.woff2"); }\n.base { color: red; }',
+		'node_modules/theme/dist/themes/dark.css': '.dark { color: black; }',
+		'node_modules/theme/fonts/t.woff2': 'wOF2',
+	};
+
+	test('bundles package stylesheets and reports them as dependencies', async () => {
+		let dir = realpathSync(await makeFixtureDir({
+			...theme,
+			'assets/style.css': '@import "theme";\n@import "theme/themes/dark";\n.a { color: blue; }',
+		}));
+		try {
+			let result = await css.bundle({ entry: join(dir, 'assets/style.css') });
+			let code = result.code.toString('utf8');
+			expect(code).toContain('.base');
+			expect(code).toContain('.dark');
+			expect(code).toContain('.a');
+			expect(result.dependencies.sort()).toEqual([
+				join(dir, 'node_modules/theme/dist/base.css'),
+				join(dir, 'node_modules/theme/dist/themes/dark.css'),
+			]);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('resolves url() in a package stylesheet against that file', async () => {
+		let dir = realpathSync(await makeFixtureDir({ ...theme, 'assets/style.css': '@import "theme";' }));
+		try {
+			let seen: string[] = [];
+			let result = await css.bundle({
+				entry: join(dir, 'assets/style.css'),
+				url: async file => (seen.push(file), '/out/t.woff2'),
+			});
+			expect(seen).toEqual([join(dir, 'node_modules/theme/fonts/t.woff2')]);
+			expect(result.code.toString('utf8')).toContain('url("/out/t.woff2")');
+			expect(result.dependencies).toContain(join(dir, 'node_modules/theme/fonts/t.woff2'));
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('prefers a file beside the css, and keeps relative and absolute imports as before', async () => {
+		let dir = realpathSync(await makeFixtureDir({
+			'node_modules/theme.css/package.json': JSON.stringify({ name: 'theme.css', style: 'pkg.css' }),
+			'node_modules/theme.css/pkg.css': '.from-package { color: red; }',
+			'assets/theme.css': '.from-local { color: red; }',
+			'assets/parts/a.css': '.from-relative { color: red; }',
+			'shared/b.css': '.from-absolute { color: red; }',
+		}));
+		try {
+			await writeFile(join(dir, 'assets/style.css'), `@import "theme.css";\n@import "./parts/a.css";\n@import "${join(dir, 'shared/b.css')}";`);
+			let result = await css.bundle({ entry: join(dir, 'assets/style.css') });
+			let code = result.code.toString('utf8');
+			expect(code).toContain('.from-local');
+			expect(code).toContain('.from-relative');
+			expect(code).toContain('.from-absolute');
+			expect(code).not.toContain('.from-package');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('fails with the specifier and the importing file when nothing resolves', async () => {
+		let dir = realpathSync(await makeFixtureDir({
+			'assets/style.css': '@import "./theme/fonts.css";',
+			'assets/theme/fonts.css': '@import "nope/x.css";',
+		}));
+		try {
+			let run = css.bundle({ entry: join(dir, 'assets/style.css') });
+			await expect(run).rejects.toThrow(`Cannot resolve @import "nope/x.css" in ${join(dir, 'assets/theme/fonts.css')}`);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
