@@ -429,7 +429,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			rendered_content +=     `__bongo_err_clear();`;
 			rendered_content +=     `var o = document.createElement('div');`;
 			rendered_content +=     `o.id = '__bongo_overlay';`;
-			rendered_content +=     `o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(20,20,20,.92);color:#f4f4f4;font:14px/1.5 ui-monospace,monospace;padding:24px;overflow:auto;white-space:pre-wrap';`;
+			rendered_content +=     `o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#141414;color:#f4f4f4;font:14px/1.5 ui-monospace,monospace;padding:24px;overflow:auto;white-space:pre-wrap';`;
 			rendered_content +=     `var html = '<h2 style=\\'margin:0 0 12px;color:#ff6b6b\\'>Build error</h2>';`;
 			rendered_content +=     `for (var i=0;i<errs.length;i++) {`;
 			rendered_content +=       `var e = errs[i];`;
