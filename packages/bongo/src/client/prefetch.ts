@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+import * as styles from './styles';
 
 export type Mode = 'hover' | 'tap';
 export type Options = boolean | Mode | undefined;
@@ -63,6 +64,14 @@ export function warm(href: string): void {
 		})
 		.catch(err => { CACHE.delete(href); throw err; });
 	CACHE.set(href, { html, expires: Date.now() + TTL });
+
+	// Warm the HTTP cache for the page's new stylesheets; a failed page fetch resurfaces on navigation.
+	html.then(text => {
+		let doc = new DOMParser().parseFromString(text, 'text/html');
+		for (let url of styles.missing(document, doc, href)) {
+			fetch(url).then(r => r.blob()).catch(() => {});
+		}
+	}, () => {});
 }
 
 /** @internal — used by tests only */

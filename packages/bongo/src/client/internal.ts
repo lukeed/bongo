@@ -6,6 +6,8 @@ type Handler<K extends BongoEvent> = (detail: BongoEventDetails[ K ]) => void;
 
 const LISTENERS = new Map<BongoEvent, Set<Handler<BongoEvent>>>();
 
+const LIVE = 'bongo:live';
+
 // Fallback flag for browsers that don't expose NavigateEvent.sourceElement.
 let BYPASS_NEXT = false;
 
@@ -63,28 +65,14 @@ export async function fetchPage(url: URL, signal?: AbortSignal): Promise<string>
 	return res.text();
 }
 
-function stylesheets(doc: Document): HTMLLinkElement[] {
-	return [ ...doc.querySelectorAll('link[rel=stylesheet]') ] as HTMLLinkElement[];
-}
-
 export function reconcile(current: Document, incoming: Document): void {
 	current.title = incoming.title;
 
-	// Diff <link rel="stylesheet"> by href.
-	let currentLinks = stylesheets(current);
-	let incomingLinks = stylesheets(incoming);
-	let curHrefs = new Set(currentLinks.map(l => l.href));
-	let incHrefs = new Set(incomingLinks.map(l => l.href));
-
-	for (let l of incomingLinks) {
-		curHrefs.has(l.href) || current.head.appendChild(l.cloneNode(true));
-	}
-	for (let l of currentLinks) {
-		incHrefs.has(l.href) || l.remove();
-	}
-
-	// Body swap.
+	// Body swap, keeping the one live region so screen readers keep tracking it.
+	let live = current.getElementById(LIVE);
+	incoming.getElementById(LIVE)?.remove();
 	current.body.replaceWith(incoming.body);
+	if (live) current.body.prepend(live);
 }
 
 /**
@@ -129,8 +117,23 @@ export function restoreScroll(event: NavigateEvent, to: URL): void {
 	window.scrollTo(0, 0);
 }
 
-export function announcer(): HTMLElement | null {
-	return document.getElementById('bongo:live');
+/**
+ * Find the aria-live region that announces each new page title, or add it to `<body>`.
+ *
+ * @example
+ * let live = announcer();
+ * if (live) live.textContent = document.title;
+ */
+export function announcer(): HTMLElement | undefined {
+	let el = document.getElementById(LIVE);
+	if (el || !document.body) return el ?? undefined;
+	el = document.createElement('div');
+	el.id = LIVE;
+	el.setAttribute('role', 'status');
+	el.setAttribute('aria-live', 'polite');
+	el.style.cssText = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);border:0';
+	document.body.prepend(el);
+	return el;
 }
 
 /** @internal — used by tests only */

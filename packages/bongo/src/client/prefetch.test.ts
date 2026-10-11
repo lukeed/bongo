@@ -1,4 +1,5 @@
 import { describe, expect, test, beforeEach, afterEach, spyOn } from 'bun:test';
+import { Window } from 'happy-dom';
 import * as prefetch from './prefetch';
 
 const preconnect = globalThis.fetch.preconnect;
@@ -31,13 +32,22 @@ describe('prefetch.resolve()', () => {
 
 describe('prefetch.get() / warm()', () => {
 	let spy = spyOn(globalThis, 'fetch');
+	let win: Window | undefined;
 
 	beforeEach(() => {
 		prefetch.reset();
+		win = new Window({ url: 'https://example.com/' });
+		win.document.write('<!doctype html><html><head><link rel="stylesheet" href="/core.css"></head><body></body></html>');
+		Reflect.set(globalThis, 'document', win.document);
+		Reflect.set(globalThis, 'DOMParser', win.DOMParser);
 	});
 
-	afterEach(() => {
+	afterEach(async () => {
 		spy.mockReset();
+		prefetch.reset();
+		Reflect.deleteProperty(globalThis, 'document');
+		Reflect.deleteProperty(globalThis, 'DOMParser');
+		await win?.happyDOM.close();
 	});
 
 	test('get() returns undefined for an un-warmed href', () => {
@@ -68,5 +78,20 @@ describe('prefetch.get() / warm()', () => {
 		await expect(pending).rejects.toThrow(/404/);
 		expect(prefetch.get('https://example.com/missing')).toBeUndefined();
 	});
-});
 
+	test('warm() also fetches the new stylesheets of the page, without applying them', async () => {
+		let urls: string[] = [];
+		let head = '<link rel="stylesheet" href="/core.css"><link rel="stylesheet" href="/b.css">';
+		spy.mockImplementation(Object.assign(async (input: RequestInfo | URL) => {
+			urls.push(String(input));
+			return new Response(`<html><head>${head}</head><body>B</body></html>`, { status: 200 });
+		}, { preconnect }));
+
+		prefetch.warm('https://example.com/b/');
+		await prefetch.get('https://example.com/b/');
+		await Bun.sleep(0);
+
+		expect(urls).toEqual([ 'https://example.com/b/', 'https://example.com/b.css' ]);
+		expect(document.head.innerHTML).toBe('<link rel="stylesheet" href="/core.css">');
+	});
+});

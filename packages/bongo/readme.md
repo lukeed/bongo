@@ -243,7 +243,7 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax. Asset entrypo
 - `format="esm"|"cjs"` — output module format. Defaults to `esm`.
 - `target="..."` — browserslist target string.
 
-`<bongo:client>` bundles bongo's browser runtime and emits a module script that calls `client(...)`, plus the hidden `aria-live` region used to announce page-title changes:
+`<bongo:client>` bundles bongo's browser runtime and emits a module script that calls `client(...)`. It emits only that script, so you can put it anywhere in `<head>` or `<body>`:
 
 ```hbs
 <bongo:client />
@@ -495,14 +495,13 @@ The simplest setup is the `<bongo:client />` element:
 That expands at build time to:
 
 ```html
-<div id="bongo:live" role="status" aria-live="polite" style="...visually-hidden..."></div>
 <script type="module">
   import { client } from "/client.D59fAaym.js";
   client({ transitions: true });
 </script>
 ```
 
-The runtime updates `#bongo:live` with the new page title on navigation. If the element is missing, announcements are skipped silently.
+At startup, the runtime adds a hidden `aria-live` region, `<div id="bongo:live">`, at the start of `<body>`. It keeps that element across navigations and writes the new page title into it after each one. If the page already has an element with that id, the runtime uses it.
 
 If you also need custom event handlers or boot code, keep a separate `<bongo:script>`:
 
@@ -532,7 +531,7 @@ client({ transitions: true });
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `transitions` | `boolean \| 'fade' \| 'initial' \| 'slide' \| string` | `false` | View-transition preset. `true` / `'fade'` injects a cross-fade keyframe. `'slide'` injects a slide keyframe. `'initial'` wraps the swap without injecting CSS. Custom string wraps only; user CSS provides the rules. Any falsy value disables transitions. Opt a link out with `transition:disable`. |
-| `prefetch` | `boolean \| 'hover' \| 'tap'` | `false` | Prefetch same-origin links into the in-memory HTML cache. `true` / `'hover'` fires after hover settles, or immediately on touch. `'tap'` fires on `mousedown` / `touchstart`. Opt a link out with `prefetch:disable`. |
+| `prefetch` | `boolean \| 'hover' \| 'tap'` | `false` | Prefetch same-origin links into the in-memory HTML cache, and fetch the new stylesheets of each page into the HTTP cache. `true` / `'hover'` fires after hover settles, or immediately on touch. `'tap'` fires on `mousedown` / `touchstart`. Opt a link out with `prefetch:disable`. |
 
 ### Events
 
@@ -575,6 +574,17 @@ Disable prefetch without forcing a full-page load:
 ```html
 <a href="/logout" prefetch:disable>Log out</a>
 ```
+
+### Stylesheets
+
+On navigation, the runtime compares the `<link rel="stylesheet">` and `<style>` elements in the `<head>` of the two pages. It keeps the stylesheets that both pages use. It adds the new stylesheets in the order of the new page, but keeps them disabled, so the current page does not change. When each new stylesheet loads or fails, or after 3 seconds, the swap enables the new stylesheets, replaces `<body>`, and removes the stylesheets that the new page does not use. A view transition starts only after this wait.
+
+- A `<link>` matches by its resolved `href`, its `media`, and its `disabled` attribute. A `<style>` matches by its content and its `media`.
+- The runtime does not wait for a stylesheet that does not apply, such as a `disabled` link or a `media` query that does not match.
+- The runtime never removes a stylesheet that a script adds after `client()` starts.
+- Stylesheets in `<body>` change with the body.
+
+With `prefetch`, the runtime also fetches the new stylesheets of a page before the click. If the server lets the browser reuse them without a new request, for example with a long `max-age` on hashed files, navigation does not wait for them.
 
 ### Scroll Restoration
 

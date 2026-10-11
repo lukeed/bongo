@@ -2,6 +2,7 @@
 import * as preset from './preset';
 import * as prefetch from './prefetch';
 import * as internal from './internal';
+import * as styles from './styles';
 
 export { on, off } from './internal';
 
@@ -37,6 +38,8 @@ export function client(opts: ClientOptions = {}): void {
 
 	if (!nav) return; // MPA fallback — no interception
 
+	styles.adopt(document);
+
 	// Take over scroll restoration from the browser so we can do it synchronously.
 	if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
@@ -45,10 +48,8 @@ export function client(opts: ClientOptions = {}): void {
 	// Inject preset CSS if applicable (requires browser document).
 	if (name) preset.inject(name);
 
-	// Announcer is emitted inline by <bongo:client />. Resolve once; if absent
-	// (user bootstraps client() manually without the element), announcements
-	// are silently skipped.
-	let announcer = internal.announcer();
+	// Add the live region up front, so it is in the accessibility tree before its first update.
+	internal.announcer();
 
 	// Capture-phase click listener: sets BYPASS_NEXT for browsers that don't
 	// expose NavigateEvent.sourceElement.
@@ -78,16 +79,27 @@ export function client(opts: ClientOptions = {}): void {
 					let doc = new DOMParser().parseFromString(html, 'text/html');
 					internal.emit('bongo:replace', { to, from, doc });
 
-					await internal.transition(!!name, () => {
+					let staged = styles.stage(document, doc, signal);
+					try {
+						await staged.ready;
 						if (signal.aborted) return;
-						internal.reconcile(document, doc);
-						// alert('before scroll')
-						internal.restoreScroll(event, to);
-						// event.scroll?.();
-						internal.emit('bongo:replaced', { to, from });
-					});
+						await internal.transition(!!name, () => {
+							if (signal.aborted) return;
+							staged.commit();
+							internal.reconcile(document, doc);
+							// alert('before scroll')
+							internal.restoreScroll(event, to);
+							// event.scroll?.();
+							internal.emit('bongo:replaced', { to, from });
+						});
+					} finally {
+						staged.drop();
+					}
 					if (signal.aborted) return;
 
+					// Announcer lives in <body> and survives each swap; resolve it here in case
+					// client() started before <body> existed.
+					let announcer = internal.announcer();
 					if (announcer) announcer.textContent = document.title;
 					internal.emit('bongo:navigated', { to, from });
 				} catch (err) {
