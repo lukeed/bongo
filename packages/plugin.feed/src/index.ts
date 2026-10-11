@@ -71,7 +71,7 @@ function link(html: string, ctx: Build.Context): string {
 		let title = helpers.text(props.title) || text(target.params.title) || 'Feed';
 		let site = ctx.config.$site.url;
 		let href = site ? new URL(helpers.url(path, site)).pathname : path;
-		return `<link rel="alternate" type="${helpers.MIME[kind]}" title="${helpers.xml(title)}" href="${helpers.xml(href)}" />`;
+		return `<link rel="alternate" type="${helpers.MIME[kind]}" title="${helpers.xml(title)}" href="${helpers.xml(href)}"/>`;
 	});
 }
 

@@ -46,7 +46,7 @@ Then put a `<feed:link>` in the `<head>` of your layout:
 Each page gets a link to the feed:
 
 ```html
-<link rel="alternate" type="application/rss+xml" title="Blog" href="/blog/feed.xml" />
+<link rel="alternate" type="application/rss+xml" title="Blog" href="/blog/feed.xml"/>
 ```
 
 ## How it works

@@ -41,7 +41,7 @@ async function run(text: string, ctx: Build.Context): Promise<string> {
 describe('<feed:link>', () => {
 	test('emits RSS MIME for an rss-format target', async () => {
 		let out = await run(`<head><feed:link path="/blog/feed.xml" /></head>`, page([{ path: '/blog/feed.xml', params: { format: 'rss', title: 'Blog' } }]));
-		expect(out).toBe('<head><link rel="alternate" type="application/rss+xml" title="Blog" href="/blog/feed.xml" /></head>');
+		expect(out).toBe('<head><link rel="alternate" type="application/rss+xml" title="Blog" href="/blog/feed.xml"/></head>');
 	});
 
 	test('emits Atom MIME for an atom-format target (format-flip)', async () => {
@@ -237,7 +237,7 @@ describe('quoted attribute values', () => {
 		expect(out).toContain('<title>a -&gt; b /&gt;</title>');
 		expect(out).toContain('<description>1 &gt; 0</description>');
 		let link = await run('<feed:link path="/feed.xml" title="a > b" />!', page([{ path: '/feed.xml', params: { format: 'rss' } }]));
-		expect(link).toBe('<link rel="alternate" type="application/rss+xml" title="a &gt; b" href="/feed.xml" />!');
+		expect(link).toBe('<link rel="alternate" type="application/rss+xml" title="a &gt; b" href="/feed.xml"/>!');
 	});
 });
 
@@ -318,7 +318,7 @@ describe('with bongo build', () => {
 			expect(xml).not.toContain('<html');
 
 			let home = await read(root, 'index.html');
-			expect(home).toContain('<link rel="alternate" type="application/rss+xml" title="Blog Feed" href="/blog/feed.xml" />');
+			expect(home).toContain('<link rel="alternate" type="application/rss+xml" title="Blog Feed" href="/blog/feed.xml"/>');
 			expect(home).not.toContain('<feed:');
 		} finally {
 			await rm(root, { recursive: true, force: true });
