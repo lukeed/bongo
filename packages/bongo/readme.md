@@ -410,7 +410,7 @@ The Navigation API is available in Chrome and Edge, and is behind a flag or unsu
 
 The augmentation adds:
 
-- `<bongo:client>`, `<bongo:script>`, and `<bongo:style>` intrinsic elements.
+- `<bongo:asset>`, `<bongo:client>`, `<bongo:image>`, `<bongo:script>`, and `<bongo:style>` intrinsic elements.
 - `transition:name` and `transition:animate` on every HTML element.
 - `transition:disable` and `prefetch:disable` on anchors.
 

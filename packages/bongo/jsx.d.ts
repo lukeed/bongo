@@ -29,6 +29,30 @@ type BongoStyleAttrs = {
 	global?: boolean;
 };
 
+type BongoAssetAttrs = {
+	src: string;
+	preload?: boolean;
+	as?: string;
+	type?: string | false;
+	crossorigin?: boolean | 'anonymous' | 'use-credentials' | false;
+	media?: string;
+	fetchpriority?: 'high' | 'low' | 'auto';
+};
+
+type BongoImageAttrs = {
+	src: string;
+	alt?: string;
+	sizes?: string;
+	widths?: string;
+	formats?: string;
+	quality?: number | string;
+	width?: number | string;
+	height?: number | string;
+	loading?: 'lazy' | 'eager';
+	decoding?: 'async' | 'sync' | 'auto';
+	fetchpriority?: 'high' | 'low' | 'auto';
+};
+
 declare global {
 	namespace JSX {
 		// Build-time view-transition attributes — valid on any element.
@@ -46,7 +70,9 @@ declare global {
 		// bongo-provided custom elements. Accept the standard HTML attribute
 		// surface plus their own flags.
 		interface IntrinsicElements {
+			'bongo:asset': HTMLAttributes<HTMLElement> & BongoAssetAttrs;
 			'bongo:client': HTMLAttributes<HTMLElement> & BongoClientAttrs;
+			'bongo:image': HTMLAttributes<HTMLElement> & BongoImageAttrs;
 			'bongo:script': HTMLAttributes<HTMLElement> & BongoScriptAttrs;
 			'bongo:style': HTMLAttributes<HTMLElement> & BongoStyleAttrs;
 		}
