@@ -417,6 +417,17 @@ describe('scanBongoTags — <bongo:image>', () => {
 		await expect(fail('/x/gone.jpg')).rejects.toThrow('Missing "content/x/gone.jpg"');
 	});
 
+	test('a path that leaves assets/ or content/ fails', async () => {
+		let fail = (src: string) => scan(`<bongo:image src="${src}" />`, ['assets/a.jpg', 'secret.jpg'], { path: '/blog/post/' });
+		await expect(fail('./a%2f..%2f..%2f..%2f..%2fsecret.jpg')).rejects.toThrow('Image "./a%2f..%2f..%2f..%2f..%2fsecret.jpg" is outside content/ for <bongo:image');
+		await expect(fail('img/../../secret.jpg')).rejects.toThrow('Image "img/../../secret.jpg" is outside assets/ for <bongo:image');
+	});
+
+	test('decodes html entities in src', async () => {
+		let out = await scan('<bongo:image src="./a&amp;b.jpg" /><bongo:image src=" ./a&#38;b.jpg " />', ['content/blog/post/a&b.jpg'], { path: '/blog/post/' });
+		expect(out.match(/data-bongo-image/g)).toHaveLength(2);
+	});
+
 	test('bad settings name the tag and where it was rendered', async () => {
 		let run = scan('<bongo:image src="a.jpg" formats="gif" />', ['assets/a.jpg'], { from: 'content/index.html' });
 		await expect(run).rejects.toThrow('Unknown image format "gif"; use avif, webp, jpeg, or png for <bongo:image src="a.jpg" formats="gif" />, rendering content/index.html');
@@ -485,8 +496,18 @@ describe('scanImages', () => {
 			'<!-- <img src="a.png"> -->',
 			'<script>let html = \'<img src="a.png">\';</script>',
 			'<image href="a.png"/>',
+			'<img-zoom src="a.png"></img-zoom>',
 		].join('\n');
 		expect(await scan(html)).toBe(html);
+	});
+
+	test('decodes html entities in src, as Markdown writes them', async () => {
+		let out = await scan('<img src="a&amp;b.png" alt="">', ['content/blog/post/a&b.png']);
+		expect(out).toBe('<img data-bongo-image="TOKEN" sizes="auto, 100vw" alt="" loading="lazy" decoding="async"/>');
+	});
+
+	test('a path that leaves content/ fails', async () => {
+		await expect(scan('<img src="..%2f..%2f..%2f..%2fx.png">')).rejects.toThrow(`Image "..%2f..%2f..%2f..%2fx.png" is outside content/ for <img src="..%2f..%2f..%2f..%2fx.png">, rendering ${FROM}`);
 	});
 
 	test('does nothing when $images.content is false', async () => {

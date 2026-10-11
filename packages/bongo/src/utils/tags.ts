@@ -1,4 +1,4 @@
-import { join, relative, resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import * as mime from 'mrmime';
 import * as bundler from './bundler';
 import * as fs from './fs';
@@ -77,8 +77,19 @@ function destination(type: string | undefined): string {
 }
 
 // Comments and elements whose text is not markup, which are kept as they are, or an `<img>` and its attributes.
-const CONTENT_IMG = /<!--[\s\S]*?-->|<(script|style|template|textarea|picture)\b[\s\S]*?<\/\1\s*>|<img\b((?:"[^"]*"|'[^']*'|[^>"'])*?)\s*\/?>/gi;
+const CONTENT_IMG = /<!--[\s\S]*?-->|<(script|style|template|textarea|picture)\b[\s\S]*?<\/\1\s*>|<img(?=[\s\/>])((?:"[^"]*"|'[^']*'|[^>"'])*?)\s*\/?>/gi;
 const NOT_RELATIVE = /^([a-z][a-z\d+.-]*:|\/|#|\?)|</i;
+const ENTITY = /&(?:#(\d+)|#x([\da-f]+)|(amp|quot|apos|lt|gt));/gi;
+const ENTITIES: Record<string, string> = { amp: '&', quot: '"', apos: "'", lt: '<', gt: '>' };
+
+// An attribute value as the browser reads it: trimmed, with character references decoded.
+function unescape(value: string): string {
+	return value.trim().replace(ENTITY, (_, dec?: string, hex?: string, name?: string) => {
+		if (dec) return String.fromCodePoint(Number(dec));
+		if (hex) return String.fromCodePoint(parseInt(hex, 16));
+		return ENTITIES[(name ?? '').toLowerCase()];
+	});
+}
 
 // Resolve a url against the page url, as a browser would, to the file in content/ that it points at.
 function inPage(src: string, argv: Required<Argv>, path: string): string {
@@ -147,8 +158,16 @@ export function scanBongoTags(
 		let src = str(attrs.src);
 		if (!src) throw new Error(`<bongo:${kind}> missing required "src" attribute`);
 
-		// `./a.jpg`, `../a.jpg`, and `/blog/a.jpg` images are in content/; any other path is in assets/
-		let entry = kind === 'image' && /^\.{0,2}\//.test(src) ? inPage(src, argv, path) : join(argv.assets, src);
+		let entry = join(argv.assets, src);
+		if (kind === 'image') {
+			src = unescape(src);
+			// `./a.jpg`, `../a.jpg`, and `/blog/a.jpg` images are in content/; any other path is in assets/
+			let root = /^\.{0,2}\//.test(src) ? argv.content : argv.assets;
+			entry = root === argv.content ? inPage(src, argv, path) : join(argv.assets, src);
+			if (!entry.startsWith(root + sep)) {
+				throw new Error(`Image "${src}" is outside ${relative(argv.src, root)}/ for ${match.trim()}${where}`);
+			}
+		}
 		if (!fs.exists(entry)) {
 			throw new Error(`Missing "${relative(argv.src, entry)}" for ${match.trim()}${where}`);
 		}
@@ -224,11 +243,14 @@ export function scanImages(
 	return html.replace(CONTENT_IMG, (match, _skipped, raw: string | undefined) => {
 		if (raw === undefined) return match;
 		let attrs = parseAttrs(raw);
-		let src = str(attrs.src);
+		let src = typeof attrs.src === 'string' ? unescape(attrs.src) : '';
 		if (!src || attrs.srcset !== undefined || NOT_RELATIVE.test(src)) return match;
 		if (!mime.lookup(src.replace(/[?#].*/, ''))?.startsWith('image/')) return match;
 
 		let file = inPage(src, argv, path);
+		if (!file.startsWith(argv.content + sep)) {
+			throw new Error(`Image "${src}" is outside content/ for ${match}, rendering ${from}`);
+		}
 		if (!fs.exists(file)) {
 			throw new Error(`Missing "${relative(argv.src, file)}" for ${match}, rendering ${from}`);
 		}
