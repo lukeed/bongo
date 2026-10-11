@@ -43,7 +43,7 @@ When you run `bongo build`:
 2. Files in `data/` are loaded as `$data`. Layouts and partials are collected from `layouts/` and `partials/`. Handlebars files (`.hbs`) are compiled with tempura. JavaScript and TypeScript partials are loaded as modules.
 3. Content files are passed through registered loaders, then rendered through the matching layout chain.
 4. Rendered HTML is scanned for `<bongo:*>` elements, and each page's content for `<img>` elements with a relative `src`. Assets are registered and replaced with placeholder tokens.
-5. Asset groups are flushed. JavaScript goes through Rolldown; CSS goes through LightningCSS; images go through sharp. Output filenames include content hashes.
+5. Asset groups are flushed. JavaScript goes through Rolldown; CSS goes through LightningCSS; images go through `Bun.Image`. Output filenames include content hashes.
 6. Placeholders are substituted with external asset URLs or inline asset contents.
 7. Pages are written to `public/`. With `--minify`, they are then minified when the `minify` CLI is available.
 
@@ -324,13 +324,16 @@ The current page's own `$page.content` is empty while its body is compiling. It 
 
 ## Images
 
-bongo resizes and converts images with [sharp](https://sharp.pixelplumbing.com). sharp is an optional peer dependency. Install it when your site has JPEG, PNG, WebP, AVIF, or TIFF images:
+bongo resizes and converts images with [`Bun.Image`](https://bun.com/docs/runtime/image), so image processing needs the Bun runtime. The `bongo` command starts with Node, so run it through Bun:
 
 ```sh
-bun add -d sharp
+bunx --bun bongo build
+bun --bun run build   # for a "build": "bongo build" script
 ```
 
-Without sharp, a build that must resize an image fails, and the error names the image. SVG and GIF images do not need sharp.
+Under Node, bongo copies each image as it is, under a hashed name, and prints one notice for each build. The build does not fail. It adds `width` and `height` only to SVG and GIF images.
+
+JPEG, PNG, and WebP files are encoded with the same codecs on every platform, so a build makes the same bytes on macOS, Linux, and Windows.
 
 bongo adds `width` and `height` to images. If your CSS limits the width of images, also give them `height: auto`, so they keep their aspect ratio:
 
@@ -344,12 +347,12 @@ img { max-width: 100%; height: auto; }
 <bongo:image src="img/hero.jpg" alt="A hero" sizes="(min-width: 800px) 720px, 100vw" />
 ```
 
-With the default settings and a 2400×1600 source, this becomes the following, on one line:
+With the default settings and a 2400×1600 JPEG, this becomes the following, on one line:
 
 ```html
 <picture>
-  <source type="image/avif" srcset="/hero-640.1a2b3c4d.avif 640w, /hero-1280.2b3c4d5e.avif 1280w, /hero-1920.3c4d5e6f.avif 1920w" sizes="(min-width: 800px) 720px, 100vw"/>
-  <img src="/hero-1920.4d5e6f7a.webp" srcset="/hero-640.5e6f7a8b.webp 640w, /hero-1280.6f7a8b9c.webp 1280w, /hero-1920.4d5e6f7a.webp 1920w" sizes="(min-width: 800px) 720px, 100vw" alt="A hero" loading="lazy" decoding="async" width="2400" height="1600"/>
+  <source type="image/webp" srcset="/hero-640.1a2b3c4d.webp 640w, /hero-1280.2b3c4d5e.webp 1280w, /hero-1920.3c4d5e6f.webp 1920w" sizes="(min-width: 800px) 720px, 100vw"/>
+  <img src="/hero-1920.4d5e6f7a.jpg" srcset="/hero-640.5e6f7a8b.jpg 640w, /hero-1280.6f7a8b9c.jpg 1280w, /hero-1920.4d5e6f7a.jpg 1920w" sizes="(min-width: 800px) 720px, 100vw" alt="A hero" loading="lazy" decoding="async" width="2400" height="1600"/>
 </picture>
 ```
 
@@ -362,7 +365,7 @@ The path in `src` tells bongo where the file is:
 
 - `src="..."` — the image. Required.
 - `sizes="..."` — defaults to `$images.sizes`.
-- `widths="640,1280"`, `formats="avif,webp"`, `quality="60"` — override `$images` for this image.
+- `widths="640,1280"`, `formats="webp,jpeg"`, `quality="60"` — override `$images` for this image.
 - `width`, `height` — default to the size of the source. If you give only one, bongo calculates the other from the aspect ratio.
 - `loading` — defaults to `lazy`, or to `eager` when `fetchpriority="high"`.
 - `decoding` — defaults to `async`.
@@ -374,7 +377,7 @@ A `sizes` value that starts with `auto` lets the browser use the width of the im
 
 bongo also processes each `<img>` in content whose `src` is a relative path. This includes Markdown images, such as `![A hero](hero.jpg)`, and `<img>` elements that you write in Markdown, HTML, or `.hbs` content. The path resolves against the URL of the page, as for `./` paths.
 
-The `<img>` stays where it is. bongo does not add a `<picture>`, so CSS such as `p > img` still applies. The `<img>` gets a `src`, `srcset`, and `sizes` in the last format in `$images.formats`, its `width` and `height`, `loading="lazy"`, and `decoding="async"`. Attributes that you write, such as `width`, `sizes`, or `loading`, stay as you wrote them.
+The `<img>` stays where it is. bongo does not add a `<picture>`, so CSS such as `p > img` still applies. The `<img>` gets a `src`, `srcset`, and `sizes` in the last format in `$images.formats` (by default, the format of the source), its `width` and `height`, `loading="lazy"`, and `decoding="async"`. Attributes that you write, such as `width`, `sizes`, or `loading`, stay as you wrote them.
 
 bongo does not change an `<img>` that:
 
@@ -387,9 +390,9 @@ To leave all content images as written, set `$images.content` to `false`. To get
 ### Processing
 
 - bongo makes one file for each width in `widths` that is smaller than the source. If one or more widths are not smaller, bongo makes one file at the width of the source instead. bongo never enlarges an image.
-- Files are named `name-width.hash.ext`. The hash comes from the contents of the source and the encoder settings.
-- bongo applies the EXIF orientation, and removes the metadata.
-- bongo copies SVG, GIF, and animated images once under a hashed name, as for `<bongo:asset>`. It adds their `width` and `height` when it can read them. For SVG, they come from the `width`, `height`, or `viewBox` attributes.
+- Files are named `name-width.hash.ext`. The hash comes from the contents of the source, the encoder settings, and the Bun version.
+- bongo applies the EXIF orientation of JPEG files and removes the EXIF data, such as GPS positions. It keeps the color profile.
+- bongo resizes JPEG, PNG, and WebP files. It copies all other images once under a hashed name, as for `<bongo:asset>`: SVG, GIF, TIFF, AVIF, HEIC, and animated PNG and WebP files. It adds their `width` and `height` when it can read them. For SVG, they come from the `width`, `height`, or `viewBox` attributes.
 
 ### Cache
 
@@ -409,13 +412,15 @@ Missing "content/blog/post/hero.jpg" for <img src="hero.jpg" alt="">, rendering 
 
 An image path that resolves outside `assets/` or `content/` also fails the build.
 
+`Bun.Image` encodes AVIF only on Apple Silicon M3 or newer Macs and on Windows. If you ask for `avif` on another machine, such as Linux CI, the build fails and says so.
+
 ### Image config
 
 ```ts
 export default {
 	$images: {
 		widths: [640, 1280, 1920],
-		formats: ['avif', 'webp'],
+		formats: ['webp', 'original'],
 		quality: { avif: 50, webp: 80, jpeg: 80 },
 		sizes: 'auto, 100vw',
 		content: true,
@@ -426,8 +431,8 @@ export default {
 These are the defaults.
 
 - `widths` — output widths, in pixels.
-- `formats` — `avif`, `webp`, `jpeg`, or `png`, best first. The last format is the fallback in the `<img>`, and the only format for content images, so use one that all browsers support, such as `webp` or `jpeg`.
-- `quality` — from 1 to 100. Give one number for all formats, or one number for each format. PNG stays lossless unless you set a quality for it.
+- `formats` — `avif`, `webp`, `jpeg`, `png`, or `original`, best first. `original` is the format of each source. The last format is the fallback in the `<img>`, and the only format for content images, so use one that all browsers support. `avif` is not in the defaults, because only some machines can encode it.
+- `quality` — from 1 to 100, for AVIF, WebP, and JPEG. Give one number for all of them, or one number for each format. PNG is always lossless.
 - `sizes` — the `sizes` of images that do not have one.
 - `content` — process `<img>` elements in content.
 
