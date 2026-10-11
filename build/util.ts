@@ -59,20 +59,22 @@ export async function build(dir: string): Promise<void> {
 			await buildClient(abs, dir);
 		}
 
-		// plugin.markdown: also emit the highlight subpath module.
+		// plugin.markdown: also emit the highlight and twinkleplop subpath modules.
 		if (dir === 'plugin.markdown') {
-			let hb = await rolldown({
-				input: join(abs, 'src/highlight.ts'),
-				plugins, external,
-			});
-			try {
-				let hr = await hb.write({ ...output, file: join(abs, 'highlight.js') });
-				let { code } = hr.output[ 0 ];
-				let txt = join(dir, 'highlight.js') + ' :: ' + size(code.length);
-				txt += '  (' + size(gzipSync(code).length) + ')';
-				console.log('~>', txt);
-			} finally {
-				await hb.close();
+			for (let name of ['highlight', 'twinkleplop']) {
+				let hb = await rolldown({
+					input: join(abs, `src/${name}.ts`),
+					plugins, external,
+				});
+				try {
+					let hr = await hb.write({ ...output, file: join(abs, name + '.js') });
+					let { code } = hr.output[ 0 ];
+					let txt = join(dir, name + '.js') + ' :: ' + size(code.length);
+					txt += '  (' + size(gzipSync(code).length) + ')';
+					console.log('~>', txt);
+				} finally {
+					await hb.close();
+				}
 			}
 		}
 	} catch (err: unknown) {
