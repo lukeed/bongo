@@ -144,6 +144,22 @@ describe('prune', () => {
 	});
 });
 
+describe('list', () => {
+	test('calls back for every file, with each folder\'s index files after the others', async () => {
+		let root = sandbox();
+		mkdirSync(join(root, 'blog'));
+		for (let rel of ['blog/index.hbs', 'blog/index.xml.hbs', 'blog/post.md', 'index.md', 'about.md']) {
+			writeFileSync(join(root, rel), 'x');
+		}
+		let seen: string[] = [];
+		await fs.list(root, (_, rel) => { seen.push(rel); });
+		expect(seen.toSorted()).toEqual(['about.md', 'blog/index.hbs', 'blog/index.xml.hbs', 'blog/post.md', 'index.md']);
+		expect(seen.indexOf('blog/post.md')).toBeLessThan(seen.indexOf('blog/index.hbs'));
+		expect(seen.indexOf('blog/post.md')).toBeLessThan(seen.indexOf('blog/index.xml.hbs'));
+		expect(seen.at(-1)).toBe('index.md');
+	});
+});
+
 describe('watch', () => {
 	test('watches only the folder itself when not recursive', async () => {
 		let dir = sandbox();

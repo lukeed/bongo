@@ -126,7 +126,7 @@ export async function copy(src: string, dest: string) {
 export type Caller = (abs: string, rel: string, name: string) => any;
 export async function list(dir: string, callback: Caller, prefix='') {
 	// NOTE: build `index.*` files last
-	let index: [string, string, string] | void;
+	let index: [string, string, string][] = [];
 	let files = await ls(dir, { withFileTypes: true });
 
 	await Promise.all(
@@ -137,16 +137,14 @@ export async function list(dir: string, callback: Caller, prefix='') {
 				return /^(shortcode|partial)s$/.test(dirent.name) || list(item, callback, rel);
 			}
 			if (dirent.name.startsWith('index.')) {
-				index = [item, rel, dirent.name];
+				index.push([item, rel, dirent.name]);
 			} else {
 				return callback(item, rel, dirent.name);
 			}
 		})
 	);
 
-	if (index!) {
-		await callback.apply(callback, index);
-	}
+	await Promise.all(index.map(args => callback(...args)));
 }
 
 type Handler = (dir: string, type: string, filename: string | null) => any;
