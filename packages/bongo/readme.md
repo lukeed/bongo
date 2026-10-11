@@ -31,6 +31,17 @@ bongo build --debug
 
 `--debug` logs each stage of a build, such as `loading the config and data/` or `bundling assets`, and how long it took. Without it, a stage that is still running after 15 seconds prints `still <stage>` every 15 seconds, so a build that waits on something, like a top-level `await` in your config, says what it waits on.
 
+### Output folder
+
+`bongo build` and `bongo dev` empty `public/` when they start, before they load the config, so no file from an earlier run stays. `bongo dev` empties it before its server starts, and each rebuild then deletes only the files that the new build no longer writes.
+
+bongo deletes a symlink in `public/`, but never the file or folder that it points to. It refuses to empty `public/`, and the build fails, when the folder resolves through symlinks to:
+
+- the project root, or a folder above it,
+- a folder outside the project,
+- `assets/`, `content/`, `data/`, `layouts/`, or `partials/`, or a folder in one of them or that holds one of them,
+- the home folder, a folder above it, or `/`.
+
 ### Minify
 
 `--minify` minifies every JavaScript bundle with Rolldown and every stylesheet with LightningCSS, including inline ones. It also minifies the HTML pages with [tdewolff/minify](https://github.com/tdewolff/minify) when its `minify` CLI is on your `$PATH`. If the CLI is missing, the build still succeeds: it prints one notice and leaves the HTML as it is. Without `--minify`, nothing is minified.
@@ -39,7 +50,7 @@ bongo build --debug
 
 When you run `bongo build`:
 
-1. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` by walking upward from `cwd`. Rolldown bundles the config and the local files it imports into one temporary `.mjs` module, which bongo imports and then deletes. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual, and `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials and `data/` modules load the same way.
+1. `public/` is emptied. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` by walking upward from `cwd`. Rolldown bundles the config and the local files it imports into one temporary `.mjs` module, which bongo imports and then deletes. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual, and `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials and `data/` modules load the same way.
 2. Files in `data/` are loaded as `$data`. Layouts and partials are collected from `layouts/` and `partials/`. Handlebars files (`.hbs`) are compiled with tempura. JavaScript and TypeScript partials are loaded as modules.
 3. Content files are passed through registered loaders, then rendered through the matching layout chain.
 4. Rendered HTML is scanned for `<bongo:*>` elements, and each page's content for `<img>` elements with a relative `src`. Assets are registered and replaced with placeholder tokens.
