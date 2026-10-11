@@ -166,7 +166,7 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax. Asset entrypo
 - `format="esm"|"cjs"` — output module format. Defaults to `esm`.
 - `target="..."` — browserslist target string.
 
-`<bongo:client>` bundles bongo's browser runtime and emits a module script that calls `client(...)`, plus the hidden `aria-live` region used to announce page-title changes:
+`<bongo:client>` bundles bongo's browser runtime and emits a module script that calls `client(...)`. It emits only that script, so you can put it anywhere in `<head>` or `<body>`:
 
 ```hbs
 <bongo:client />
@@ -413,14 +413,13 @@ The simplest setup is the `<bongo:client />` element:
 That expands at build time to:
 
 ```html
-<div id="bongo:live" role="status" aria-live="polite" style="...visually-hidden..."></div>
 <script type="module">
   import { client } from "/client.D59fAaym.js";
   client({ transitions: true });
 </script>
 ```
 
-The runtime updates `#bongo:live` with the new page title on navigation. If the element is missing, announcements are skipped silently.
+At startup, the runtime adds a hidden `aria-live` region, `<div id="bongo:live">`, at the start of `<body>`. It keeps that element across navigations and writes the new page title into it after each one. If the page already has an element with that id, the runtime uses it.
 
 If you also need custom event handlers or boot code, keep a separate `<bongo:script>`:
 

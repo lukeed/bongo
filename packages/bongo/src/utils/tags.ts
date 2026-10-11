@@ -148,11 +148,8 @@ export function scanBongoTags(
 				target: config.$build.target,
 				minify: argv.minify || undefined,
 			});
-			// Always emit the aria-live announcer at this location so it is
-			// parsed before the bootstrap script runs. The runtime looks it up
-			// by id and updates its text on every navigation.
-			let announcer = '<div id="bongo:live" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);border:0"></div>';
-			return `${announcer}<script type="module">import { client } from "${placeholder}"; client(${clientOptions(attrs)});</script>`;
+			// The runtime adds its aria-live announcer to <body>; a <div> here would end <head> early.
+			return `<script type="module">import { client } from "${placeholder}"; client(${clientOptions(attrs)});</script>`;
 		}
 
 		let src = str(attrs.src);

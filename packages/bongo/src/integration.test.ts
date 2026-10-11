@@ -777,3 +777,29 @@ describe('integration: site-image', () => {
 		}
 	});
 });
+
+describe('integration: site-client', () => {
+	// The HTML parser ends <head> at the first tag or text that may not live there.
+	let HEAD = new Set([ 'base', 'basefont', 'bgsound', 'link', 'meta', 'noframes', 'noscript', 'script', 'style', 'template', 'title' ]);
+
+	test('<bongo:client> keeps every later tag inside <head>', async () => {
+		let root = await copyFixture('site-client');
+		try {
+			await build({ cwd: root });
+			let html = await readFile(join(root, 'public/index.html'), 'utf8');
+			let head = html.slice(html.indexOf('<head>') + 6, html.indexOf('</head>'));
+			let markup = head.replace(/<(script|style|title)\b[^>]*>[\s\S]*?<\/\1>/g, '<$1>');
+
+			let tags = [ ...markup.matchAll(/<([a-z][\w-]*)/g) ].map(m => m[1]);
+			expect(tags.filter(tag => !HEAD.has(tag))).toEqual([]);
+			expect(markup.replace(/<[^>]*>/g, '').trim()).toBe('');
+
+			expect(head).toMatch(/<script type="module">import \{ client \} from "\/client\.[\w-]+\.js"; client\(\{ transitions: true \}\);<\/script>/);
+			expect(head).toMatch(/<script type="module">[\s\S]*<link rel="stylesheet" href="\/app\.[\w-]+\.css"\/>/);
+			expect(head).toContain('<meta name="description" content="after the client tag"/>');
+			expect(head).toContain('<link rel="icon" href="/favicon.ico"/>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});

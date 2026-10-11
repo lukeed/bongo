@@ -203,13 +203,13 @@ describe('scanBongoTags', () => {
 		}
 	});
 
-	test('<bongo:client /> emits announcer + ESM script that imports and calls client({})', async () => {
+	test('<bongo:client /> emits an ESM script that imports and calls client({})', async () => {
 		let dir = await tmpAssets({});
 		try {
 			let html = '<bongo:client />';
 			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
 			expect(result).toMatch(
-				/^<div id="bongo:live"[^>]+><\/div><script type="module">import { client } from "__BONGO_BUNDLE:[a-f0-9]{16}__"; client\({}\);<\/script>$/,
+				/^<script type="module">import { client } from "__BONGO_BUNDLE:[a-f0-9]{16}__"; client\({}\);<\/script>$/,
 			);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
@@ -227,13 +227,13 @@ describe('scanBongoTags', () => {
 		}
 	});
 
-	test('<bongo:client> always emits the aria announcer div before the bootstrap script', async () => {
+	test('<bongo:client> emits no element that would end <head> early', async () => {
 		let dir = await tmpAssets({});
 		try {
-			let html = '<bongo:client />';
+			let html = '<head><bongo:client /><meta name="x"/></head>';
 			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
-			expect(result).toContain('<div id="bongo:live" role="status" aria-live="polite"');
-			expect(result.indexOf('id="bongo:live"')).toBeLessThan(result.indexOf('<script'));
+			expect(result).not.toContain('<div');
+			expect(result).toMatch(/^<head><script type="module">[^<]*<\/script><meta name="x"\/><\/head>$/);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}

@@ -48,6 +48,9 @@ export function client(opts: ClientOptions = {}): void {
 	// Inject preset CSS if applicable (requires browser document).
 	if (name) preset.inject(name);
 
+	// Add the live region up front, so it is in the accessibility tree before its first update.
+	internal.announcer();
+
 	// Capture-phase click listener: sets BYPASS_NEXT for browsers that don't
 	// expose NavigateEvent.sourceElement.
 	document.addEventListener('click', (e) => {
@@ -94,9 +97,8 @@ export function client(opts: ClientOptions = {}): void {
 					}
 					if (signal.aborted) return;
 
-					// Announcer is emitted inline by <bongo:client />. The body swap can replace it,
-					// so resolve it per navigation; if absent (user bootstraps client() manually
-					// without the element), announcements are silently skipped.
+					// Announcer lives in <body> and survives each swap; resolve it here in case
+					// client() started before <body> existed.
 					let announcer = internal.announcer();
 					if (announcer) announcer.textContent = document.title;
 					internal.emit('bongo:navigated', { to, from });

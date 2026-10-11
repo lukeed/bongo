@@ -81,11 +81,10 @@ describe('client() navigation', () => {
 	type Visit = { abort(): void; done: Promise<void> };
 
 	let CORE = '<link rel="stylesheet" href="/core.css">';
-	let LIVE = '<div id="bongo:live"></div>';
 	let PAGES: Record<string, Page> = {
-		'/': { head: '<title>A</title>' + CORE, body: '<h1>A</h1>' + LIVE },
-		'/b/': { head: '<title>B</title>' + CORE + '<link rel="stylesheet" href="/b.css">', body: '<h1>B</h1>' + LIVE },
-		'/c/': { head: '<title>C</title>' + CORE + '<link rel="stylesheet" href="/c.css">', body: '<h1>C</h1>' + LIVE },
+		'/': { head: '<title>A</title>' + CORE, body: '<h1>A</h1>' },
+		'/b/': { head: '<title>B</title>' + CORE + '<link rel="stylesheet" href="/b.css">', body: '<h1>B</h1>' },
+		'/c/': { head: '<title>C</title>' + CORE + '<link rel="stylesheet" href="/c.css">', body: '<h1>C</h1><div id="bongo:live"></div>' },
 	};
 	let GLOBALS = [ 'document', 'DOMParser', 'location', 'history', 'window', 'navigation' ];
 
@@ -244,13 +243,26 @@ describe('client() navigation', () => {
 		]);
 	});
 
-	test('announces the new title in the live region of the new page', async () => {
+	test('announces each new title in one live region that outlives the swaps', async () => {
 		await boot();
+		let live = document.getElementById('bongo:live');
+		expect(live?.parentElement).toBe(document.body);
+		expect(live?.getAttribute('aria-live')).toBe('polite');
+		expect(document.head.querySelector('div')).toBeNull();
+
 		load('/b.css');
 		await go('/b/').done;
-		expect(document.getElementById('bongo:live')?.textContent).toBe('B');
+		expect(document.getElementById('bongo:live')).toBe(live);
+		expect(live?.textContent).toBe('B');
+
+		load('/c.css');
+		await go('/c/').done;
+		expect(document.querySelectorAll('[id="bongo:live"]')).toHaveLength(1);
+		expect(document.body.firstElementChild).toBe(live);
+		expect(live?.textContent).toBe('C');
 
 		await go('/', 'traverse').done;
-		expect(document.getElementById('bongo:live')?.textContent).toBe('A');
+		expect(document.body.firstElementChild).toBe(live);
+		expect(live?.textContent).toBe('A');
 	});
 });
