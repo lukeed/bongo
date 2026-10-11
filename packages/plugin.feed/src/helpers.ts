@@ -8,13 +8,14 @@ export const MIME: Record<Format, string> = {
 };
 
 const XML: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' };
+const ILLEGAL = /[^\t\n\r\x20-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/gu;
 
 /**
- * Escape text for XML element content or a quoted attribute.
+ * Escape text for XML element content or a quoted attribute, and drop characters that XML does not allow.
  * @example xml('Tom & "Jerry"') //=> 'Tom &amp; &quot;Jerry&quot;'
  */
 export function xml(value: unknown): string {
-	return String(value ?? '').replace(/[&<>"']/g, c => XML[c]);
+	return String(value ?? '').replace(ILLEGAL, '').replace(/[&<>"']/g, c => XML[c]);
 }
 
 /**
@@ -60,12 +61,13 @@ export function latest(values: unknown[]): number | undefined {
 	return winner;
 }
 
-const ATTR = /([\w:-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
+const ATTR = /([\w:-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
 const ENTITY = /&(amp|lt|gt|quot|apos|#\d+|#[xX][\da-fA-F]+);/g;
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
 
 /**
  * Decode the XML entities and numeric character references in `input`, once.
+ * A reference to a character that XML does not allow stays as written.
  * @example decode('Tom &amp;amp; Jerry &#65;') //=> 'Tom &amp; Jerry A'
  */
 export function decode(input: string): string {
@@ -73,7 +75,9 @@ export function decode(input: string): string {
 		if (ENTITIES[name]) return ENTITIES[name];
 		let hex = name[1] === 'x' || name[1] === 'X';
 		let code = parseInt(name.substring(hex ? 2 : 1), hex ? 16 : 10);
-		return code <= 0x10ffff ? String.fromCodePoint(code) : match;
+		if (code > 0x10ffff) return match;
+		let char = String.fromCodePoint(code);
+		return char.replace(ILLEGAL, '') ? char : match;
 	});
 }
 

@@ -26,6 +26,10 @@ describe('xml()', () => {
 		expect(helpers.xml('café')).toBe('café');
 	});
 
+	test('drops characters that XML 1.0 does not allow', () => {
+		expect(helpers.xml('a\u0000b\u0008c\tok\n\uFFFE\uD800😀')).toBe('abc\tok\n😀');
+	});
+
 	test('escapes mixed input correctly', () => {
 		expect(helpers.xml('Tom & Jerry <3')).toBe('Tom &amp; Jerry &lt;3');
 		expect(helpers.xml('"quoted"')).toBe('&quot;quoted&quot;');
@@ -137,6 +141,10 @@ describe('attrs()', () => {
 		expect(helpers.attrs('  href="/x"  title="Y" /')).toEqual({ href: '/x', title: 'Y' });
 	});
 
+	test('allows spaces around =', () => {
+		expect(helpers.attrs('title = "x" date= \'y\' id =z')).toEqual({ title: 'x', date: 'y', id: 'z' });
+	});
+
 	test('decodes entities in values once, and keeps backslashes as written', () => {
 		expect(helpers.attrs('title="Tom &amp;amp; Jerry \\d+"')).toEqual({ title: 'Tom &amp; Jerry \\d+' });
 	});
@@ -163,6 +171,7 @@ describe('decode()', () => {
 		expect(helpers.decode('&#xZZ;')).toBe('&#xZZ;');
 		expect(helpers.decode('&#1a;')).toBe('&#1a;');
 		expect(helpers.decode('&#x110000;')).toBe('&#x110000;');
+		expect(helpers.decode('&#0;&#x8;&#xD800;')).toBe('&#0;&#x8;&#xD800;');
 	});
 
 	test('handles mixed content', () => {
