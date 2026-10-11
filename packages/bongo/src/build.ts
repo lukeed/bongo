@@ -26,7 +26,7 @@ import type { Argv, Config, Loader, Template } from 'bongo';
 let FRONTMATTER_SIG: Map<string, string> = new Map();
 
 // Per output dir, the last good build's files and each page's assets, to keep or delete on the next build.
-type Output = { assets: Map<string, string[]>; files: Set<string> };
+type Output = { assets: Map<string, string[]>; files: Set<string>; dev: boolean };
 let OUTPUT: Map<string, Output> = new Map();
 
 function frontmatterSig(raw: string): string {
@@ -130,7 +130,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	debug('[build.argv]', argv);
 
 	// A dev rebuild writes over its last good build, so a failed one leaves that build serving.
-	if (!opts.only && !(argv.dev && OUTPUT.has(argv.dest))) {
+	if (!opts.only && !(argv.dev && OUTPUT.get(argv.dest)?.dev)) {
 		await fs.rmdir(argv.dest);
 		OUTPUT.delete(argv.dest);
 	}
@@ -368,6 +368,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 				{ $page, $pages: Pages, $section, $tags, params: item.params, ...context }
 			)
 			: item.body;
+		rendered_content = tags.scanImages(rendered_content, argv as Required<Argv>, config, `content/${item.rel}`, item.path);
 		$page.content = rendered_content;
 
 		// lookup priority –> need "" for `/layouts/*` root
@@ -449,7 +450,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			rendered_content += `</script>`;
 		}
 
-		rendered_content = tags.scanBongoTags(rendered_content, argv as Required<Argv>, config, chain.join(' → '));
+		rendered_content = tags.scanBongoTags(rendered_content, argv as Required<Argv>, config, chain.join(' → '), item.path);
 		rendered_content = tags.rewriteTransitionAttrs(rendered_content);
 
 		assets.set(item.rel, bundler.placeholders(rendered_content));
@@ -465,6 +466,8 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		publicPath,
 		assets: ASSETS,
 		utils: loader_utils,
+		cache: join(argv.cwd, 'node_modules', '.cache', 'bongo', 'images'),
+		dev: argv.dev,
 	});
 
 	if (flushResult.errors.length > 0) {
@@ -500,7 +503,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 
 	let files = new Set([...written, ...scanned.map(item => item.output), ...flushResult.files.map(file => join(dest, file))]);
 	await Promise.all([...last?.files ?? []].filter(file => !files.has(file)).map(file => fs.prune(file, dest)));
-	OUTPUT.set(dest, { assets, files });
+	OUTPUT.set(dest, { assets, files, dev: argv.dev });
 
 	// Refresh the frontmatter-sig snapshot for the next narrow rebuild. Only
 	// pages actually scanned in this build are updated; narrow builds don't

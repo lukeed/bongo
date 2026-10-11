@@ -136,6 +136,23 @@ interface Helpers {
   [name: string]: Function | Promise<any> | Helpers;
 }
 
+export namespace Images {
+	type Format = 'avif' | 'webp' | 'jpeg' | 'png';
+
+	type Options = {
+		/** Output widths in pixels. A source is never enlarged: wider ones become its own width. @default [640, 1280, 1920] */
+		widths?: number[];
+		/** Output formats, best first. The last is the `<img>` fallback, and the only one content images use. @default ['avif', 'webp'] */
+		formats?: Format[];
+		/** Encoder quality from 1 to 100, for all formats or per format. PNG stays lossless unless set. @default { avif: 50, webp: 80, jpeg: 80 } */
+		quality?: number | Partial<Record<Format, number>>;
+		/** The `sizes` of images that do not set one. A leading `auto` applies only to lazy images. @default 'auto, 100vw' */
+		sizes?: string;
+		/** Process `<img>` elements in content that have a relative `src`. @default true */
+		content?: boolean;
+	};
+}
+
 export interface Config {
 	$site: Template.Site;
 	// bongo provides these built-ins; a config may override or extend them
@@ -156,6 +173,7 @@ export interface Config {
 	$build?: {
 		target?: string | string[];  // browserslist query or array of queries
 	};
+	$images?: Images.Options;
 	plugins?: Partial<Config>[];
 }
 

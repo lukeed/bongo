@@ -427,6 +427,36 @@ describe('watch()', () => {
 		}
 	});
 
+	test('tracks image sources, except those under the skipped directory', async () => {
+		let { dir, outDir } = await tmp({
+			'assets/a.svg': '<svg viewBox="0 0 1 1"></svg>',
+			'content/b.svg': '<svg viewBox="0 0 1 1"></svg>',
+		});
+		let changed: string[] = [];
+		let unsub = () => {};
+		try {
+			let image = { widths: [1], formats: [], quality: {} };
+			bundler.register(join(dir, 'assets/a.svg'), { kind: 'image', image });
+			bundler.register(join(dir, 'content/b.svg'), { kind: 'image', image });
+			await bundler.flush({ outDir });
+			unsub = await bundler.watch(diff => { changed.push(diff.file); }, join(dir, 'content'));
+			await new Promise(r => setTimeout(r, 150));
+
+			await writeFile(join(dir, 'content/b.svg'), '<svg viewBox="0 0 2 1"></svg>');
+			await writeFile(join(dir, 'assets/a.svg'), '<svg viewBox="0 0 2 1"></svg>');
+			let start = Date.now();
+			while (!changed.length && Date.now() - start < 3000) {
+				await new Promise(r => setTimeout(r, 20));
+			}
+			await new Promise(r => setTimeout(r, 150));
+			expect(changed).toContain(join(dir, 'assets/a.svg'));
+			expect(changed).not.toContain(join(dir, 'content/b.svg'));
+		} finally {
+			unsub();
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	test('rebuilds when a file referenced by url() changes', async () => {
 		let { dir, outDir } = await tmp({
 			'site/style.css': '.a { background: url(../media/bg.png); }',

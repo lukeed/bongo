@@ -46,10 +46,15 @@ The element's attributes become the partial's arguments. bongo reads them as dat
 - `[…]` is a list and `{…}` is a map, written like JSON5: keys need no quotes, and a trailing comma is fine.
 - A name with no value is `true`.
 
-bongo's own elements, `<bongo:asset>`, `<bongo:style>`, `<bongo:script>`, and `<bongo:client>`, are passed through untouched for bongo to replace. For example, an image in a post can use a hashed URL:
+bongo's own elements, `<bongo:asset>`, `<bongo:image>`, `<bongo:style>`, `<bongo:script>`, and `<bongo:client>`, are passed through untouched for bongo to replace.
+
+Images next to a post need no element: bongo gives `![alt](hero.jpg)` and `<img src="hero.jpg">` a `srcset` and their dimensions. Use `<bongo:image>` for a `<picture>` with more formats, or for your own `sizes`. See [Images](../bongo/readme.md#images).
 
 ```md
-<img src="<bongo:asset src='posts/hero.webp' />" alt="…"/>
+<figure>
+	<bongo:image src="./hero.jpg" alt="…" sizes="(min-width: 800px) 720px, 100vw" />
+	<figcaption>…</figcaption>
+</figure>
 ```
 
 ## Options

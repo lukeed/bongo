@@ -5,8 +5,11 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 
+import sharp from 'sharp';
+
 import { build } from './build';
 import * as bundler from './utils/bundler';
+import * as images from './utils/images';
 import * as templates from './utils/templates';
 
 const FIXTURES = join(import.meta.dirname, '../test/fixtures');
@@ -796,6 +799,173 @@ describe('integration: site-asset', () => {
 			await rm(join(root, 'assets/fonts/fixture.woff2'));
 			let run = build({ cwd: root });
 			await expect(run).rejects.toThrow('Missing "assets/fonts/fixture.woff2" for <bongo:asset preload src="fonts/fixture.woff2" />, rendering content/index.html → layouts/html.hbs');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('integration: site-image', () => {
+	async function read(root: string, page = 'index.html') {
+		let out = join(root, 'public');
+		let files = await readdir(out);
+		let html = await readFile(join(out, page), 'utf8');
+		let find = (name: string, width: number, ext: string) => files.find(f => new RegExp(`^${name}-${width}\\.[a-f0-9]{8}\\.${ext}$`).test(f))!;
+		let set = (name: string, widths: number[], ext: string) => widths.map(w => `/docs/${find(name, w, ext)} ${w}w`).join(', ');
+		return { files, html, find, set };
+	}
+
+	test('<bongo:image> writes resized copies and a <picture> with intrinsic dimensions', async () => {
+		let root = await copyFixture('site-image');
+		try {
+			await build({ cwd: root });
+			let { files, html, find, set } = await read(root);
+
+			let widths = [640, 1280, 1920];
+			for (let ext of ['avif', 'webp']) {
+				for (let w of widths) expect(find('hero', w, ext)).toBeDefined();
+			}
+			expect(files.filter(f => f.startsWith('hero-'))).toHaveLength(6);
+
+			let logo = files.find(f => /^logo\.[a-f0-9]{8}\.svg$/.test(f));
+			let spin = files.find(f => /^spin\.[a-f0-9]{8}\.gif$/.test(f));
+			expect(html).toContain(`<picture><source type="image/avif" srcset="${set('hero', widths, 'avif')}" sizes="100vw"/><img src="/docs/${find('hero', 1920, 'webp')}" srcset="${set('hero', widths, 'webp')}" sizes="100vw" alt="Hero" fetchpriority="high" loading="eager" decoding="async" width="2400" height="1200"/></picture>`);
+			expect(html).toContain(`<picture><img src="/docs/${logo}" alt="Logo" class="logo" loading="lazy" decoding="async" width="120" height="40"/></picture>`);
+			expect(html).toContain(`<picture><img src="/docs/${spin}" alt="" loading="lazy" decoding="async" width="20" height="30"/></picture>`);
+			expect(html).not.toContain('bongo');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('<bongo:image> in content reads files next to the page', async () => {
+		let root = await copyFixture('site-image');
+		try {
+			await build({ cwd: root });
+			let { html, find } = await read(root, 'blog/post/index.html');
+			let photo = find('photo', 320, 'webp');
+			expect(html).toContain(`<picture><img src="/docs/${photo}" srcset="/docs/${photo} 320w" sizes="auto, 100vw" alt="Element" loading="lazy" decoding="async" width="800" height="600"/></picture>`);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('<img> in content gets a srcset in the fallback format, and its dimensions', async () => {
+		let root = await copyFixture('site-image');
+		try {
+			await build({ cwd: root });
+			let { files, html, find, set } = await read(root, 'blog/post/index.html');
+			let diagram = files.find(f => /^diagram\.[a-f0-9]{8}\.svg$/.test(f));
+			expect(files.filter(f => /^(photo|portrait)-.*\.avif$/.test(f))).toEqual([]);
+
+			expect(html).toContain(`<figure><img src="/docs/${find('photo', 800, 'webp')}" srcset="${set('photo', [640, 800], 'webp')}" sizes="auto, 100vw" alt="A &quot;photo&quot;" class="shot" loading="lazy" decoding="async" width="800" height="600"/></figure>`);
+			expect(html).toContain(`<img src="/docs/${find('portrait', 400, 'webp')}" srcset="${set('portrait', [400], 'webp')}" sizes="auto, 100vw" alt="Portrait" loading="lazy" decoding="async" width="400" height="600"/>`);
+			expect(html).toContain(`<img src="/docs/${diagram}" alt="Diagram" loading="lazy" decoding="async" width="300" height="150"/>`);
+			for (let kept of [
+				'<img src="https://cdn.example.com/x.png" alt="">',
+				'<img src="/blog/post/photo.png" alt="root">',
+				'<img src="photo.png" srcset="photo.png 1x" alt="manual">',
+				'<picture><img src="photo.png" alt="nested"></picture>',
+				'<!-- <img src="gone.png"> -->',
+			]) expect(html).toContain(kept);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('$images.content = false leaves content images as written', async () => {
+		let root = await copyFixture('site-image');
+		try {
+			await writeFile(join(root, 'bongo.config.ts'), `export default { $site: { url: 'https://example.com/docs/' }, $images: { content: false } };`);
+			await build({ cwd: root });
+			let { html } = await read(root, 'blog/post/index.html');
+			expect(html).toContain('<figure><img src="photo.png" alt="A &quot;photo&quot;" class="shot"/></figure>');
+			expect(html).toContain('<img src="portrait.jpg" alt="Portrait">');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a missing content image fails with the tag and the content file', async () => {
+		let root = await copyFixture('site-image');
+		try {
+			await rm(join(root, 'content/blog/post/portrait.jpg'));
+			await expect(build({ cwd: root })).rejects.toThrow('Missing "content/blog/post/portrait.jpg" for <img src="portrait.jpg" alt="Portrait">, rendering content/blog/post.html');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('dev builds emit the same markup, and encode only what the server is asked for', async () => {
+		let root = await copyFixture('site-image');
+		try {
+			let tags = /<picture>[\s\S]*?<\/picture>|<img [^>]*>/g;
+			await build({ cwd: root });
+			let prod = [(await read(root)).html.match(tags), (await read(root, 'blog/post/index.html')).html.match(tags)];
+
+			bundler.reset();
+			await rm(join(root, 'node_modules'), { recursive: true });
+			await build({ cwd: root, dev: true });
+			let { files, html } = await read(root);
+			let post = await read(root, 'blog/post/index.html');
+			expect([html.match(tags), post.html.match(tags)]).toEqual(prod);
+
+			expect(files.filter(f => /\.(avif|webp)$/.test(f))).toEqual([]);
+			expect(files.filter(f => /\.(svg|gif)$/.test(f))).toHaveLength(3);
+
+			let name = html.match(/\/docs\/(hero-640\.[a-f0-9]{8}\.avif) 640w/)![1];
+			let body = await images.serve(name)!;
+			expect((await sharp(body).metadata()).width).toBe(640);
+			expect(await readdir(join(root, 'node_modules/.cache/bongo/images'))).toHaveLength(1);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('rebuilds copy unchanged images from the cache', async () => {
+		let root = await copyFixture('site-image');
+		try {
+			await build({ cwd: root });
+			let { find } = await read(root);
+			let name = find('hero', 640, 'avif');
+			let cache = join(root, 'node_modules/.cache/bongo/images');
+			let entry = (await readdir(cache)).find(f => f.startsWith(name.split('.')[1]))!;
+			await writeFile(join(cache, entry), 'cached');
+
+			bundler.reset();
+			await build({ cwd: root });
+			expect(await readFile(join(root, 'public', name), 'utf8')).toBe('cached');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a missing image fails with the tag and where it was rendered', async () => {
+		let root = await copyFixture('site-image');
+		try {
+			await rm(join(root, 'assets/img/hero.jpg'));
+			await expect(build({ cwd: root })).rejects.toThrow(/^Missing "assets\/img\/hero\.jpg" for <bongo:image src="img\/hero\.jpg" alt="Hero" sizes="100vw" fetchpriority="high" \/>, rendering content\/[\w/.]+ → layouts\/html\.hbs$/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('without sharp, the build names the image and how to install sharp', async () => {
+		let root = await copyFixture('site-image');
+		try {
+			let preload = join(root, 'no-sharp.ts');
+			let script = join(root, 'run.ts');
+			await writeFile(preload, [
+				`import { plugin } from 'bun';`,
+				`plugin({ name: 'no-sharp', setup(b) { b.module('sharp', () => { throw new Error("Cannot find package 'sharp'"); }); } });`,
+			].join('\n'));
+			await writeFile(script, `import { build } from ${JSON.stringify(join(import.meta.dirname, 'build'))};\nawait build({ cwd: ${JSON.stringify(root)} });\n`);
+
+			let proc = Bun.spawn(['bun', '--preload', preload, script], { stdout: 'pipe', stderr: 'pipe' });
+			let [code, stderr] = await Promise.all([proc.exited, new Response(proc.stderr).text()]);
+			expect(code).not.toBe(0);
+			expect(stderr).toContain(`Processing "${join(root, 'assets/img/hero.jpg')}" needs the "sharp" package: bun add -d sharp`);
+			expect(stderr).toContain('Build failed');
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

@@ -1,14 +1,13 @@
 import { describe, expect, test, beforeEach } from 'bun:test';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 
-import { scanBongoTags, rewriteTransitionAttrs } from './tags';
+import { parseAttrs, scanBongoTags, scanImages, rewriteTransitionAttrs } from './tags';
 import * as bundler from './bundler';
-import * as attrs from './attrs';
 
-import type { Argv, Config } from 'bongo';
+import type { Argv, Config, Images } from 'bongo';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -56,6 +55,7 @@ function makeConfig(): Required<Config> {
 		$assets: {},
 		$partials: {},
 		$build: {},
+		$images: {},
 		plugins: [],
 	} as Required<Config>;
 }
@@ -65,32 +65,32 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// attribute parsing, as bongo tags use it
+// parseAttrs unit tests
 // ---------------------------------------------------------------------------
 
-describe('attrs.parse for bongo tags', () => {
+describe('parseAttrs', () => {
 	test('parses double-quoted attribute', () => {
-		let parsed = attrs.parse('src="app.css"');
+		let parsed = parseAttrs('src="app.css"');
 		expect(parsed.src).toBe('app.css');
 	});
 
 	test('parses single-quoted attribute', () => {
-		let parsed = attrs.parse("src='app.css'");
+		let parsed = parseAttrs("src='app.css'");
 		expect(parsed.src).toBe('app.css');
 	});
 
 	test('parses bareword attribute', () => {
-		let parsed = attrs.parse('src=app.css');
+		let parsed = parseAttrs('src=app.css');
 		expect(parsed.src).toBe('app.css');
 	});
 
 	test('boolean attribute (present, no value) becomes true', () => {
-		let parsed = attrs.parse('inline');
+		let parsed = parseAttrs('inline');
 		expect(parsed.inline).toBe(true);
 	});
 
 	test('parses multiple attributes', () => {
-		let parsed = attrs.parse('src="main.ts" async inline');
+		let parsed = parseAttrs('src="main.ts" async inline');
 		expect(parsed.src).toBe('main.ts');
 		expect(parsed.async).toBe(true);
 		expect(parsed.inline).toBe(true);
@@ -361,6 +361,182 @@ describe('scanBongoTags — <bongo:asset>', () => {
 
 	test('missing src throws', async () => {
 		await expect(scan('<bongo:asset preload />')).rejects.toThrow(/<bongo:asset> missing required "src"/);
+	});
+});
+
+describe('scanBongoTags — <bongo:image>', () => {
+	const TOKEN = /__BONGO_BUNDLE:[a-f0-9]{16}__/g;
+
+	type Options = { from?: string; path?: string; images?: Images.Options };
+
+	async function scan(html: string, files: string[] = [], opts: Options = {}): Promise<string> {
+		let dir = join(tmpdir(), `bongo-tags-image-${randomBytes(6).toString('hex')}`);
+		await Promise.all(files.map(async rel => {
+			await mkdir(dirname(join(dir, rel)), { recursive: true });
+			await writeFile(join(dir, rel), 'x');
+		}));
+		try {
+			let config = { ...makeConfig(), $images: opts.images ?? {} };
+			return scanBongoTags(html, makeArgv(dir), config, opts.from, opts.path).replace(TOKEN, 'TOKEN');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	}
+
+	test('becomes a <picture> around a stand-in <img>, lazy and async with auto sizes', async () => {
+		let out = await scan('<bongo:image src="img/a.jpg" alt="A" class="hero" />', ['assets/img/a.jpg']);
+		expect(out).toBe('<picture><img data-bongo-image="TOKEN" sizes="auto, 100vw" alt="A" class="hero" loading="lazy" decoding="async"/></picture>');
+	});
+
+	test('typed attributes become html text: lists join, true is bare, and false or null drops it', async () => {
+		let out = await scan('<bongo:image src="img/a.jpg" alt="" width=640 class=[hero, wide] data-zoom=true hidden=false title=null widths=[320, 640] quality=60 />', ['assets/img/a.jpg']);
+		expect(out).toBe('<picture><img data-bongo-image="TOKEN" sizes="auto, 100vw" alt="" width="640" class="hero wide" data-zoom loading="lazy" decoding="async"/></picture>');
+	});
+
+	test('explicit attributes win, and fetchpriority=high loads eagerly without auto sizes', async () => {
+		let out = await scan([
+			'<bongo:image src="a.jpg" sizes="50vw" loading="eager" decoding="sync" widths="320" formats="webp" quality="60" />',
+			'<bongo:image src="a.jpg" fetchpriority="high" />',
+			`<bongo:image src='a.jpg' alt='say "hi"' hidden></bongo:image>`,
+		].join('\n'), ['assets/a.jpg'], { images: { sizes: 'auto, (min-width: 800px) 720px, 100vw' } });
+		expect(out.split('\n')).toEqual([
+			'<picture><img data-bongo-image="TOKEN" sizes="50vw" loading="eager" decoding="sync"/></picture>',
+			'<picture><img data-bongo-image="TOKEN" sizes="(min-width: 800px) 720px, 100vw" fetchpriority="high" loading="eager" decoding="async"/></picture>',
+			'<picture><img data-bongo-image="TOKEN" sizes="auto, (min-width: 800px) 720px, 100vw" alt="say &quot;hi&quot;" hidden loading="lazy" decoding="async"/></picture>',
+		]);
+	});
+
+	test('the same file and settings share a token', async () => {
+		let dir = await tmpAssets({ 'a.jpg': 'x' });
+		try {
+			let tokens = (html: string) => scanBongoTags(html, makeArgv(dir), makeConfig()).match(TOKEN)!;
+			let [a, b, c] = tokens('<bongo:image src="a.jpg" alt="1" /><bongo:image src="a.jpg" sizes="9vw" /><bongo:image src="a.jpg" widths="9" />');
+			expect(a).toBe(b);
+			expect(c).not.toBe(a);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('./, ../, and / resolve against the page url, in content/', async () => {
+		let files = ['content/blog/post/a.jpg', 'content/blog/b.jpg', 'content/c d.jpg'];
+		let out = await scan('<bongo:image src="./a.jpg" /><bongo:image src="../b.jpg" /><bongo:image src="/c%20d.jpg?v=1" />', files, { path: '/blog/post/' });
+		expect(out.match(/data-bongo-image/g)).toHaveLength(3);
+	});
+
+	test('a missing file names the resolved path, the tag, and where it was rendered', async () => {
+		let from = 'content/blog/post.md → layouts/html.hbs';
+		let fail = (src: string) => scan(`<bongo:image src="${src}" alt="" />`, [], { from, path: '/blog/post/' });
+		await expect(fail('img/gone.jpg')).rejects.toThrow(`Missing "assets/img/gone.jpg" for <bongo:image src="img/gone.jpg" alt="" />, rendering ${from}`);
+		await expect(fail('./gone.jpg')).rejects.toThrow('Missing "content/blog/post/gone.jpg"');
+		await expect(fail('../../../gone.jpg')).rejects.toThrow('Missing "content/gone.jpg"');
+		await expect(fail('/x/gone.jpg')).rejects.toThrow('Missing "content/x/gone.jpg"');
+	});
+
+	test('a path that leaves assets/ or content/ fails', async () => {
+		let fail = (src: string) => scan(`<bongo:image src="${src}" />`, ['assets/a.jpg', 'secret.jpg'], { path: '/blog/post/' });
+		await expect(fail('./a%2f..%2f..%2f..%2f..%2fsecret.jpg')).rejects.toThrow('Image "./a%2f..%2f..%2f..%2f..%2fsecret.jpg" is outside content/ for <bongo:image');
+		await expect(fail('img/../../secret.jpg')).rejects.toThrow('Image "img/../../secret.jpg" is outside assets/ for <bongo:image');
+	});
+
+	test('decodes html entities in src', async () => {
+		let out = await scan('<bongo:image src="./a&amp;b.jpg" /><bongo:image src=" ./a&#38;b.jpg " />', ['content/blog/post/a&b.jpg'], { path: '/blog/post/' });
+		expect(out.match(/data-bongo-image/g)).toHaveLength(2);
+	});
+
+	test('bad settings name the tag and where it was rendered', async () => {
+		let run = scan('<bongo:image src="a.jpg" formats="gif" />', ['assets/a.jpg'], { from: 'content/index.html' });
+		await expect(run).rejects.toThrow('Unknown image format "gif"; use avif, webp, jpeg, or png for <bongo:image src="a.jpg" formats="gif" />, rendering content/index.html');
+	});
+
+	test('missing src throws', async () => {
+		await expect(scan('<bongo:image alt="" />')).rejects.toThrow(/<bongo:image> missing required "src"/);
+	});
+});
+
+describe('scanImages', () => {
+	const TOKEN = /__BONGO_BUNDLE:[a-f0-9]{16}__/g;
+	const FROM = 'content/blog/post.md';
+
+	async function scan(html: string, files: string[] = [], images: Images.Options = {}): Promise<string> {
+		let dir = join(tmpdir(), `bongo-tags-content-${randomBytes(6).toString('hex')}`);
+		await Promise.all(files.map(async rel => {
+			await mkdir(dirname(join(dir, rel)), { recursive: true });
+			await writeFile(join(dir, rel), 'x');
+		}));
+		try {
+			let config = { ...makeConfig(), $images: images };
+			return scanImages(html, makeArgv(dir), config, FROM, '/blog/post/').replace(TOKEN, 'TOKEN');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	}
+
+	test('turns an <img> with a relative src into a stand-in, in place', async () => {
+		let files = ['content/blog/post/a.png', 'content/blog/b.jpg', 'content/blog/post/c d.svg'];
+		let out = await scan('<p><img src="a.png" alt="A &amp; B"></p>\n<img src="../b.jpg" class=x loading="eager"/>\n<img alt="" src=\'./c%20d.svg\' width="10" />', files);
+		expect(out.split('\n')).toEqual([
+			'<p><img data-bongo-image="TOKEN" sizes="auto, 100vw" alt="A &amp; B" loading="lazy" decoding="async"/></p>',
+			'<img data-bongo-image="TOKEN" sizes="100vw" class="x" loading="eager" decoding="async"/>',
+			'<img data-bongo-image="TOKEN" sizes="auto, 100vw" alt="" width="10" loading="lazy" decoding="async"/>',
+		]);
+	});
+
+	test('registers the same file and settings as <bongo:image> in the last format', async () => {
+		let dir = await tmpAssets({});
+		try {
+			await mkdir(join(dir, 'content/blog/post'), { recursive: true });
+			await writeFile(join(dir, 'content/blog/post/a.png'), 'x');
+			let config = { ...makeConfig(), $images: { formats: ['avif', 'jpeg'] } } as Required<Config>;
+			let token = (html: string) => html.match(TOKEN)![0];
+			let img = token(scanImages('<img src="a.png">', makeArgv(dir), config, FROM, '/blog/post/'));
+			let element = token(scanBongoTags('<bongo:image src="./a.png" formats="jpeg" />', makeArgv(dir), config, FROM, '/blog/post/'));
+			expect(img).toBe(element);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('leaves other images as written', async () => {
+		let html = [
+			'<img src="https://cdn.example.com/a.png" alt="">',
+			'<img src="//cdn.example.com/a.png">',
+			'<img src="/blog/post/a.png">',
+			'<img src="data:image/png;base64,AAAA">',
+			'<img src="#x">',
+			'<img src="a.png" srcset="a.png 1x">',
+			'<img src="page.html">',
+			'<img alt="no src">',
+			`<img src="<bongo:asset src='a.png' />">`,
+			'<picture><source srcset="a.avif"><img src="a.png"></picture>',
+			'<!-- <img src="a.png"> -->',
+			'<script>let html = \'<img src="a.png">\';</script>',
+			'<image href="a.png"/>',
+			'<img-zoom src="a.png"></img-zoom>',
+		].join('\n');
+		expect(await scan(html)).toBe(html);
+	});
+
+	test('decodes html entities in src, as Markdown writes them', async () => {
+		let out = await scan('<img src="a&amp;b.png" alt="">', ['content/blog/post/a&b.png']);
+		expect(out).toBe('<img data-bongo-image="TOKEN" sizes="auto, 100vw" alt="" loading="lazy" decoding="async"/>');
+	});
+
+	test('a path that leaves content/ fails', async () => {
+		await expect(scan('<img src="..%2f..%2f..%2f..%2fx.png">')).rejects.toThrow(`Image "..%2f..%2f..%2f..%2fx.png" is outside content/ for <img src="..%2f..%2f..%2f..%2fx.png">, rendering ${FROM}`);
+	});
+
+	test('does nothing when $images.content is false', async () => {
+		let html = '<img src="gone.png" alt="">';
+		expect(await scan(html, [], { content: false })).toBe(html);
+	});
+
+	test('a missing file names the resolved path, the tag, and the content file', async () => {
+		await expect(scan('<img src="gone.png" alt="">')).rejects.toThrow(`Missing "content/blog/post/gone.png" for <img src="gone.png" alt="">, rendering ${FROM}`);
+	});
+
+	test('bad $images settings name the tag and the content file', async () => {
+		await expect(scan('<img src="a.png">', ['content/blog/post/a.png'], { widths: [0] })).rejects.toThrow(`Invalid widths "0" for <img src="a.png">, rendering ${FROM}`);
 	});
 });
 

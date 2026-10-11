@@ -158,6 +158,26 @@ describe('partials', () => {
 		expect(html).not.toContain('&lt;bongo');
 	});
 
+	test('passes <bongo:image> through, alone, inline, and inside html blocks', async () => {
+		let { calls, run } = setup();
+		let html = await run([
+			'<bongo:image src="./hero.jpg" alt="A *hero*" sizes="(min-width: 800px) 720px, 100vw" />',
+			'',
+			'Inline <bongo:image src="./icon.png" alt="" width="16" /> icon.',
+			'',
+			'<figure>',
+			'\t<bongo:image src="./frame.webp" alt="Frame"></bongo:image>',
+			'\t<figcaption>The *frame*.</figcaption>',
+			'</figure>',
+			'',
+		].join('\n'));
+		expect(calls).toEqual([]);
+		expect(html).toContain('<bongo:image src="./hero.jpg" alt="A *hero*" sizes="(min-width: 800px) 720px, 100vw" /><p>');
+		expect(html).toContain('<p>Inline <bongo:image src="./icon.png" alt="" width="16" /> icon.</p>');
+		expect(html).toContain('<bongo:image src="./frame.webp" alt="Frame"></bongo:image>');
+		expect(html).not.toContain('&lt;bongo');
+	});
+
 	test('renders markdown once', async () => {
 		let { run } = setup();
 		let html = await run('# Title\n\nSome *text* & more.\n');

@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 
 import * as browsers from './browsers';
 import * as css from './css';
 import * as fs from './fs';
+import * as images from './images';
 import * as loaders from './loaders';
 
 import type { Loader } from 'bongo';
@@ -29,13 +31,14 @@ declare const PlaceholderBrand: unique symbol;
 export type Placeholder = string & { readonly [PlaceholderBrand]: true };
 
 export type BundleConfig = {
-	kind: 'js' | 'css' | 'file';            // file: copied as-is under a hashed name
+	kind: 'js' | 'css' | 'file' | 'image';  // file: copied as-is under a hashed name
 	format?: 'esm' | 'cjs';                 // js only
 	target?: string | string[];              // js only (rolldown target)
 	targets?: import('./css').Targets;       // css only (lightningcss targets)
 	minify?: boolean;                        // default false
 	sourceMap?: 'inline' | false;            // default false
 	cssModules?: boolean;                    // css only; auto for *.module.css
+	image?: images.Settings;                 // image only
 };
 
 export type Warning = { file?: string; line?: number; column?: number; message: string };
@@ -45,6 +48,7 @@ export type OutputInfo = {
 	filename: string;                         // relative to outDir (the output root); hashed
 	dependencies: string[];                   // absolute paths of deps in the graph
 	exports?: Record<string, string>;         // CSS modules class map (css only)
+	image?: images.Info;                      // image only
 };
 
 export type FlushResult = {
@@ -151,6 +155,7 @@ type FlushContext = {
 	publicPath: string;
 	emit: (file: string) => Promise<string>;
 	files: Set<string>;
+	images: images.Context;
 };
 
 /**
@@ -379,30 +384,48 @@ export async function flush(opts: {
 	publicPath?: string;
 	assets?: loaders.LoaderMap;
 	utils?: Loader.Utilities;
+	/** Directory that keeps encoded images between builds. @default tmpdir()/bongo/images */
+	cache?: string;
+	/** List image files for the dev server to encode on request, instead of writing them. @default false */
+	dev?: boolean;
 }): Promise<FlushResult> {
 	let warnings: Warning[] = [];
 	let outputs: Map<Placeholder, OutputInfo> = new Map();
 
 	let files: Set<string> = new Set();
+	let emit = emitter(opts.outDir, files);
 	let ctx: FlushContext = {
 		assets: opts.assets,
 		utils: opts.utils,
 		publicPath: opts.publicPath ?? '/',
-		emit: emitter(opts.outDir, files),
+		emit,
 		files,
+		images: images.context({
+			outDir: opts.outDir,
+			cache: opts.cache ?? path.join(tmpdir(), 'bongo', 'images'),
+			dev: opts.dev ?? false,
+			emit,
+		}),
 	};
 
-	// css and file entries are built one by one, so each failure names its own entry
+	// css, image, and file entries are built one by one, so each failure names its own entry
 	let jobs = [...GROUPS.values()].flatMap(regs => {
 		let kind = regs[0]?.cfg.kind;
 		if (kind === 'js') return [{ regs, run: () => flushJsGroup(regs, opts.outDir, outputs, warnings, ctx) }];
 		return regs.map(reg => ({
 			regs: [reg],
-			run: kind === 'css'
-				? () => flushCssGroup([reg], opts.outDir, outputs, warnings, ctx)
-				: async () => {
-					outputs.set(reg.placeholder, { filename: await ctx.emit(reg.entry), dependencies: [reg.entry] });
-				},
+			async run(): Promise<void> {
+				if (kind === 'css') return flushCssGroup([reg], opts.outDir, outputs, warnings, ctx);
+				if (kind === 'image') {
+					// a dev rebuild keeps registrations whose source was renamed or deleted since
+					if (!reg.cfg.image || !fs.exists(reg.entry)) return;
+					let image = await images.prepare(reg.entry, reg.cfg.image, ctx.images);
+					if (!opts.dev) image.variants.forEach(variant => files.add(variant.filename));
+					outputs.set(reg.placeholder, { filename: image.filename, dependencies: [reg.entry], image });
+					return;
+				}
+				outputs.set(reg.placeholder, { filename: await ctx.emit(reg.entry), dependencies: [reg.entry] });
+			},
 		}));
 	});
 
@@ -452,6 +475,7 @@ type WatchState = {
 	files: Set<string>;
 	dirs: Map<string, fs.WatchDisposer>;
 	active: boolean;
+	skip?: string;
 };
 
 let WATCH: WatchState | null = null;
@@ -478,6 +502,7 @@ function changed(file: string): void {
 async function follow(state: WatchState, files: Iterable<string>): Promise<void> {
 	let fresh = new Set<string>();
 	for (let file of files) {
+		if (state.skip && file.startsWith(state.skip + path.sep)) continue;
 		state.files.add(file);
 		let dir = path.dirname(file);
 		let under = (root: string) => dir === root || dir.startsWith(root + path.sep);
@@ -505,12 +530,15 @@ async function follow(state: WatchState, files: Iterable<string>): Promise<void>
 // tracked source files, watch those dirs, and filter incoming events against
 // WATCH.files so only relevant changes propagate.
 //
+// Files under `skip` are left to a watcher the caller already runs (the dev
+// server's content/ watcher), so one change never starts two rebuilds.
+//
 // Async so we can await fs.watch() and capture the disposer before returning
 // the Unsubscribe — this ensures unsub() actually closes the FSWatchers
 // instead of only flipping a flag (critical on Linux where inotify emits an
 // ENOENT error when a watched path is removed before the watcher is closed).
-export async function watch(cb: (diff: WatchDiff) => void): Promise<Unsubscribe> {
-	let state: WatchState = { callback: cb, files: new Set(), dirs: new Map(), active: true };
+export async function watch(cb: (diff: WatchDiff) => void, skip?: string): Promise<Unsubscribe> {
+	let state: WatchState = { callback: cb, files: new Set(), dirs: new Map(), active: true, skip };
 	WATCH = state;
 
 	// Seed known files from current REGISTRATIONS and LAST_OUTPUTS.
