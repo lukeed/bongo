@@ -224,19 +224,36 @@ describe('integration: site-loaders', () => {
 });
 
 describe('integration: site-build-error', () => {
+	async function failure(root: string): Promise<Error> {
+		try {
+			await build({ cwd: root });
+		} catch (err) {
+			if (err instanceof Error) return err;
+		}
+		throw new Error('expected the build to fail');
+	}
+
 	test('surfaces bundler errors with a useful message', async () => {
 		let root = await copyFixture('site-build-error');
-		let err: Error | null = null;
 		try {
-			try {
-				await build({ cwd: root });
-			} catch (e) {
-				err = e as Error;
-			}
+			let err = await failure(root);
+			expect(err.message).toMatch(/^Build failed: \[PARSE_ERROR\] .*Unexpected token \(assets\/broken\.ts:2:26\)$/);
+			expect(err.message).not.toContain('\x1b');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 
-			expect(err).not.toBeNull();
-			// Top-level throw carries the count summary emitted by build.ts.
-			expect(err!.message).toMatch(/Build failed/);
+	test('names the first error and counts the rest', async () => {
+		let root = await copyFixture('site-build-error');
+		try {
+			await writeFile(join(root, 'assets/gone.css'), '.x { background: url(./gone.png); }');
+			let layout = join(root, 'layouts/html.hbs');
+			let html = await readFile(layout, 'utf8');
+			await writeFile(layout, html.replace('<body>', '<body>\n<bongo:style src="gone.css"></bongo:style>'));
+
+			let err = await failure(root);
+			expect(err.message).toMatch(/^Build failed: Missing "\.\/gone\.png" referenced in \S+gone\.css \(assets\/gone\.css\), and 1 more error$/);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -474,7 +491,7 @@ describe('integration: site-css-assets', () => {
 		let root = await copyFixture('site-css-assets');
 		try {
 			await rm(join(root, 'assets/fonts/fixture.woff2'));
-			await expect(build({ cwd: root })).rejects.toThrow(/Build failed/);
+			await expect(build({ cwd: root })).rejects.toThrow(/^Build failed: Missing "\.\.\/fonts\/fixture\.woff2" referenced in \S+fonts\.css \(assets\/style\.css\)$/);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

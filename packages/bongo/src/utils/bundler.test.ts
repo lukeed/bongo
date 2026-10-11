@@ -325,14 +325,13 @@ describe('flush() error reporting', () => {
 		try {
 			bundler.register(join(dir, 'broken.ts'), { kind: 'js' });
 			let result = await bundler.flush({ outDir });
-			expect(result.errors.length).toBeGreaterThan(0);
+			expect(result.errors).toHaveLength(1);
 			let err = result.errors[0];
-			// At minimum the message and file are populated; line/column/frame
-			// may or may not be present depending on how rolldown surfaces the
-			// error. The test just confirms no info is discarded when rolldown
-			// provides it — either `line` or `frame` should typically be set.
-			expect(err.message.length).toBeGreaterThan(0);
-			expect(err.file).toBeDefined();
+			expect(err.message).toMatch(/^\[PARSE_ERROR\] .*Unexpected token$/);
+			expect(err.file).toEndWith('broken.ts');
+			expect(err).toMatchObject({ line: 1, column: 25 });
+			expect(err.frame).toContain('export const x: number = ;');
+			expect(JSON.stringify(err)).not.toContain('\\u001b');
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}

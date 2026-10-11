@@ -1,5 +1,6 @@
-import { extname, join, relative } from 'node:path';
 import { createHash } from 'node:crypto';
+import { realpathSync } from 'node:fs';
+import { extname, join, relative, sep } from 'node:path';
 import { dim, green } from 'kleur/colors';
 
 import * as fs from './utils/fs';
@@ -422,9 +423,19 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	if (flushResult.errors.length > 0) {
 		for (let err of flushResult.errors) {
 			log.error(err.message);
+			if (err.frame) log.error(err.frame);
 			if (err.file) log.error('  in ' + err.file);
 		}
-		throw new Error(`Build failed: ${flushResult.errors.length} bundler error(s)`);
+		let [first, ...rest] = flushResult.errors;
+		let message = `Build failed: ${first.message}`;
+		if (first.file) {
+			let file = first.file;
+			let root = [argv.cwd, realpathSync(argv.cwd)].find(dir => file.startsWith(dir + sep));
+			if (root) file = relative(root, file);
+			message += ` (${file}${first.line ? `:${first.line}:${(first.column ?? 0) + 1}` : ''})`;
+		}
+		if (rest.length) message += `, and ${rest.length} more error${rest.length > 1 ? 's' : ''}`;
+		throw new Error(message);
 	}
 
 	for (let w of flushResult.warnings) {

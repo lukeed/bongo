@@ -1,11 +1,14 @@
 import { createHash } from 'node:crypto';
 import * as path from 'node:path';
-import type { BundleError, Plugin, RolldownError } from 'rolldown';
-import type { Loader } from 'bongo';
+import { stripVTControlCharacters } from 'node:util';
+
 import * as browsers from './browsers';
 import * as css from './css';
 import * as fs from './fs';
 import * as loaders from './loaders';
+
+import type { Loader } from 'bongo';
+import type { BundleError, Plugin, RolldownError } from 'rolldown';
 
 let rd: typeof import('rolldown');
 
@@ -307,15 +310,17 @@ async function flushCssGroup(
 // RolldownError in a BundleError wrapper when present, otherwise from the
 // error itself (which may carry `loc`/`frame` directly). Falls back to
 // message-only for unknown shapes.
+// Rolldown packs a colored code frame into `message`: keep its first line as the message, the rest as the frame.
 function toBuildError(err: unknown, fallbackFile?: string): BuildError {
-	let base: BuildError = {
-		message: err instanceof Error ? err.message : String(err),
-	};
+	let error = err instanceof Error ? ((err as BundleError).errors?.[0] || err) as RolldownError : undefined;
+	let [message, ...frame] = stripVTControlCharacters(error ? error.message : String(err)).trim().split('\n');
+
+	let base: BuildError = { message };
 	if (fallbackFile) base.file = fallbackFile;
 
-	if (err instanceof Error) {
-		let error = ((err as BundleError).errors?.[0] || err) as RolldownError;
-		if (error.frame) base.frame = error.frame;
+	if (error) {
+		let rest = error.frame ? stripVTControlCharacters(error.frame) : frame.join('\n');
+		if (rest.trim()) base.frame = rest;
 		if (error.id) base.file = error.id;
 		if (error.loc) {
 			if (error.loc.file) base.file = error.loc.file;
@@ -334,7 +339,6 @@ export async function flush(opts: {
 	utils?: Loader.Utilities;
 }): Promise<FlushResult> {
 	let warnings: Warning[] = [];
-	let errors: BuildError[] = [];
 	let outputs: Map<Placeholder, OutputInfo> = new Map();
 
 	let ctx: FlushContext = {
@@ -344,25 +348,29 @@ export async function flush(opts: {
 		emit: emitter(opts.outDir),
 	};
 
-	let jobs = [...GROUPS.entries()].map(async ([_groupKey, regs]) => {
-		if (regs.length === 0) return;
-		let kind = regs[0].cfg.kind;
-		try {
-			if (kind === 'js') {
-				await flushJsGroup(regs, opts.outDir, outputs, warnings, ctx);
-			} else if (kind === 'css') {
-				await flushCssGroup(regs, opts.outDir, outputs, warnings, ctx);
-			} else {
-				await Promise.all(regs.map(async reg => {
+	// css and file entries are built one by one, so each failure names its own entry
+	let jobs = [...GROUPS.values()].flatMap(regs => {
+		let kind = regs[0]?.cfg.kind;
+		if (kind === 'js') return [{ regs, run: () => flushJsGroup(regs, opts.outDir, outputs, warnings, ctx) }];
+		return regs.map(reg => ({
+			regs: [reg],
+			run: kind === 'css'
+				? () => flushCssGroup([reg], opts.outDir, outputs, warnings, ctx)
+				: async () => {
 					outputs.set(reg.placeholder, { filename: await ctx.emit(reg.entry), dependencies: [reg.entry] });
-				}));
-			}
-		} catch (err) {
-			errors.push(toBuildError(err, regs.map(r => r.entry).join(', ')));
-		}
+				},
+		}));
 	});
 
-	await Promise.all(jobs);
+	let failures = await Promise.all(jobs.map(async job => {
+		try {
+			await job.run();
+		} catch (err) {
+			return toBuildError(err, job.regs.map(r => r.entry).join(', '));
+		}
+	}));
+
+	let errors = failures.filter(err => err !== undefined);
 
 	LAST_OUTPUTS = outputs;
 
