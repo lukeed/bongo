@@ -52,7 +52,7 @@ When you run `bongo build`:
 
 1. `public/` is emptied. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` by walking upward from `cwd`. Rolldown bundles the config and the local files it imports into one temporary `.mjs` module, which bongo imports and then deletes. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual, and `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials and `data/` modules load the same way.
 2. Files in `data/` are loaded as `$data`. Layouts and partials are collected from `layouts/` and `partials/`. Handlebars files (`.hbs`) are compiled with tempura. JavaScript and TypeScript partials are loaded as modules.
-3. Content files are passed through registered loaders, then rendered through the matching layout chain.
+3. Content files are passed through registered loaders, then rendered through the matching layout chain. [Output files](#output-files), such as `sitemap.xml.hbs`, get no layout.
 4. Rendered HTML is scanned for `<bongo:*>` elements, and each page's content for `<img>` elements with a relative `src`. Assets are registered and replaced with placeholder tokens.
 5. Asset groups are flushed. JavaScript goes through Rolldown; CSS goes through LightningCSS; images go through `Bun.Image`. Output filenames include content hashes.
 6. Placeholders are substituted with external asset URLs or inline asset contents.
@@ -332,6 +332,51 @@ If `transition:animate` is present without `transition:name`, an automatic name 
 Content files ending in `.hbs` are tempura-compiled with the same context as layouts: `$site`, `$page`, `$pages`, `$section`, `$tags`, `$assets`, `$utils`, `$data`, plus `params` as an alias for `$page.params`.
 
 The current page's own `$page.content` is empty while its body is compiling. It is the value produced by that compile.
+
+## Output files
+
+A `.hbs` file in `content/` with a second extension that is not `.html` is an output file, not a page. bongo writes it to its own path, without the `.hbs`:
+
+| File | Output |
+| --- | --- |
+| `content/sitemap.xml.hbs` | `/sitemap.xml` |
+| `content/blog/index.xml.hbs` | `/blog/index.xml` |
+| `content/robots.txt.hbs` | `/robots.txt` |
+
+An output file compiles with the same values as `.hbs` content: `$site`, `$page`, `$pages`, `$section`, `$tags`, `$data`, `$utils`, and its own frontmatter as `params`. It is different from a page:
+
+- It gets no layout. bongo writes it as it renders: it does not replace `<bongo:*>` elements or content images, adds no dev reload script, and never minifies it.
+- It is not in `$pages`, `$section`, or `$tags`, so a sitemap or a feed never lists itself.
+- Its frontmatter cannot set `url`. To change its path, rename the file.
+- `bongo dev` serves it with the content type of its extension, such as `text/xml`, and renders it again after every change to a page, because it can read every page.
+
+As in all templates, tempura removes the line break just before each `{{ }}` tag and at the end of the file. Put a tag at the end of its line to keep the output tidy. The output starts after the `---` line that closes the frontmatter, so an XML file can start with `<?xml`.
+
+A sitemap, in `content/sitemap.xml.hbs`:
+
+```hbs
+<?xml version="1.0" encoding="utf-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{{#each $pages as page}}
+	<url>
+		<loc>{{ page.url }}</loc>
+{{#if page.params.lastmod}}
+		<lastmod>{{ page.params.lastmod }}</lastmod>
+{{/if}}
+	</url>
+{{/each}}
+</urlset>
+```
+
+A `robots.txt`, in `content/robots.txt.hbs`:
+
+```hbs
+User-agent: *
+Allow: /
+Sitemap: {{ $site.url }}sitemap.xml
+```
+
+`content/feed.json.hbs` also works, but it is not recommended: `{{ }}` escapes text for HTML, not for JSON, so the output is easily invalid. If you must, print each value with `{{{ JSON.stringify(value) }}}`. Data modules for JSON output are planned in [#52](https://github.com/lukeed/bongo/issues/52).
 
 ## Images
 

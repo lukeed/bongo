@@ -187,6 +187,42 @@ describe('dev', () => {
 	}, 30_000);
 });
 
+describe('output files', () => {
+	test('are served with the type of their extension, and render again when any page changes', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' } };`,
+			'layouts/html.hbs': '{{{ $page.content }}}',
+			'content/index.html': '<p>home</p>',
+			'content/blog/post.html': '---\ntitle: First\n---\n<p>post</p>',
+			'content/blog/index.xml.hbs': '<?xml version="1.0"?>\n<list>{{#each $section as p}}<t>{{ p.title }}</t>{{/each}}</list>',
+			'content/robots.txt.hbs': 'Sitemap: {{ $site.url }}sitemap.xml',
+		});
+		let server = await serve(root);
+		let feed = () => fetch(server.url + '/blog/index.xml').then(res => res.text());
+		let post = join(root, 'content/blog/post.html');
+		try {
+			await until(async () => (await feed()).includes('<t>First</t>'), 'the first build', server);
+			let res = await fetch(server.url + '/blog/index.xml');
+			expect(res.headers.get('content-type')).toBe('text/xml');
+			expect(await res.text()).toBe('<?xml version="1.0"?>\n<list><t>First</t></list>');
+			let txt = await fetch(server.url + '/robots.txt');
+			expect(txt.headers.get('content-type')).toBe('text/plain');
+			expect(await txt.text()).toBe('Sitemap: https://example.com/sitemap.xml');
+
+			await writeFile(post, '---\ntitle: Second\n---\n<p>post</p>');
+			await until(async () => (await feed()).includes('<t>Second</t>'), 'a title edit', server);
+
+			await writeFile(post, '---\ntitle: Second\n---\n<p>edited</p>');
+			await until(async () => (await fetch(server.url + '/blog/post/').then(res => res.text())).includes('edited'), 'a body edit', server);
+			expect(await feed()).toBe('<?xml version="1.0"?>\n<list><t>Second</t></list>');
+			expect(server.messages.filter(m => m.type === 'error')).toEqual([]);
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+});
+
 describe('output folder', () => {
 	test('holds requests made during the first build until it ends', async () => {
 		let root = await site({

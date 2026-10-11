@@ -63,10 +63,14 @@ type CollectedPage = {
 	html: string;     // rendered HTML, may contain placeholders
 };
 
+// `sitemap.xml.hbs` or `robots.txt.hbs`: an output file, written as rendered, never a page
+const OUTPUT_FILE = /\.(?!html?$)[^.]+$/i;
+
 type ScanItem = {
 	input: string;           // absolute source path
 	rel: string;             // path relative to content/
 	name: string;            // basename with ext
+	kind: 'page' | 'output';
 	ext: string;             // final extension (post-loader chain) — 'hbs'|'html'|'htm'
 	body: string;            // frontmatter stripped, loaders run; `.hbs` still raw for walk-2 compile
 	params: Template.Params;
@@ -215,6 +219,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		idx = name.lastIndexOf('.');
 		let ext = name.substring(idx + 1);
 		let basename = name.substring(0, idx);
+		let kind: ScanItem['kind'] = ext === 'hbs' && OUTPUT_FILE.test(basename) ? 'output' : 'page';
 		let params: Template.Params = {};
 		let src = '';
 		let raw = '';
@@ -227,6 +232,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			if (offset > 0) {
 				Object.assign(params, value);
 				src = src.substring(offset);
+				// so an output file can start with `<?xml`
+				if (kind === 'output') src = src.replace(/^\r?\n/, '');
 			}
 
 			// `.hbs` content is compiled in walk 2, once Pages/Sections/Tags
@@ -261,20 +268,29 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			return fs.copy(input, output);
 		}
 
-		if (typeof params.url === 'string') {
-			urlpath = '/' + params.url.replace(/^.?\/+/, '');
-			if (/^(https?:)?\/\//.test(urlpath)) {
-				throw new Error('Custom `url` must be path only');
+		if (kind === 'output') {
+			if (params.url != null) {
+				throw new Error('Custom `url` is not allowed on output files; rename the file instead');
 			}
-		}
+			let file = rel.substring(0, rel.length - 4);
+			urlpath = '/' + file.replace(/\\/g, '/');
+			output = join(dest, file);
+		} else {
+			if (typeof params.url === 'string') {
+				urlpath = '/' + params.url.replace(/^.?\/+/, '');
+				if (/^(https?:)?\/\//.test(urlpath)) {
+					throw new Error('Custom `url` must be path only');
+				}
+			}
 
-		if (basename === 'index') {
-			urlpath = urlpath.substring(0, urlpath.length - 5);
-		} else if (!urlpath.endsWith('/')) {
-			urlpath += '/'; // ensure trailing
-		}
+			if (basename === 'index') {
+				urlpath = urlpath.substring(0, urlpath.length - 5);
+			} else if (!urlpath.endsWith('/')) {
+				urlpath += '/'; // ensure trailing
+			}
 
-		output = join(dest, urlpath, 'index.html');
+			output = join(dest, urlpath, 'index.html');
+		}
 
 		let section = deriveSection(rel);
 
@@ -282,6 +298,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			input,
 			rel,
 			name,
+			kind,
 			ext,
 			body: src,
 			params,
@@ -320,6 +337,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	let Sections: Map<string, Template.PageInfo[]> = new Map();
 
 	for (let item of scanned) {
+		if (item.kind === 'output') continue;
+
 		let info: Template.PageInfo = {
 			path: item.path,
 			url: new URL(item.path, $site.url).href,
@@ -369,13 +388,15 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	watch.step('rendering pages');
 
 	// Walk 2 — render layouts with $pages + $section + $tags context.
-	// If `only` is set, skip rendering every item except the matching one — walk 1
+	// If `only` is set, skip rendering every page except the matching one — walk 1
 	// above already populated the registries so sibling awareness stays correct.
+	// Output files always render, since they read `$pages`.
 	let pages: CollectedPage[] = [];
+	let outputs: CollectedPage[] = [];
 	let assets: Map<string, string[]> = new Map(narrowOnly && last ? last.assets : []);
 
 	for (let item of scanned) {
-		if (narrowOnly && item.rel !== narrowOnly) continue;
+		if (narrowOnly && item.rel !== narrowOnly && item.kind === 'page') continue;
 
 		let $page: Template.Page = {
 			path: item.path,
@@ -400,6 +421,12 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 				{ $page, $pages: Pages, $section, $tags, params: item.params, ...context }
 			)
 			: item.body;
+
+		if (item.kind === 'output') {
+			outputs.push({ output: item.output, html: rendered_content });
+			continue;
+		}
+
 		rendered_content = tags.scanImages(rendered_content, argv as Required<Argv>, config, `content/${item.rel}`, item.path);
 		$page.content = rendered_content;
 
@@ -526,14 +553,17 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	// Pass 2: substitute placeholders and write pages.
 	let readOutput = (filename: string) => fs.read(join(dest, filename), 'utf8');
 
-	await Promise.all(pages.map(async page => {
-		let html = await templates.substitute(page.html, {
-			outputs: flushResult.outputs,
-			publicPath,
-			readFile: readOutput,
-		});
-		await fs.write(page.output, html);
-	}));
+	await Promise.all([
+		...pages.map(async page => {
+			let html = await templates.substitute(page.html, {
+				outputs: flushResult.outputs,
+				publicPath,
+				readFile: readOutput,
+			});
+			await fs.write(page.output, html);
+		}),
+		...outputs.map(file => fs.write(file.output, file.html)),
+	]);
 
 	if (argv.minify) watch.step('minifying html');
 	if (argv.minify && !await minify.html(pages.map(page => page.output))) {
