@@ -191,8 +191,9 @@ describe('prepare', () => {
 	test('avif is opt-in, and fails the build where the machine cannot encode it', async () => {
 		let { ctx, done } = await setup();
 		try {
+			let able = await canEncodeAvif();
 			let run = images.prepare(PHOTO, images.settings({ formats: 'avif,webp', widths: '320' }, {}), ctx);
-			if (await canEncodeAvif()) {
+			if (able) {
 				let info = await run;
 				expect(info.variants.map(v => v.format)).toEqual(['avif', 'webp']);
 			} else {
