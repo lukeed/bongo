@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
 import { basename, extname, join } from 'node:path';
 
@@ -97,13 +97,14 @@ function serialize(attrs: [string, Attrs[string] | undefined][]): string {
 
 // Bounds how many images are decoded at once, so a large site does not hold every source in memory.
 async function slot<T>(run: () => Promise<T>): Promise<T> {
-	if (active >= LIMIT) await new Promise<void>(next => waiting.push(next));
-	active++;
+	if (active < LIMIT) active++;
+	else await new Promise<void>(next => waiting.push(next));
 	try {
 		return await run();
 	} finally {
-		active--;
-		waiting.shift()?.();
+		let next = waiting.shift();
+		if (next) next();
+		else active--;
 	}
 }
 
@@ -186,8 +187,13 @@ async function encode(job: Job, out: string): Promise<string> {
 
 	await mkdir(job.cache, { recursive: true });
 	let tmp = `${out}.${randomBytes(4).toString('hex')}.tmp`;
-	await writeFile(tmp, data);
-	await rename(tmp, out);
+	try {
+		await writeFile(tmp, data);
+		await rename(tmp, out);
+	} catch (err) {
+		await rm(tmp, { force: true });
+		throw err;
+	}
 	return out;
 }
 
