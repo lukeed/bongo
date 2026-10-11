@@ -57,7 +57,7 @@
       "name": "@bongo/markdown",
       "version": "0.0.12",
       "dependencies": {
-        "md4x": "^0.0.25",
+        "md4x": "^0.0.30",
       },
       "devDependencies": {
         "shiki": "^4.0.2",
@@ -74,7 +74,7 @@
     },
   },
   "patchedDependencies": {
-    "md4x@0.0.25": "patches/md4x@0.0.25.patch",
+    "md4x@0.0.30": "patches/md4x@0.0.30.patch",
   },
   "packages": {
     "@bongo/feed": ["@bongo/feed@workspace:packages/plugin.feed"],
@@ -235,7 +235,7 @@
 
     "lightningcss-win32-x64-msvc": ["lightningcss-win32-x64-msvc@1.32.0", "", { "os": "win32", "cpu": "x64" }, "sha512-Amq9B/SoZYdDi1kFrojnoqPLxYhQ4Wo5XiL8EVJrVsB8ARoC1PWW6VGtT0WKCemjy8aC+louJnjS7U18x3b06Q=="],
 
-    "md4x": ["md4x@0.0.25", "", { "bin": { "md4x": "lib/cli.mjs" } }, "sha512-GrexawUhrKcwl7o2hkgs7Ut0PqI/meOCevmaRB1ueKo2y1Fh2nIl8e6KKawYGm9eXJP3u6BzVs4rzZOc2+w3hA=="],
+    "md4x": ["md4x@0.0.30", "", { "bin": { "md4x": "lib/cli.mjs" } }, "sha512-N3Fab3VlK1Pvv62DABS3h8Eg9HN2JDVMrFra207GE89+RCj+egn20/rx6eMKgVrKwPPxCbKP0YYSoM5NblgwdA=="],
 
     "mdast-util-to-hast": ["mdast-util-to-hast@13.2.1", "", { "dependencies": { "@types/hast": "^3.0.0", "@types/mdast": "^4.0.0", "@ungap/structured-clone": "^1.0.0", "devlop": "^1.0.0", "micromark-util-sanitize-uri": "^2.0.0", "trim-lines": "^3.0.0", "unist-util-position": "^5.0.0", "unist-util-visit": "^5.0.0", "vfile": "^6.0.0" } }, "sha512-cctsq2wp5vTsLIcaymblUriiTcZd0CwWtCbLvrOzYCDZoWyMNV8sZ7krj09FSnsiJi3WVsHLM4k6Dq/yaPyCXA=="],
 

@@ -22,6 +22,6 @@
     "typescript": "6.0.3"
   },
   "patchedDependencies": {
-    "md4x@0.0.25": "patches/md4x@0.0.25.patch"
+    "md4x@0.0.30": "patches/md4x@0.0.30.patch"
   }
 }

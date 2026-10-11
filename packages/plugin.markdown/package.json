@@ -30,7 +30,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "md4x": "^0.0.25"
+    "md4x": "^0.0.30"
   },
   "devDependencies": {
     "shiki": "^4.0.2",
