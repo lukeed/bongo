@@ -4,8 +4,9 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 
-import { parseAttrs, scanBongoTags, rewriteTransitionAttrs } from './tags';
+import { scanBongoTags, rewriteTransitionAttrs } from './tags';
 import * as bundler from './bundler';
+import * as attrs from './attrs';
 
 import type { Argv, Config } from 'bongo';
 
@@ -64,35 +65,35 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// parseAttrs unit tests
+// attribute parsing, as bongo tags use it
 // ---------------------------------------------------------------------------
 
-describe('parseAttrs', () => {
+describe('attrs.parse for bongo tags', () => {
 	test('parses double-quoted attribute', () => {
-		let attrs = parseAttrs('src="app.css"');
-		expect(attrs.src).toBe('app.css');
+		let parsed = attrs.parse('src="app.css"');
+		expect(parsed.src).toBe('app.css');
 	});
 
 	test('parses single-quoted attribute', () => {
-		let attrs = parseAttrs("src='app.css'");
-		expect(attrs.src).toBe('app.css');
+		let parsed = attrs.parse("src='app.css'");
+		expect(parsed.src).toBe('app.css');
 	});
 
 	test('parses bareword attribute', () => {
-		let attrs = parseAttrs('src=app.css');
-		expect(attrs.src).toBe('app.css');
+		let parsed = attrs.parse('src=app.css');
+		expect(parsed.src).toBe('app.css');
 	});
 
 	test('boolean attribute (present, no value) becomes true', () => {
-		let attrs = parseAttrs('inline');
-		expect(attrs.inline).toBe(true);
+		let parsed = attrs.parse('inline');
+		expect(parsed.inline).toBe(true);
 	});
 
 	test('parses multiple attributes', () => {
-		let attrs = parseAttrs('src="main.ts" async inline');
-		expect(attrs.src).toBe('main.ts');
-		expect(attrs.async).toBe(true);
-		expect(attrs.inline).toBe(true);
+		let parsed = attrs.parse('src="main.ts" async inline');
+		expect(parsed.src).toBe('main.ts');
+		expect(parsed.async).toBe(true);
+		expect(parsed.inline).toBe(true);
 	});
 });
 
@@ -233,6 +234,17 @@ describe('scanBongoTags', () => {
 			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
 			expect(result).toContain('<div id="bongo:live" role="status" aria-live="polite"');
 			expect(result.indexOf('id="bongo:live"')).toBeLessThan(result.indexOf('<script'));
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('<bongo:client> typed attrs keep their types', async () => {
+		let dir = await tmpAssets({});
+		try {
+			let html = '<bongo:client transitions=false prefetch=hover delay=50 />';
+			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
+			expect(result).toContain('client({ transitions: false, prefetch: "hover", delay: 50 });');
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}

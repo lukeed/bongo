@@ -1,5 +1,8 @@
 import { join, resolve } from 'node:path';
+
 import * as mime from 'mrmime';
+
+import * as attrs from './attrs';
 import * as bundler from './bundler';
 import * as fs from './fs';
 
@@ -24,40 +27,29 @@ function resolveBongoClient(): string {
 
 const JS_IDENT = /^[a-zA-Z_$][\w$]*$/;
 
-function clientOptions(attrs: Attrs): string {
+function clientOptions(props: attrs.Attrs): string {
 	let pairs: string[] = [];
-	for (let key in attrs) {
-		let v = attrs[key];
+	for (let key in props) {
+		let v = props[key];
 		let k = JS_IDENT.test(key) ? key : JSON.stringify(key);
 		pairs.push(`${k}: ${v === true ? 'true' : JSON.stringify(v)}`);
 	}
 	return pairs.length ? `{ ${pairs.join(', ')} }` : '{}';
 }
 
-// Attribute parser: name="value" | name='value' | name=bareword | name (boolean).
-const ATTR = /([\w:-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
-
 type AttrValue = string | true;
-type Attrs = Record<string, AttrValue>;
 
-export function parseAttrs(src: string): Attrs {
-	let attrs: Attrs = {};
-	let m: RegExpExecArray | null;
-	ATTR.lastIndex = 0;
-	while ((m = ATTR.exec(src))) {
-		let name = m[1];
-		let v = m[2] ?? m[3] ?? m[4];
-		attrs[name] = v ?? true;
-	}
-	return attrs;
+// Attributes are typed (`n=2` is a number), but bongo's own attributes are text or flags.
+function str(v: unknown): string | undefined {
+	return typeof v === 'string' ? v : typeof v === 'number' ? String(v) : undefined;
 }
 
-function str(v: AttrValue | undefined): string | undefined {
-	return typeof v === 'string' ? v : undefined;
-}
-
-function bool(v: AttrValue | undefined): boolean {
+function bool(v: unknown): boolean {
 	return v === true || v === '' || v === 'true';
+}
+
+function off(v: unknown): boolean {
+	return v === false || v === 'false';
 }
 
 const MODULE_FILE = /\.module\.css$/;
@@ -74,17 +66,17 @@ function destination(type: string | undefined): string {
 	return 'fetch';
 }
 
-function preload(href: string, src: string, attrs: Attrs): string {
-	let off = (v: AttrValue | undefined) => v === 'false';
+function preload(href: string, src: string, props: attrs.Attrs): string {
 	let known = mime.lookup(src);
 	if (known === 'application/octet-stream') known = undefined;
-	let type = off(attrs.type) ? undefined : str(attrs.type) || known;
-	let as = str(attrs.as) || destination(known);
-	let cors = off(attrs.crossorigin) ? undefined : attrs.crossorigin ?? (as === 'font' || as === 'fetch' || undefined);
+	let type = off(props.type) ? undefined : str(props.type) || known;
+	let as = str(props.as) || destination(known);
+	let given = props.crossorigin === true || str(props.crossorigin);
+	let cors = off(props.crossorigin) ? undefined : given || (as === 'font' || as === 'fetch' || undefined);
 
 	let link: [string, AttrValue | undefined][] = [
 		['rel', 'preload'], ['href', href], ['as', as], ['type', type], ['crossorigin', cors],
-		['media', str(attrs.media)], ['fetchpriority', str(attrs.fetchpriority)],
+		['media', str(props.media)], ['fetchpriority', str(props.fetchpriority)],
 	];
 
 	let out = '<link';
@@ -106,7 +98,7 @@ export function scanBongoTags(
 	from?: string,
 ): string {
 	return html.replace(BONGO_TAG, (match, kind: 'script' | 'style' | 'client' | 'asset', rawAttrs: string) => {
-		let attrs = parseAttrs(rawAttrs);
+		let props = attrs.parse(rawAttrs);
 
 		if (kind === 'client') {
 			// No `src` — bongo wires in its own bundled runtime.
@@ -121,10 +113,10 @@ export function scanBongoTags(
 			// parsed before the bootstrap script runs. The runtime looks it up
 			// by id and updates its text on every navigation.
 			let announcer = '<div id="bongo:live" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);border:0"></div>';
-			return `${announcer}<script type="module">import { client } from "${placeholder}"; client(${clientOptions(attrs)});</script>`;
+			return `${announcer}<script type="module">import { client } from "${placeholder}"; client(${clientOptions(props)});</script>`;
 		}
 
-		let src = str(attrs.src);
+		let src = str(props.src);
 		if (!src) throw new Error(`<bongo:${kind}> missing required "src" attribute`);
 
 		let entry = join(argv.assets, src);
@@ -134,13 +126,13 @@ export function scanBongoTags(
 
 		if (kind === 'asset') {
 			let placeholder = bundler.register(entry, { kind: 'file' });
-			return bool(attrs.preload) ? preload(placeholder, src, attrs) : placeholder;
+			return bool(props.preload) ? preload(placeholder, src, props) : placeholder;
 		}
 
 		if (kind === 'style') {
 			// `global` opts out of CSS-modules auto-detect. Default: any *.module.css
 			// source gets CSS modules scoping.
-			let cssModules = !bool(attrs.global) && MODULE_FILE.test(src);
+			let cssModules = !bool(props.global) && MODULE_FILE.test(src);
 
 			let placeholder = bundler.register(entry, {
 				kind: 'css',
@@ -149,26 +141,26 @@ export function scanBongoTags(
 				minify: argv.minify || undefined,
 			});
 
-			if (bool(attrs.inline)) {
+			if (bool(props.inline)) {
 				return `<style data-bongo-inline="${placeholder}"></style>`;
 			}
 			return `<link rel="stylesheet" href="${placeholder}"/>`;
 		}
 
 		// kind === 'script'
-		let format: 'esm' | 'cjs' = str(attrs.format) === 'cjs' ? 'cjs' : 'esm';
-		let target = str(attrs.target) ?? config.$build.target;
+		let format: 'esm' | 'cjs' = str(props.format) === 'cjs' ? 'cjs' : 'esm';
+		let target = str(props.target) ?? config.$build.target;
 
 		let placeholder = bundler.register(entry, { kind: 'js', format, target, minify: argv.minify || undefined });
 
-		if (bool(attrs.inline)) {
+		if (bool(props.inline)) {
 			return `<script data-bongo-inline="${placeholder}"></script>`;
 		}
 
 		let extras = '';
-		if (bool(attrs.async)) extras += ' async';
+		if (bool(props.async)) extras += ' async';
 		if (format !== 'cjs') extras += ' type="module"';
-		else if (bool(attrs.defer)) extras += ' defer';
+		else if (bool(props.defer)) extras += ' defer';
 		return `<script${extras} src="${placeholder}"></script>`;
 	});
 }

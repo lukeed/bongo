@@ -152,6 +152,7 @@ describe('bundle', () => {
 					decode: (u) => new TextDecoder().decode(u),
 					render: () => '',
 					frontmatter: () => ({ offset: 0, value: {} }),
+					attrs: () => ({}),
 				},
 			});
 			let code = result.code.toString('utf8');
@@ -190,6 +191,7 @@ describe('bundle', () => {
 					decode: (u) => new TextDecoder().decode(u),
 					render: () => '',
 					frontmatter: () => ({ offset: 0, value: {} }),
+					attrs: () => ({}),
 				},
 			});
 			let code = result.code.toString('utf8');

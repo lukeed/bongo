@@ -53,6 +53,11 @@ export namespace Loader {
 			offset: number;
 			value: Metadata;
 		};
+		/**
+		 * Parse element attributes as data; values are never evaluated.
+		 * @example utils.attrs('name="Luke" count=2 tags=[a, b] featured') //=> { name: 'Luke', count: 2, tags: ['a', 'b'], featured: true }
+		 */
+		attrs(input: string): Record<string, unknown>;
 	}
 }
 

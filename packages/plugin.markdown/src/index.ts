@@ -9,7 +9,6 @@ export type Options = Omit<HtmlOptions, 'highlighter'> & {
 type Range = [start: number, end: number];
 
 // TODO: share w/ (inlined) tempura parser
-const ARGS = /([a-zA-Z$_][^\s=]*)\s*=\s*((["`'])(?:(?=(\\?))\4.)*?\3|{[^}]*}|\[[^\]]*]|\S+)/g;
 const TAG = /<bongo:(\w+)((?:"[^"]*"|'[^']*'|`[^`]*`|{[^}]*}|[^>"'`{/]|\/(?!>))*)(?:(\/>)|>([^]*?)<\/bongo:\1\s*>)/g;
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 
@@ -96,17 +95,10 @@ async function unpack(raw: string, stash: string[], utils: Loader.Utilities, opt
 			continue;
 		}
 
-		let args: Args = {};
-
-		if (attrs = attrs.trim()) {
-			// TODO: share w/ tempura parser
-			let tmp: string[] = [];
-			let match: RegExpExecArray | null;
-			// parse arguments, `defer=true` -> `{ defer: true }`
-			while (match = ARGS.exec(attrs)) tmp.push(match[1] + ':' + match[2]);
-			// TODO: try / catch ? (share w/ tempura)
-			args = Function(`return { ${tmp.join()} }`)();
-		}
+		// TODO: share w/ tempura parser
+		// parse arguments, `defer=true` -> `{ defer: true }`
+		// TODO: try / catch ? (share w/ tempura)
+		let args: Args = utils.attrs(attrs);
 
 		if (inner) {
 			let html = restore(renderToHtml(await unpack(inner.trim(), stash, utils, options), options), stash);

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import * as attrs from '../../bongo/src/utils/attrs';
 import { markdown } from './index';
 
 import type { Loader } from 'bongo';
@@ -9,6 +10,7 @@ function setup() {
 	let utils: Loader.Utilities = {
 		decode: input => new TextDecoder().decode(input),
 		frontmatter: () => ({ offset: 0, value: {} }),
+		attrs: attrs.parse,
 		render(name: string, args: Record<string, unknown>) {
 			calls.push([name, args]);
 			return `<i data-partial="${name}"></i>`;
@@ -37,6 +39,26 @@ describe('partials', () => {
 		let { calls, run } = setup();
 		await run('<bongo:greet title="a > b" />\n');
 		expect(calls).toEqual([['greet', { title: 'a > b' }]]);
+	});
+
+	test('parses attribute values as data', async () => {
+		let { calls, run } = setup();
+		await run('<bongo:greet count=2 on=true none=null opts={a: 1, b: [x, "y"]} list=[1, two] name=world featured />\n');
+		expect(calls).toEqual([['greet', {
+			count: 2, on: true, none: null, opts: { a: 1, b: ['x', 'y'] }, list: [1, 'two'], name: 'world', featured: true,
+		}]]);
+	});
+
+	test('never runs attribute values as code', async () => {
+		let { calls, run } = setup();
+		let flag = globalThis as { __bongo_md_ran?: boolean };
+		await run('<bongo:greet a=(globalThis.__bongo_md_ran=true) b={x: (globalThis.__bongo_md_ran=true)} c=`${globalThis.__bongo_md_ran=true}` />\n');
+		expect(flag.__bongo_md_ran).toBeUndefined();
+		expect(calls).toEqual([['greet', {
+			a: '(globalThis.__bongo_md_ran=true)',
+			b: { x: '(globalThis.__bongo_md_ran=true)' },
+			c: '${globalThis.__bongo_md_ran=true}',
+		}]]);
 	});
 
 	test('passes slot content', async () => {
@@ -93,6 +115,7 @@ describe('partials', () => {
 		let utils: Loader.Utilities = {
 			decode: input => new TextDecoder().decode(input),
 			frontmatter: () => ({ offset: 0, value: {} }),
+			attrs: attrs.parse,
 			render: () => '<p class="meta">\n\t<time>x</time>\n\n\t<span class="tags">*a*</span>\n</p>',
 		};
 		let loader = markdown().$assets!.md!;
@@ -107,6 +130,7 @@ describe('partials', () => {
 		let utils: Loader.Utilities = {
 			decode: input => new TextDecoder().decode(input),
 			frontmatter: () => ({ offset: 0, value: {} }),
+			attrs: attrs.parse,
 			render: () => '<bongo:script src="widget.ts"></bongo:script>',
 		};
 		let loader = markdown().$assets!.md!;

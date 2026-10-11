@@ -122,6 +122,7 @@ describe('flush() — JS', () => {
 					decode: (u) => new TextDecoder().decode(u),
 					render: () => '',
 					frontmatter: () => ({ offset: 0, value: {} }),
+					attrs: () => ({}),
 				},
 			});
 			expect(result.errors).toEqual([]);
@@ -161,6 +162,7 @@ describe('flush() — JS', () => {
 					decode: (u) => new TextDecoder().decode(u),
 					render: () => '',
 					frontmatter: () => ({ offset: 0, value: {} }),
+					attrs: () => ({}),
 				},
 			});
 			expect(result.errors).toEqual([]);

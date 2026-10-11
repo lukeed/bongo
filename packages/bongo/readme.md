@@ -152,6 +152,7 @@ Loader utilities:
 
 - `utils.decode(uint8array)` — convert a buffer to a string.
 - `utils.render(partialName, args)` — invoke a registered partial.
+- `utils.attrs(input)` — parse element attributes, like `title="Hi" count=2 tags=[a, b] featured`, into data. Values are never evaluated. `@bongo/markdown` uses it for `<bongo:*>` partial elements.
 - `utils.frontmatter(content)` — parse the `---` block at the top of `content`, as described in [Frontmatter](#frontmatter). Returns `{ offset, value }`, where `offset` is where the body starts.
 
 ## publicPath

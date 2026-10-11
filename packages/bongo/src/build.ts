@@ -3,6 +3,7 @@ import { realpathSync } from 'node:fs';
 import { extname, join, relative, sep } from 'node:path';
 import { dim, green } from 'kleur/colors';
 
+import * as attrs from './utils/attrs';
 import * as fs from './utils/fs';
 import * as log from './utils/log';
 import * as minify from './utils/minify';
@@ -125,6 +126,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 
 	const loader_utils: Loader.Utilities = {
 		frontmatter: templates.frontmatter,
+		attrs: attrs.parse,
 
 		render(name, ...args) {
 			let view = Partials.get(name);
