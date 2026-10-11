@@ -82,6 +82,7 @@ It holds the `<feed:item>` elements. The frontmatter of the feed file sets the r
 | `subtitle` | no | Atom `<subtitle>`. |
 | `language` | no | Defaults to `$site.lang`. |
 | `copyright` | no | RSS `<copyright>`, Atom `<rights>`. |
+| `author` | no | Atom `<author>` of the feed, for entries that do not name their own. Defaults to `$site.title`. |
 
 The URL of the feed comes from its path and `$site.url`.
 
@@ -97,7 +98,7 @@ Each one becomes an `<item>` in RSS or an `<entry>` in Atom, in the same order.
 | `summary` | no | RSS `<description>`, Atom `<summary>`. |
 | `content` | no | HTML. RSS `<content:encoded>`, Atom `<content type="html">`. |
 | `id` | no | RSS `<guid isPermaLink="false">`, Atom `<id>`. Defaults to the URL. |
-| `author` | no | RSS `<author>`, Atom `<author><name>`. |
+| `author` | no | A name. RSS `<dc:creator>`, because RSS `<author>` must be an email address. Atom `<author><name>`. |
 | `tags` | no | Comma-separated. Each one becomes a `<category>`. |
 
 ## Errors

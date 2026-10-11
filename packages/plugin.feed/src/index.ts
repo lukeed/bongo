@@ -27,6 +27,7 @@ type Item = {
 
 type Channel = {
 	title: string;
+	author: string;
 	description: string;
 	subtitle: string;
 	language: string;
@@ -91,7 +92,10 @@ function item(raw: string): Item {
 
 function rss(meta: Channel, items: Item[]): string {
 	let out = '<?xml version="1.0" encoding="utf-8"?>\n';
-	out += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n';
+	out += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"';
+	if (items.some(it => it.content)) out += ' xmlns:content="http://purl.org/rss/1.0/modules/content/"';
+	if (items.some(it => it.author)) out += ' xmlns:dc="http://purl.org/dc/elements/1.1/"';
+	out += '>\n';
 	out += '<channel>\n';
 	out += `<title>${helpers.xml(meta.title)}</title>\n`;
 	if (meta.site) out += `<link>${helpers.xml(meta.site)}</link>\n`;
@@ -111,7 +115,8 @@ function rss(meta: Channel, items: Item[]): string {
 		if (it.summary) out += `<description>${helpers.xml(it.summary)}</description>\n`;
 		// `]]>` cannot appear inside CDATA, so it is split across two sections
 		if (it.content) out += `<content:encoded><![CDATA[${it.content.replace(/]]>/g, ']]]]><![CDATA[>')}]]></content:encoded>\n`;
-		if (it.author) out += `<author>${helpers.xml(it.author)}</author>\n`;
+		// RSS <author> must be an email address
+		if (it.author) out += `<dc:creator>${helpers.xml(it.author)}</dc:creator>\n`;
 		for (let tag of it.tags) out += `<category>${helpers.xml(tag)}</category>\n`;
 		out += '</item>\n';
 	}
@@ -129,6 +134,7 @@ function atom(meta: Channel, items: Item[]): string {
 	let subtitle = meta.subtitle || meta.description;
 	if (subtitle) out += `<subtitle>${helpers.xml(subtitle)}</subtitle>\n`;
 	if (meta.copyright) out += `<rights>${helpers.xml(meta.copyright)}</rights>\n`;
+	out += `<author><name>${helpers.xml(meta.author)}</name></author>\n`;
 	// Atom requires <updated>; an empty feed takes the build time, never the 1970 epoch
 	out += `<updated>${new Date(helpers.latest(items.map(it => it.date)) ?? Date.now()).toISOString()}</updated>\n`;
 
@@ -162,6 +168,7 @@ function channel(html: string, ctx: Build.Context, kind: Format): string {
 	let site = config.$site.url;
 	let meta: Channel = {
 		title,
+		author: text(params.author) || config.$site.title || title,
 		description: text(params.description),
 		subtitle: text(params.subtitle),
 		language: text(params.language) || config.$site.lang,

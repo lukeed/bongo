@@ -117,6 +117,13 @@ describe('<feed:channel> Atom — same body, format-flip', () => {
 		expect(out).toContain('<updated>2025-02-20T10:00:00.000Z</updated>\n<entry>');
 	});
 
+	test('names a feed author, which entries without their own need, from frontmatter or $site.title', async () => {
+		let out = await run(BODY, output({ format: 'atom', title: 'T' }));
+		expect(out).toContain('<author><name>Test Site</name></author>\n<updated>');
+		out = await run(BODY, output({ format: 'atom', title: 'T', author: 'Luke & co' }));
+		expect(out).toContain('<author><name>Luke &amp; co</name></author>\n<updated>');
+	});
+
 	test('reads format with any case and spacing', async () => {
 		expect(await run(BODY, output({ format: ' Atom ', title: 'T' }))).toContain('<entry>');
 	});
@@ -159,15 +166,23 @@ describe('<feed:item> attribute validation', () => {
 		expect(out.substring(out.indexOf('<item>'), out.indexOf('</item>'))).not.toContain('<description>');
 	});
 
-	test('emits author + tags when provided', async () => {
+	test('emits author as dc:creator, since RSS <author> must be an email address, and tags', async () => {
 		let out = await rss('<feed:item href="/x" title="t" date="2025-01-01" author="Jane" tags="a, b, c" />');
-		expect(out).toContain('<author>Jane</author>');
+		expect(out).toContain('<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/">');
+		expect(out).toContain('<dc:creator>Jane</dc:creator>');
+		expect(out).not.toContain('<author>');
 		expect(out).toContain('<category>a</category>\n<category>b</category>\n<category>c</category>');
 	});
 
-	test('emits content:encoded with CDATA for RSS', async () => {
+	test('emits content:encoded with CDATA for RSS, and declares its namespace', async () => {
 		let out = await rss('<feed:item href="/x" title="t" date="2025-01-01" content="&lt;p&gt;Hi ]]&gt; there&lt;/p&gt;" />');
+		expect(out).toContain('<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">');
 		expect(out).toContain('<content:encoded><![CDATA[<p>Hi ]]]]><![CDATA[> there</p>]]></content:encoded>');
+	});
+
+	test('declares only the namespaces it uses', async () => {
+		let out = await rss('<feed:item href="/x" title="t" date="2025-01-01" />');
+		expect(out).toContain('<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">');
 	});
 
 	test('emits <content type="html"> for Atom', async () => {
