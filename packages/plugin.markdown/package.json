@@ -33,7 +33,7 @@
     "md4x": "^0.0.30"
   },
   "devDependencies": {
-    "shiki": "^4.0.2",
+    "shiki": "^4.5.0",
     "sugar-high": "^2.6.0"
   },
   "peerDependencies": {
