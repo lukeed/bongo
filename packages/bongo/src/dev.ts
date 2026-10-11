@@ -92,6 +92,8 @@ async function rebuild(argv: Argv, opts: BuildOptions = {}): Promise<void> {
 	}
 }
 
+type Change = 'assets' | 'content' | 'inputs' | 'templates';
+
 function loadError(err: unknown): LoadError | undefined {
 	for (let e = err; e instanceof Error; e = e.cause) {
 		if (e instanceof LoadError) return e;
@@ -112,71 +114,61 @@ export async function dev(argv: Argv) {
 	await http.start(flags);
 	banner(flags.host, flags.port);
 
-	let done = log.spin(`${dim('~>')} building`);
-	let inputs = await prepare(argv);
-	await build(argv, { inputs });
-	done();
+	// changes by file; one runner turns all that piled up during a build (a git checkout, say) into one rebuild
+	let pending: Map<string, Change> = new Map();
+	let running: Promise<void> | undefined;
 
-	// Reload any page that connected before the build finished.
-	http.send({ type: 'reload' });
-
-	// Route bundle-time errors to the browser error overlay (Phase G).
-	// hmr() must be called after http.start() so http.send is bound to the
-	// live client set. It persists across resets — the dev server stays up.
-	bundler.hmr(http.send);
-
-	// one build at a time, since builds share the bundler and template caches
-	let queue = Promise.resolve();
-	function serial(task: () => Promise<void>): Promise<void> {
-		let run = queue.then(task);
-		queue = run.catch(() => {});
-		return run;
+	function schedule(file: string, change: Change): void {
+		pending.set(file, change);
+		running ??= drain();
 	}
 
-	// Asset-graph changes: bundler detects + re-flushes affected groups.
-	// For now, any change triggers a full reload (HMR updates are not yet
-	// emitted — see spec "Dev mode" open question).
-	bundler.watch(diff => serial(async () => {
-		let done = log.spin(rebuildLabel(flags.cwd, diff.file));
-		await rebuild(argv, { inputs });
-		done();
-	}), flags.content);
+	async function drain(): Promise<void> {
+		while (pending.size) {
+			// a burst of events lands in one batch
+			await new Promise(r => setTimeout(r, 50));
+			let batch = new Map(pending);
+			pending.clear();
+			try {
+				await run(batch);
+			} catch (err) {
+				log.error(err instanceof Error ? err.stack ?? err.message : String(err));
+			}
+		}
+		running = undefined;
+	}
 
-	// Layout/partial changes: blow away the compiled-template caches and run
-	// a full rebuild. A layout or partial edit can affect every page, so
-	// narrowing isn't safe here.
-	await fs.watch([flags.layouts, flags.partials], file => serial(async () => {
-		let done = log.spin(rebuildLabel(flags.cwd, file));
-		templates.Partials.clear();
-		templates.Layouts.clear();
-		await rebuild(argv, { inputs });
-		done();
-	}));
+	async function run(batch: Map<string, Change>): Promise<void> {
+		let files = [...batch.keys()];
+		let changes = new Set(batch.values());
+		let more = files.length > 1 ? dim(` and ${files.length - 1} more`) : '';
+		let done = log.spin(rebuildLabel(flags.cwd, files[0]) + more);
 
-	// Content changes: rebuild only the affected page. Layouts/partials caches
-	// stay hot, the registries get re-walked (cheap) so sibling awareness is
-	// preserved, and only the changed page is re-rendered + rewritten. Other
-	// pages in `public/` are left alone.
-	// Deleted files fall back to full rebuild since their removal affects
-	// registries (siblings can reference gone pages via $pages/$section/$tags).
-	await fs.watch([flags.content], file => serial(async () => {
-		let done = log.spin(rebuildLabel(flags.cwd, file));
-		let rel = relative(flags.content, file);
-		if (!fs.exists(file)) {
+		if (changes.has('inputs') && !await reload()) return done();
+
+		// Layout/partial changes: blow away the compiled-template caches and run
+		// a full rebuild. A layout or partial edit can affect every page, so
+		// narrowing isn't safe here.
+		// Deleted files fall back to full rebuild since their removal affects
+		// registries (siblings can reference gone pages via $pages/$section/$tags).
+		let deleted = files.some(file => !fs.exists(file));
+		if (deleted || changes.has('inputs') || changes.has('templates')) {
 			templates.Partials.clear();
 			templates.Layouts.clear();
-			await rebuild(argv, { inputs });
-			done();
-			return;
 		}
-		await rebuild(argv, { inputs, only: rel });
+
+		// Content changes: rebuild only the affected page. Layouts/partials caches
+		// stay hot, the registries get re-walked (cheap) so sibling awareness is
+		// preserved, and only the changed page is re-rendered + rewritten. Other
+		// pages in `public/` are left alone.
+		let narrow = files.length === 1 && changes.has('content') && !deleted;
+		await rebuild(argv, { inputs, only: narrow ? relative(flags.content, files[0]) : undefined });
 		done();
-	}));
+	}
 
 	// Config and data changes: load both again, then rebuild everything.
 	// Every file they ever read stays watched, so a fix to a broken one is seen.
-	let tracked = new Set([flags.data, ...inputs.files]);
-	let queued = false;
+	let tracked = new Set([flags.data]);
 	let stop: fs.WatchDisposer = () => {};
 
 	async function follow(): Promise<fs.WatchDisposer> {
@@ -188,18 +180,11 @@ export async function dev(argv: Argv) {
 		return () => stops.forEach(stop => stop());
 	}
 
-	// a folder can be watched twice (as `data/` and as a module's folder), so let one save settle into one reload
 	function changed(file: string): void {
-		if (queued || !(tracked.has(file) || file.startsWith(flags.data + sep))) return;
-		queued = true;
-		setTimeout(() => serial(async () => {
-			queued = false;
-			await reload(file);
-		}), 50);
+		if (tracked.has(file) || file.startsWith(flags.data + sep)) schedule(file, 'inputs');
 	}
 
-	async function reload(file: string): Promise<void> {
-		let done = log.spin(rebuildLabel(flags.cwd, file));
+	async function reload(): Promise<boolean> {
 		try {
 			var next = await prepare(argv);
 		} catch (err) {
@@ -210,18 +195,42 @@ export async function dev(argv: Argv) {
 			stop = await follow();
 			log.error(message);
 			http.send({ type: 'error', errors: [failed ? failed.error : { message }] });
-			return done();
+			return false;
 		}
 
 		inputs = next;
 		next.files.forEach(file => tracked.add(file));
 		stop();
 		stop = await follow();
-		templates.Partials.clear();
-		templates.Layouts.clear();
-		await rebuild(argv, { inputs });
-		done();
+		return true;
 	}
 
+	// Watch before the first build, so nothing changed during it is missed; the runner waits for it.
+	running = Promise.resolve();
+
+	// Asset-graph changes: bundler detects + re-flushes affected groups.
+	// For now, any change triggers a full reload (HMR updates are not yet
+	// emitted — see spec "Dev mode" open question).
+	bundler.watch(diff => schedule(diff.file, 'assets'), flags.content);
+	await fs.watch([flags.layouts, flags.partials], file => schedule(file, 'templates'));
+	await fs.watch([flags.content], file => schedule(file, 'content'));
 	stop = await follow();
+
+	let done = log.spin(`${dim('~>')} building`);
+	let inputs = await prepare(argv);
+	inputs.files.forEach(file => tracked.add(file));
+	stop();
+	stop = await follow();
+	await build(argv, { inputs });
+	done();
+
+	// Reload any page that connected before the build finished.
+	http.send({ type: 'reload' });
+
+	// Route bundle-time errors to the browser error overlay (Phase G).
+	// hmr() must be called after http.start() so http.send is bound to the
+	// live client set. It persists across resets — the dev server stays up.
+	bundler.hmr(http.send);
+
+	running = pending.size ? drain() : undefined;
 }

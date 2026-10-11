@@ -81,6 +81,39 @@ const CONFIG = (title: string) => [
 ].join('\n');
 
 describe('dev', () => {
+	test('sees changes made during the first build, and turns a burst of changes into one rebuild', async () => {
+		let files: Record<string, string> = {
+			// the first render blocks for a while, so the test can edit files mid-build
+			'bongo.config.ts': [
+				`let first = true;`,
+				`export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $utils: {`,
+				`	hold() { if (first) { first = false; let end = Date.now() + 1500; while (Date.now() < end); } return ''; },`,
+				`} };`,
+			].join('\n'),
+			'layouts/html.hbs': '{{ $utils.hold() }}{{{ $page.content }}}',
+			'content/index.html': '<main>before</main>',
+		};
+		for (let i = 0; i < 40; i++) files[`content/p${i}.html`] = `<p>v1</p>`;
+		let root = await site(files);
+		let server = await serve(root);
+		try {
+			await new Promise(r => setTimeout(r, 600));
+			await writeFile(join(root, 'content/index.html'), '<main>during</main>');
+			await until(async () => (await server.page()).includes('<main>during</main>'), 'the edit made during the first build', server);
+
+			let before = server.output().split('\n').filter(line => line.startsWith('[')).length;
+			await Promise.all(Object.keys(files).filter(rel => rel.startsWith('content/p')).map(rel => writeFile(join(root, rel), '<p>v2</p>')));
+			await until(async () => (await fetch(server.url + '/p39/').then(res => res.text())).includes('v2'), 'the burst of edits', server);
+			await new Promise(r => setTimeout(r, 1000));
+			let rebuilds = server.output().split('\n').filter(line => line.startsWith('[')).length - before;
+			expect(rebuilds).toBeLessThanOrEqual(2);
+			expect(await fetch(server.url + '/p0/').then(res => res.text())).toContain('v2');
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+
 	test('reloads when the config, a module it imports, or data/ changes', async () => {
 		let root = await site({
 			'bongo.config.ts': CONFIG('A'),
