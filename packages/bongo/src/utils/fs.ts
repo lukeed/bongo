@@ -1,7 +1,7 @@
 import { watch as fsw } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { existsSync as exists } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, sep } from 'node:path';
 
 import type { FSWatcher } from 'node:fs';
 
@@ -19,6 +19,21 @@ export function rm(file: string): Promise<void> {
 
 export async function rmdir(path: string): Promise<void> {
 	!exists(path) || await _rm(path, { recursive: true });
+}
+
+/**
+ * Delete `file`, then each folder above it, up to `root`, that this leaves empty.
+ * @example prune('public/old/post/index.html', 'public')
+ */
+export async function prune(file: string, root: string): Promise<void> {
+	await rm(file);
+	for (let dir = dirname(file); dir.startsWith(root + sep); dir = dirname(dir)) {
+		try {
+			await fs.rmdir(dir);
+		} catch {
+			return;
+		}
+	}
 }
 
 export async function mkdir(input: string) {

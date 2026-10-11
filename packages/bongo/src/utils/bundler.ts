@@ -50,6 +50,7 @@ export type FlushResult = {
 	outputs: Map<Placeholder, OutputInfo>;
 	warnings: Warning[];
 	errors: BuildError[];
+	files: string[];                          // every file written, relative to outDir
 };
 
 export type WatchDiff = {
@@ -101,6 +102,30 @@ function toGroupKey(cfg: BundleConfig): string {
 	return createHash('sha256').update(JSON.stringify(cfgKey(cfg))).digest('hex').slice(0, 16);
 }
 
+const PLACEHOLDER = /__BONGO_BUNDLE:[a-f0-9]{16}__/g;
+
+/**
+ * The distinct placeholders that rendered `html` references.
+ * @example placeholders(scanBongoTags(html, argv, config)) //=> ['__BONGO_BUNDLE:0123456789abcdef__']
+ */
+export function placeholders(html: string): string[] {
+	return [...new Set(html.match(PLACEHOLDER))];
+}
+
+/**
+ * Drop every registration whose placeholder is not in `keep`, so assets no page uses stop being built.
+ * @example retain(new Set(placeholders(html)))
+ */
+export function retain(keep: Set<string>): void {
+	let groups: Map<string, Registration[]> = new Map();
+	for (let [key, regs] of GROUPS) {
+		let used = regs.filter(reg => keep.has(reg.placeholder));
+		if (used.length) groups.set(key, used);
+	}
+	GROUPS = groups;
+	REGISTRATIONS = new Map([...REGISTRATIONS].filter(([placeholder]) => keep.has(placeholder)));
+}
+
 export function register(entry: string, cfg: BundleConfig): Placeholder {
 	let placeholder = toPlaceholder(entry, cfg);
 	if (REGISTRATIONS.has(placeholder)) return placeholder;
@@ -124,6 +149,7 @@ type FlushContext = {
 	utils?: Loader.Utilities;
 	publicPath: string;
 	emit: (file: string) => Promise<string>;
+	files: Set<string>;
 };
 
 /**
@@ -137,7 +163,7 @@ export function href(publicPath: string, filename: string): string {
 }
 
 // Copies a file into outDir as `name.hash.ext` once per flush, shared by css url()s and file registrations.
-function emitter(outDir: string): (file: string) => Promise<string> {
+function emitter(outDir: string, files: Set<string>): (file: string) => Promise<string> {
 	let done = new Map<string, Promise<string>>();
 	return file => {
 		let hit = done.get(file);
@@ -150,6 +176,7 @@ function emitter(outDir: string): (file: string) => Promise<string> {
 			let { mkdir, writeFile } = await import('node:fs/promises');
 			await mkdir(outDir, { recursive: true });
 			await writeFile(path.join(outDir, name), bytes);
+			files.add(name);
 			return name;
 		})();
 		done.set(file, hit);
@@ -253,6 +280,7 @@ async function flushJsGroup(
 		});
 
 		for (let chunk of result.output) {
+			ctx.files.add(chunk.fileName);
 			if (chunk.type !== 'chunk' || !chunk.isEntry) continue;
 			let reg = entryByName.get(chunk.name);
 			if (!reg) continue;
@@ -296,6 +324,7 @@ async function flushCssGroup(
 		let full = path.join(outDir, filename);
 		await fs.mkdir(path.dirname(full), { recursive: true });
 		await fs.writeFile(full, code);
+		ctx.files.add(filename);
 
 		let info: OutputInfo = {
 			filename,
@@ -341,11 +370,13 @@ export async function flush(opts: {
 	let warnings: Warning[] = [];
 	let outputs: Map<Placeholder, OutputInfo> = new Map();
 
+	let files: Set<string> = new Set();
 	let ctx: FlushContext = {
 		assets: opts.assets,
 		utils: opts.utils,
 		publicPath: opts.publicPath ?? '/',
-		emit: emitter(opts.outDir),
+		emit: emitter(opts.outDir, files),
+		files,
 	};
 
 	// css and file entries are built one by one, so each failure names its own entry
@@ -396,7 +427,7 @@ export async function flush(opts: {
 		await follow(WATCH, files);
 	}
 
-	return { outputs, warnings, errors };
+	return { outputs, warnings, errors, files: [...files] };
 }
 
 // ---------------------------------------------------------------------------

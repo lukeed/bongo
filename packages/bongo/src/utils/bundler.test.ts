@@ -340,6 +340,33 @@ describe('flush() error reporting', () => {
 	});
 });
 
+describe('retain()', () => {
+	test('drops registrations that are not kept, and flush lists the files it wrote', async () => {
+		let { dir, outDir } = await tmp({ 'a.ts': 'export const a = 1;', 'b.ts': 'export const b = 2;', 'c.css': '.c { color: red }' });
+		try {
+			let a = bundler.register(join(dir, 'a.ts'), { kind: 'js' });
+			let c = bundler.register(join(dir, 'c.css'), { kind: 'css' });
+			bundler.register(join(dir, 'b.ts'), { kind: 'js' });
+			bundler.retain(new Set([a, c]));
+			let result = await bundler.flush({ outDir });
+			expect([...result.outputs.keys()].sort()).toEqual([a, c].sort());
+			expect(result.files.sort()).toEqual([expect.stringMatching(/^a\..+\.js$/), expect.stringMatching(/^c\..+\.css$/)]);
+			expect((await readdir(outDir)).sort()).toEqual(result.files);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('placeholders()', () => {
+	test('lists each placeholder in the html once', () => {
+		let a = '__BONGO_BUNDLE:0123456789abcdef__';
+		let b = '__BONGO_BUNDLE:fedcba9876543210__';
+		expect(bundler.placeholders(`<link href="${a}"/><script src="${b}"></script><img src="${a}">`)).toEqual([a, b]);
+		expect(bundler.placeholders('<p>none</p>')).toEqual([]);
+	});
+});
+
 describe('reset()', () => {
 	test('clears registrations and outputs', async () => {
 		let { dir, outDir } = await tmp({ 'entry.ts': 'export const x = 1;' });

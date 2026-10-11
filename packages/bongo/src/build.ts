@@ -26,6 +26,11 @@ import type { Argv, Loader, Template } from 'bongo';
 // to keep sibling output accurate. Body-only edits keep the narrow path.
 let FRONTMATTER_SIG: Map<string, string> = new Map();
 
+// What the last good build wrote to each output dir: the assets each page used, and every file.
+// A narrow rebuild keeps its siblings' assets, and each build deletes the files the last one wrote and it did not.
+type Output = { assets: Map<string, string[]>; files: Set<string> };
+let OUTPUT: Map<string, Output> = new Map();
+
 function frontmatterSig(raw: string): string {
 	let { offset } = templates.frontmatter(raw);
 	let block = offset > 0 ? raw.substring(0, offset) : '';
@@ -107,7 +112,10 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 
 	debug('[build.argv]', argv);
 
-	if (!opts.only) await fs.rmdir(argv.dest);
+	if (!opts.only) {
+		await fs.rmdir(argv.dest);
+		OUTPUT.delete(argv.dest);
+	}
 
 	const context: templates.Context = {
 		...config,
@@ -128,6 +136,8 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	const isPage = /(hbs|html?)$/;
 	const { Layouts, Partials } = templates;
 	const { dest, content } = argv;
+	const last = OUTPUT.get(dest);
+	const written: Set<string> = new Set();
 
 	const loader_utils: Loader.Utilities = {
 		frontmatter: templates.frontmatter,
@@ -195,10 +205,12 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 					? result.content
 					: new TextDecoder().decode(result.content);
 			} else {
+				written.add(output);
 				return fs.write(output, result.content);
 			}
 		} else {
 			debug('[content.loader]', ext, '~> unknown');
+			written.add(output);
 			return fs.copy(input, output);
 		}
 
@@ -249,9 +261,9 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	if (narrowOnly) {
 		let target = scanned.find(s => s.rel === narrowOnly);
 		let prev = FRONTMATTER_SIG.get(narrowOnly);
-		if (!target || prev === undefined || prev !== target.sig) {
+		if (!target || prev === undefined || prev !== target.sig || !last) {
 			narrowOnly = undefined;
-			debug('[build.narrow] frontmatter changed; promoting to full rebuild');
+			debug('[build.narrow] frontmatter changed or no good build to narrow; promoting to full rebuild');
 		}
 	}
 
@@ -310,6 +322,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	// If `only` is set, skip rendering every item except the matching one — walk 1
 	// above already populated the registries so sibling awareness stays correct.
 	let pages: CollectedPage[] = [];
+	let assets: Map<string, string[]> = new Map(narrowOnly && last ? last.assets : []);
 
 	for (let item of scanned) {
 		if (narrowOnly && item.rel !== narrowOnly) continue;
@@ -421,8 +434,11 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 		rendered_content = tags.scanBongoTags(rendered_content, argv as Required<Argv>, config, chain.join(' → '));
 		rendered_content = tags.rewriteTransitionAttrs(rendered_content);
 
+		assets.set(item.rel, bundler.placeholders(rendered_content));
 		pages.push({ output: item.output, html: rendered_content });
 	}
+
+	bundler.retain(new Set([...assets.values()].flat()));
 
 	// Flush: run every bundle group in parallel.
 	let publicPath = derivePublicPath($site.url);
@@ -470,6 +486,10 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	if (argv.minify && !await minify.html(pages.map(page => page.output))) {
 		log.info(`${dim('--minify:')} HTML left as-is; install tdewolff/minify to minify it`);
 	}
+
+	let files = new Set([...written, ...scanned.map(item => item.output), ...flushResult.files.map(file => join(dest, file))]);
+	await Promise.all([...last?.files ?? []].filter(file => !files.has(file)).map(file => fs.prune(file, dest)));
+	OUTPUT.set(dest, { assets, files });
 
 	// Refresh the frontmatter-sig snapshot for the next narrow rebuild. Only
 	// pages actually scanned in this build are updated; narrow builds don't

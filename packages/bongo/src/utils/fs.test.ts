@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as fs from './fs';
@@ -15,6 +15,21 @@ async function until(check: () => boolean, ms = 3000): Promise<void> {
 		await new Promise(r => setTimeout(r, 20));
 	}
 }
+
+describe('prune', () => {
+	test('deletes a file and the folders it leaves empty, up to the root', async () => {
+		let root = sandbox();
+		mkdirSync(join(root, 'a/b/c'), { recursive: true });
+		writeFileSync(join(root, 'a/b/c/index.html'), 'x');
+		writeFileSync(join(root, 'a/keep.txt'), 'x');
+		await fs.prune(join(root, 'a/b/c/index.html'), root);
+		expect(existsSync(join(root, 'a/b'))).toBe(false);
+		expect(existsSync(join(root, 'a/keep.txt'))).toBe(true);
+		await fs.prune(join(root, 'a/keep.txt'), root);
+		expect(existsSync(join(root, 'a'))).toBe(false);
+		expect(existsSync(root)).toBe(true);
+	});
+});
 
 describe('watch', () => {
 	test('reports every file when several change at once', async () => {

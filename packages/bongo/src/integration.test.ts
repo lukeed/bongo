@@ -562,6 +562,84 @@ describe('build({ only })', () => {
 	});
 });
 
+describe('dev rebuilds', () => {
+	let files = async (root: string) => (await readdir(join(root, 'public'))).sort();
+
+	async function devSite(page: string): Promise<string> {
+		return site({
+			'assets/style.css': 'body { color: red }',
+			'assets/extra.css': '.extra { color: blue }',
+			'assets/main.ts': 'console.log("main");',
+			'layouts/html.hbs': '<bongo:style src="style.css" />{{{ $page.content }}}',
+			'content/index.html': page,
+			'content/about.html': '<p>about</p>',
+		});
+	}
+
+	test('a removed tag stops being built, and its file is deleted', async () => {
+		let root = await devSite('<bongo:style src="extra.css" /><p>home</p>');
+		try {
+			await build({ cwd: root, dev: true });
+			expect((await files(root)).filter(f => f.endsWith('.css'))).toEqual([expect.stringMatching(/^extra\./), expect.stringMatching(/^style\./)]);
+
+			await writeFile(join(root, 'content/index.html'), '<p>home</p>');
+			await build({ cwd: root, dev: true }, { only: 'index.html' });
+			expect((await files(root)).filter(f => f.endsWith('.css'))).toEqual([expect.stringMatching(/^style\./)]);
+
+			await build({ cwd: root, dev: true });
+			expect((await files(root)).filter(f => f.endsWith('.css'))).toEqual([expect.stringMatching(/^style\./)]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a changed tag replaces its old output instead of adding to it', async () => {
+		let root = await devSite('<bongo:script src="main.ts" /><p>home</p>');
+		try {
+			await build({ cwd: root, dev: true });
+			let before = (await files(root)).filter(f => f.endsWith('.js'));
+			expect(before).toHaveLength(1);
+
+			await writeFile(join(root, 'content/index.html'), '<bongo:script src="main.ts" format="cjs" /><p>home</p>');
+			await build({ cwd: root, dev: true }, { only: 'index.html' });
+			let after = (await files(root)).filter(f => f.endsWith('.js'));
+			expect(after).toHaveLength(1);
+			expect(after).not.toEqual(before);
+			expect(await readFile(join(root, 'public/index.html'), 'utf8')).toContain(`src="/${after[0]}"`);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('keeps assets that other pages still use during a narrow rebuild', async () => {
+		let root = await devSite('<p>home</p>');
+		try {
+			await writeFile(join(root, 'content/about.html'), '<bongo:style src="extra.css" /><p>about</p>');
+			await build({ cwd: root, dev: true });
+			await writeFile(join(root, 'content/index.html'), '<p>home, edited</p>');
+			await build({ cwd: root, dev: true }, { only: 'index.html' });
+			let css = (await files(root)).filter(f => f.endsWith('.css'));
+			expect(css).toEqual([expect.stringMatching(/^extra\./), expect.stringMatching(/^style\./)]);
+			expect(await readFile(join(root, 'public/about/index.html'), 'utf8')).toContain(`href="/${css[0]}"`);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a fixed tag recovers from a failed build', async () => {
+		let root = await devSite('<bongo:script src="main.ts" target="chrome60" /><p>home</p>');
+		try {
+			await expect(build({ cwd: root, dev: true })).rejects.toThrow(/Unknown browser query/);
+			await writeFile(join(root, 'content/index.html'), '<bongo:script src="main.ts" target="chrome 60" /><p>home</p>');
+			await build({ cwd: root, dev: true }, { only: 'index.html' });
+			expect(await readFile(join(root, 'public/index.html'), 'utf8')).toContain('<p>home</p>');
+			expect(await readFile(join(root, 'public/about/index.html'), 'utf8')).toContain('<p>about</p>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('integration: site-css-assets', () => {
 	test('emits css url() files hashed under publicPath, for linked and inline styles', async () => {
 		let root = await copyFixture('site-css-assets');
