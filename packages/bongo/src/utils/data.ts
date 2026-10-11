@@ -1,5 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises';
-import { basename, extname, join, relative, sep } from 'node:path';
+import { basename, dirname, extname, join, relative, sep } from 'node:path';
 
 import { loadModule } from './config';
 import * as fs from './fs';
@@ -31,11 +31,11 @@ function set(target: Data, key: string, value: unknown): void {
 	Object.defineProperty(target, key, { value, enumerable: true, writable: true, configurable: true });
 }
 
-async function read(file: string, ext: string): Promise<Omit<Entry, 'name' | 'keys'>> {
+async function read(file: string, ext: string, root: string): Promise<Omit<Entry, 'name' | 'keys'>> {
 	if (MODULES.includes(ext)) {
-		let mod = await loadModule(file);
-		if (!('default' in mod)) throw new Error('expected a default export');
-		return { value: mod.default, files: [file] };
+		let mod = await loadModule(file, root);
+		if (!('default' in mod.exports)) throw new Error('expected a default export');
+		return { value: mod.exports.default, files: mod.files };
 	}
 	let text = await readFile(file, 'utf8');
 	return { value: freeze(ext === '.json' ? JSON.parse(text) : yaml.parse(text)), files: [file] };
@@ -63,7 +63,7 @@ export async function load(dir: string): Promise<Loaded> {
 			throw new Error(`${name}: unsupported data file; use ${EXTENSIONS.slice(0, -1).join(', ')}, or ${EXTENSIONS.at(-1)}`);
 		}
 		try {
-			var loaded = await read(join(dir, rel), ext);
+			var loaded = await read(join(dir, rel), ext, dirname(dir));
 		} catch (err) {
 			throw new Error(`${name}: ${err instanceof Error ? err.message : err}`, { cause: err });
 		}

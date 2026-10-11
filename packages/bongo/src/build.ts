@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
-import { realpathSync } from 'node:fs';
-import { extname, join, relative, sep } from 'node:path';
+import { extname, join } from 'node:path';
 import { dim, green } from 'kleur/colors';
 
 import * as attrs from './utils/attrs';
@@ -16,7 +15,7 @@ import * as tags from './utils/tags';
 import { normalize } from './utils/argv';
 import { RELOAD } from './utils/http';
 
-import type { Argv, Loader, Template } from 'bongo';
+import type { Argv, Config, Loader, Template } from 'bongo';
 
 // Per-page frontmatter signatures from the last completed build. A narrow
 // rebuild (`opts.only`) compares the target's current frontmatter hash against
@@ -26,8 +25,7 @@ import type { Argv, Loader, Template } from 'bongo';
 // to keep sibling output accurate. Body-only edits keep the narrow path.
 let FRONTMATTER_SIG: Map<string, string> = new Map();
 
-// What the last good build wrote to each output dir: the assets each page used, and every file.
-// A narrow rebuild keeps its siblings' assets, and each build deletes the files the last one wrote and it did not.
+// Per output dir, the last good build's files and each page's assets, to keep or delete on the next build.
 type Output = { assets: Map<string, string[]>; files: Set<string> };
 let OUTPUT: Map<string, Output> = new Map();
 
@@ -100,19 +98,39 @@ export type BuildOptions = {
 	// handles them inline. If `only` doesn't match any content file, nothing is
 	// rendered — call without `only` for a full rebuild in that case.
 	only?: string;
+	// From `prepare()`; dev passes its cached copy, so a content edit does not re-run the config.
+	inputs?: Inputs;
 };
+
+export type Inputs = {
+	config: Required<Config>;
+	$data: data.Data;
+	/** Every file the config and data were read from, to watch in dev. */
+	files: string[];
+};
+
+/**
+ * Load the config and the `data/` folder for a build.
+ * @example let inputs = await prepare({ cwd: 'site' }); await build({ cwd: 'site' }, { inputs });
+ */
+export async function prepare(argv: Argv): Promise<Inputs> {
+	normalize(argv);
+	let [loaded, store] = await Promise.all([load(argv.cwd), data.load(argv.data)]);
+	return { config: loaded.config, $data: store.value, files: [...loaded.files, ...store.files] };
+}
 
 export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> {
 	let t0 = Date.now();
 	normalize(argv);
 
-	const [config, { value: $data }] = await Promise.all([load(argv.cwd), data.load(argv.data)]);
+	const { config, $data } = opts.inputs ?? await prepare(argv);
 	const { $site, $assets: ASSETS } = config;
 	const debug = argv.debug ? log.debug : () => {};
 
 	debug('[build.argv]', argv);
 
-	if (!opts.only) {
+	// A dev rebuild writes over its last good build, so a failed one leaves that build serving.
+	if (!opts.only && !(argv.dev && OUTPUT.has(argv.dest))) {
 		await fs.rmdir(argv.dest);
 		OUTPUT.delete(argv.dest);
 	}
@@ -456,15 +474,8 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			if (err.file) log.error('  in ' + err.file);
 		}
 		let [first, ...rest] = flushResult.errors;
-		let message = `Build failed: ${first.message}`;
-		if (first.file) {
-			let file = first.file;
-			let root = [argv.cwd, realpathSync(argv.cwd)].find(dir => file.startsWith(dir + sep));
-			if (root) file = relative(root, file);
-			message += ` (${file}${first.line ? `:${first.line}:${(first.column ?? 0) + 1}` : ''})`;
-		}
-		if (rest.length) message += `, and ${rest.length} more error${rest.length > 1 ? 's' : ''}`;
-		throw new Error(message);
+		let more = rest.length ? `, and ${rest.length} more error${rest.length > 1 ? 's' : ''}` : '';
+		throw new Error(`Build failed: ${bundler.summary(first, argv.cwd)}${more}`);
 	}
 
 	for (let w of flushResult.warnings) {

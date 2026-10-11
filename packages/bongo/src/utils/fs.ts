@@ -85,7 +85,7 @@ export async function list(dir: string, callback: Caller, prefix='') {
 
 type Handler = (dir: string, type: string, filename: string | null) => any;
 
-async function setup(dir: string, onChange: Handler) {
+async function setup(dir: string, onChange: Handler, recursive: boolean) {
 	let output: Record<string, FSWatcher> = {};
 
 	let attach = (watcher: FSWatcher) => {
@@ -98,9 +98,9 @@ async function setup(dir: string, onChange: Handler) {
 	};
 
 	try {
-		output[dir] = attach(fsw(dir, { recursive: true }, onChange.bind(0, dir)));
+		output[dir] = attach(fsw(dir, { recursive }, onChange.bind(0, dir)));
 	} catch (err: any) {
-		if (err.code !== 'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM') {
+		if (!recursive || err.code !== 'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM') {
 			throw err;
 		}
 
@@ -116,7 +116,13 @@ async function setup(dir: string, onChange: Handler) {
 // @modified lukeed/watchlist
 type Callback = (filename: string) => any;
 export type WatchDisposer = () => void;
-export async function watch(list: string[], callback: Callback): Promise<WatchDisposer> {
+export type WatchOptions = {
+	/** Also watch every folder inside each one. @default true */
+	recursive?: boolean;
+};
+
+export async function watch(list: string[], callback: Callback, options: WatchOptions = {}): Promise<WatchDisposer> {
+	const { recursive = true } = options;
 	const dirs = new Set(
 		list.filter(exists)
 	);
@@ -155,7 +161,7 @@ export async function watch(list: string[], callback: Callback): Promise<WatchDi
 
 	let dir, output;
 	for (dir of dirs) {
-		output = await setup(dir, onChange);
+		output = await setup(dir, onChange, recursive);
 		for (let key in output) {
 			Watchers.set(key, output[key]);
 		}

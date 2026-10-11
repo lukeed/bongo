@@ -127,8 +127,8 @@ export async function collect(argv: Required<Argv>, config: Context): Promise<vo
 			if (isHBS.test(file)) {
 				render = await compile(partials, file);
 			} else {
-				let mod = await loadModule(join(partials, file));
-				let fn = mod.default || mod;
+				let mod = await loadModule(join(partials, file), argv.cwd);
+				let fn = mod.exports.default || mod.exports;
 				if (!isCompiler(fn)) throw new Error(`Partial "${file}" must export a render function`);
 				render = fn;
 			}

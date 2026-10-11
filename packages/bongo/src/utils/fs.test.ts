@@ -32,6 +32,23 @@ describe('prune', () => {
 });
 
 describe('watch', () => {
+	test('watches only the folder itself when not recursive', async () => {
+		let dir = sandbox();
+		mkdirSync(join(dir, 'sub'));
+		let seen = new Set<string>();
+		let stop = await fs.watch([dir], file => { seen.add(file); }, { recursive: false });
+		try {
+			await new Promise(r => setTimeout(r, 100));
+			writeFileSync(join(dir, 'sub/deep.css'), 'x');
+			writeFileSync(join(dir, 'top.css'), 'x');
+			await until(() => seen.has(join(dir, 'top.css')));
+			await new Promise(r => setTimeout(r, 150));
+			expect(seen.has(join(dir, 'sub/deep.css'))).toBe(false);
+		} finally {
+			stop();
+		}
+	});
+
 	test('reports every file when several change at once', async () => {
 		let dir = sandbox();
 		let seen = new Set<string>();

@@ -36,7 +36,7 @@ bongo dev -C site --host --port 3000
 
 When you run `bongo build`:
 
-1. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` by walking upward from `cwd`. Bun and Deno import TypeScript config files natively. Node bundles the config through Rolldown to a temp `.mjs` and dynamic-imports it.
+1. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` by walking upward from `cwd`. Rolldown bundles the config and the local files it imports into one temporary `.mjs` module, which bongo imports and then deletes. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual, and `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials and `data/` modules load the same way.
 2. Files in `data/` are loaded as `$data`. Layouts and partials are collected from `layouts/` and `partials/`. Handlebars files (`.hbs`) are compiled with tempura. JavaScript and TypeScript partials are loaded as modules.
 3. Content files are passed through registered loaders, then rendered through the matching layout chain.
 4. Rendered HTML is scanned for `<bongo:style>`, `<bongo:script>`, and `<bongo:client>` elements. Assets are registered and replaced with placeholder tokens.
@@ -348,6 +348,8 @@ If a relative `url()` points at a file that does not exist, the build fails with
 ## Dev Server
 
 `bongo dev` starts the HTTP server and runs the initial build behind it. File changes in `assets/`, `layouts/`, `partials/`, or `content/` trigger a rebuild.
+
+A change to the config, to any local file it imports, or to anything in `data/` loads the config and data again, then rebuilds every page. You do not need to restart. If the config or a data file fails to load, the error overlay shows the error, and the last good build keeps serving until you fix it. The same is true for a rebuild that fails.
 
 A path with no matching file gets a `404` status, the same as on a static host, so broken links show up during development. The response body is your own 404 page when the build has one: `404.html`, or `404/index.html` (which `content/404.md` produces).
 

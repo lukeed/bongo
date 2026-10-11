@@ -1,11 +1,14 @@
-import { dirname, join, resolve } from 'node:path';
-import * as os from 'node:os';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { basename, dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { builtinModules } from 'node:module';
-import { randomBytes } from 'node:crypto';
+
+import { summary, toBuildError } from './bundler';
 import * as fs from './fs';
 
 import type { Config } from 'bongo';
+import type { Plugin, RolldownBuild } from 'rolldown';
+import type { BuildError } from './bundler';
 
 const priority = [
 	'bongo.config.ts',
@@ -14,74 +17,108 @@ const priority = [
 	'bongo.config.js',
 ];
 
-async function bundleConfigToTemp(file: string): Promise<string> {
+// Packages and builtins, which the runtime resolves; `#imports` and paths are bundled.
+const BARE = /^(?![./#\0]|[a-zA-Z]:[\\/]|file:)/;
+
+// Module-relative values keep pointing at each source file, not at the bundled copy.
+const META: Record<string, string> = {
+	'import.meta.url': '__bongo_url',
+	'import.meta.filename': '__bongo_filename',
+	'import.meta.dirname': '__bongo_dirname',
+	'import.meta.path': '__bongo_filename',
+	'import.meta.dir': '__bongo_dirname',
+	__filename: '__bongo_filename',
+	__dirname: '__bongo_dirname',
+};
+
+const meta: Plugin = {
+	name: 'bongo:meta',
+	transform(code, id) {
+		if (!/\.[cm]?[jt]sx?$/.test(id) || !/import\.meta|__dirname|__filename/.test(code)) return null;
+		let values = `const __bongo_url = ${JSON.stringify(pathToFileURL(id).href)}, __bongo_filename = ${JSON.stringify(id)}, __bongo_dirname = ${JSON.stringify(dirname(id))};`;
+		// prepended on the same line, so line numbers in errors stay true
+		return { code: values + code };
+	},
+};
+
+// Next to the nearest node_modules, bare imports resolve as they do from the source file.
+function scratch(file: string): string {
+	for (let dir = dirname(file); dir !== dirname(dir); dir = dirname(dir)) {
+		let modules = join(dir, 'node_modules');
+		if (fs.exists(modules)) return join(modules, '.bongo');
+	}
+	return tmpdir();
+}
+
+// Every file the bundle loaded, including modules that tree-shaking dropped from its output.
+async function read(bundle: RolldownBuild, file: string): Promise<string[]> {
+	return [...new Set([file, ...(await bundle.watchFiles).filter(id => !id.startsWith('\0'))])];
+}
+
+export type Module = {
+	exports: Record<string, unknown>;
+	/** The local files the module read, itself included. */
+	files: string[];
+};
+
+/**
+ * A module that failed to bundle or to run.
+ * `error` locates the failure and `files` lists the local files read so far, to watch for a fix.
+ */
+export class LoadError extends Error {
+	error: BuildError;
+	files: string[];
+
+	constructor(error: BuildError, files: string[], root: string, cause: unknown) {
+		super(summary(error, root), { cause });
+		this.name = 'LoadError';
+		this.error = error;
+		this.files = files;
+	}
+}
+
+/**
+ * Import `file` as fresh code: Rolldown bundles it and its local imports into one temporary module,
+ * which is imported once and deleted. Packages stay external and resolve as usual.
+ * Errors name places relative to `root`.
+ * @example let { exports, files } = await loadModule('/site/bongo.config.ts');
+ */
+export async function loadModule(file: string, root = dirname(file)): Promise<Module> {
 	let rd = await import('rolldown');
-
-	let tmpdir = os.tmpdir();
-	let name = `bongo-config-${randomBytes(6).toString('hex')}.mjs`;
-	let outfile = join(tmpdir, name);
-
-	let external = [
-		/^node:/,
-		...builtinModules.map(m => new RegExp(`^${m}(\\/.*)?$`)),
-		// anything from node_modules stays external
-		/[\\/]node_modules[\\/]/,
-	];
-
 	let bundle = await rd.rolldown({
 		input: file,
-		external,
 		platform: 'node',
-		resolve: {
-			extensions: ['.ts', '.mjs', '.js', '.cjs', '.json'],
-			conditionNames: ['import', 'node'],
-			mainFields: ['module', 'main'],
-		},
+		external: id => BARE.test(id),
+		transform: { define: META },
+		plugins: [meta],
 	});
 
 	try {
-		await bundle.write({
-			file: outfile,
-			format: 'esm',
-			minify: false,
-			sourcemap: false,
-		});
+		var { output } = await bundle.generate({ format: 'esm', codeSplitting: false });
+		var files = await read(bundle, file);
+	} catch (err) {
+		throw new LoadError(toBuildError(err, file), await read(bundle, file), root, err);
 	} finally {
 		await bundle.close();
 	}
-	return outfile;
-}
 
-type UnknownModule = Record<string, unknown> & { default?: unknown };
+	let [chunk] = output;
+	let base = scratch(file);
 
-function isBun(): boolean {
-	return typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined';
-}
+	// a new folder each time: Bun cannot import a file added to a folder it has already read
+	await mkdir(base, { recursive: true });
+	let dir = await mkdtemp(join(base, `${basename(file)}-`));
 
-function isDeno(): boolean {
-	return typeof (globalThis as { Deno?: unknown }).Deno !== 'undefined';
-}
-
-export async function loadModule(file: string): Promise<UnknownModule> {
-	let url = pathToFileURL(file).href;
-
-	if (!/\.ts$/.test(file)) {
-		return (await import(url)) as UnknownModule;
-	}
-
-	// Bun and Deno strip TS natively
-	if (isBun() || isDeno()) {
-		return (await import(url)) as UnknownModule;
-	}
-
-	// Node path: bundle to temp .mjs, then dynamic import.
-	// Temp file has a random name so the import cache is keyed per-call;
-	// no `?t=` cache-buster needed (Node ignores query strings on file: URLs).
-	let tmp = await bundleConfigToTemp(file);
 	try {
-		return (await import(pathToFileURL(tmp).href)) as UnknownModule;
+		let temp = join(dir, 'module.mjs');
+		await writeFile(temp, chunk.code);
+		let exports: Record<string, unknown> = await import(pathToFileURL(temp).href);
+		return { exports, files };
+	} catch (err) {
+		let message = err instanceof Error ? err.message : String(err);
+		throw new LoadError({ message, file }, files, root, err);
 	} finally {
-		await fs.rm(tmp).catch(() => {});
+		await rm(dir, { recursive: true, force: true });
 	}
 }
 
@@ -132,7 +169,17 @@ export function merge(base: Required<Config>, custom: Partial<Config>) {
 	}
 }
 
-export async function load(root: string): Promise<Required<Config>> {
+export type Loaded = {
+	config: Required<Config>;
+	/** The config file and the local files it imports. */
+	files: string[];
+};
+
+/**
+ * Find and load the config above `root`, merged over bongo's defaults.
+ * @example let { config, files } = await load('/site');
+ */
+export async function load(root: string): Promise<Loaded> {
 	let output: Required<Config> = {
 		$site: {
 			url: '',
@@ -174,15 +221,12 @@ export async function load(root: string): Promise<Required<Config>> {
 	};
 
 	let file = await find(root, '.');
+	if (!file) throw new Error('Missing configuration file');
 
-	if (file) {
-		let user = await loadModule(file);
+	let user = await loadModule(file, root);
 
-		// TODO: validate $site keys
-		merge(output, (user.default as Partial<Config>) || (user as Partial<Config>));
-	} else {
-		throw new Error('Missing configuration file');
-	}
+	// TODO: validate $site keys
+	merge(output, (user.exports.default as Partial<Config>) || (user.exports as Partial<Config>));
 
-	return output;
+	return { config: output, files: user.files };
 }

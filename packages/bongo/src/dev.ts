@@ -1,4 +1,4 @@
-import { join, relative } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { networkInterfaces } from 'node:os';
 import { bold, cyan, dim, green } from 'kleur/colors';
 import * as bundler from './utils/bundler';
@@ -6,7 +6,8 @@ import * as templates from './utils/templates';
 import * as http from './utils/http';
 import * as log from './utils/log';
 import * as fs from './utils/fs';
-import { build } from './build';
+import { build, prepare } from './build';
+import { LoadError } from './utils/config';
 import { normalize } from './utils/argv';
 
 import type { Argv } from 'bongo';
@@ -84,9 +85,16 @@ async function rebuild(argv: Argv, opts: BuildOptions = {}): Promise<void> {
 		// propagation since the bundler never saw them.
 		let message = err instanceof Error ? err.message : String(err);
 		if (!message.startsWith('Build failed:')) {
+			log.error(message);
 			http.send({ type: 'error', errors: [{ message }] });
 		}
 		// Don't reload — the overlay stays until the next successful build.
+	}
+}
+
+function loadError(err: unknown): LoadError | undefined {
+	for (let e = err; e instanceof Error; e = e.cause) {
+		if (e instanceof LoadError) return e;
 	}
 }
 
@@ -105,7 +113,8 @@ export async function dev(argv: Argv) {
 	banner(flags.host, flags.port);
 
 	let done = log.spin(`${dim('~>')} building`);
-	await build(argv);
+	let inputs = await prepare(argv);
+	await build(argv, { inputs });
 	done();
 
 	// Reload any page that connected before the build finished.
@@ -116,25 +125,33 @@ export async function dev(argv: Argv) {
 	// live client set. It persists across resets — the dev server stays up.
 	bundler.hmr(http.send);
 
+	// one build at a time, since builds share the bundler and template caches
+	let queue = Promise.resolve();
+	function serial(task: () => Promise<void>): Promise<void> {
+		let run = queue.then(task);
+		queue = run.catch(() => {});
+		return run;
+	}
+
 	// Asset-graph changes: bundler detects + re-flushes affected groups.
 	// For now, any change triggers a full reload (HMR updates are not yet
 	// emitted — see spec "Dev mode" open question).
-	bundler.watch(async (diff) => {
+	bundler.watch(diff => serial(async () => {
 		let done = log.spin(rebuildLabel(flags.cwd, diff.file));
-		await rebuild(argv);
+		await rebuild(argv, { inputs });
 		done();
-	});
+	}));
 
 	// Layout/partial changes: blow away the compiled-template caches and run
 	// a full rebuild. A layout or partial edit can affect every page, so
 	// narrowing isn't safe here.
-	await fs.watch([flags.layouts, flags.partials], async function (file) {
+	await fs.watch([flags.layouts, flags.partials], file => serial(async () => {
 		let done = log.spin(rebuildLabel(flags.cwd, file));
 		templates.Partials.clear();
 		templates.Layouts.clear();
-		await rebuild(argv);
+		await rebuild(argv, { inputs });
 		done();
-	});
+	}));
 
 	// Content changes: rebuild only the affected page. Layouts/partials caches
 	// stay hot, the registries get re-walked (cheap) so sibling awareness is
@@ -142,17 +159,69 @@ export async function dev(argv: Argv) {
 	// pages in `public/` are left alone.
 	// Deleted files fall back to full rebuild since their removal affects
 	// registries (siblings can reference gone pages via $pages/$section/$tags).
-	await fs.watch([flags.content], async function (file) {
+	await fs.watch([flags.content], file => serial(async () => {
 		let done = log.spin(rebuildLabel(flags.cwd, file));
 		let rel = relative(flags.content, file);
 		if (!fs.exists(file)) {
 			templates.Partials.clear();
 			templates.Layouts.clear();
-			await rebuild(argv);
+			await rebuild(argv, { inputs });
 			done();
 			return;
 		}
-		await rebuild(argv, { only: rel });
+		await rebuild(argv, { inputs, only: rel });
 		done();
-	});
+	}));
+
+	// Config and data changes: load both again, then rebuild everything.
+	// Every file they ever read stays watched, so a fix to a broken one is seen.
+	let tracked = new Set([flags.data, ...inputs.files]);
+	let queued = false;
+	let stop: fs.WatchDisposer = () => {};
+
+	async function follow(): Promise<fs.WatchDisposer> {
+		let dirs = [...new Set([...tracked].map(file => dirname(file)))];
+		let stops = await Promise.all([
+			fs.watch(dirs, changed, { recursive: false }),
+			fs.watch([flags.data], changed),
+		]);
+		return () => stops.forEach(stop => stop());
+	}
+
+	// a folder can be watched twice (as `data/` and as a module's folder), so let one save settle into one reload
+	function changed(file: string): void {
+		if (queued || !(tracked.has(file) || file.startsWith(flags.data + sep))) return;
+		queued = true;
+		setTimeout(() => serial(async () => {
+			queued = false;
+			await reload(file);
+		}), 50);
+	}
+
+	async function reload(file: string): Promise<void> {
+		let done = log.spin(rebuildLabel(flags.cwd, file));
+		try {
+			var next = await prepare(argv);
+		} catch (err) {
+			let failed = loadError(err);
+			let message = err instanceof Error ? err.message : String(err);
+			failed?.files.forEach(file => tracked.add(file));
+			stop();
+			stop = await follow();
+			log.error(message);
+			http.send({ type: 'error', errors: [failed ? failed.error : { message }] });
+			return done();
+		}
+
+		inputs = next;
+		next.files.forEach(file => tracked.add(file));
+		stop();
+		stop = await follow();
+		templates.Partials.clear();
+		templates.Layouts.clear();
+		await rebuild(argv, { inputs });
+		done();
+	}
+
+	stop = await follow();
 }

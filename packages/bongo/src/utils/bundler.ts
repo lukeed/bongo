@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import * as path from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 
@@ -340,7 +341,7 @@ async function flushCssGroup(
 // error itself (which may carry `loc`/`frame` directly). Falls back to
 // message-only for unknown shapes.
 // Rolldown packs a colored code frame into `message`: keep its first line as the message, the rest as the frame.
-function toBuildError(err: unknown, fallbackFile?: string): BuildError {
+export function toBuildError(err: unknown, fallbackFile?: string): BuildError {
 	let error = err instanceof Error ? ((err as BundleError).errors?.[0] || err) as RolldownError : undefined;
 	let [message, ...frame] = stripVTControlCharacters(error ? error.message : String(err)).trim().split('\n');
 
@@ -358,6 +359,18 @@ function toBuildError(err: unknown, fallbackFile?: string): BuildError {
 		}
 	}
 	return base;
+}
+
+/**
+ * One line for an error: its message, then where it happened, relative to `root` when inside it.
+ * @example summary({ message: 'Unexpected token', file: '/site/a.ts', line: 1, column: 4 }, '/site') //=> 'Unexpected token (a.ts:1:5)'
+ */
+export function summary(error: BuildError, root: string): string {
+	if (!error.file) return error.message;
+	let file = error.file;
+	let dir = [root, realpathSync(root)].find(dir => file.startsWith(dir + path.sep));
+	if (dir) file = path.relative(dir, file);
+	return `${error.message} (${file}${error.line ? `:${error.line}:${(error.column ?? 0) + 1}` : ''})`;
 }
 
 export async function flush(opts: {
