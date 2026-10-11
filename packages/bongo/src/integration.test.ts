@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach, spyOn } from 'bun:test';
-import { mkdir, mkdtemp, cp, rm, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, cp, rm, readFile, readdir, symlink, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -1015,6 +1015,33 @@ describe('integration: site-client', () => {
 			expect(head).toMatch(/<script type="module">[\s\S]*<link rel="stylesheet" href="\/app\.[\w-]+\.css"\/>/);
 			expect(head).toContain('<meta name="description" content="after the client tag"/>');
 			expect(head).toContain('<link rel="icon" href="/favicon.ico"/>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('output folder', () => {
+	test('a build empties public/ before it loads the config, so a failed build leaves no stale files', async () => {
+		let root = await copyFixture('site-basic');
+		try {
+			await mkdir(join(root, 'public/old'), { recursive: true });
+			await writeFile(join(root, 'public/old/stale.html'), 'old');
+			await writeFile(join(root, 'bongo.config.ts'), 'export default {');
+			await expect(build({ cwd: root })).rejects.toThrow();
+			expect(await readdir(join(root, 'public'))).toEqual([]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a build refuses a public/ that resolves to a source folder, and keeps the source', async () => {
+		let root = await copyFixture('site-basic');
+		try {
+			let before = await readdir(join(root, 'content'));
+			await symlink(join(root, 'content'), join(root, 'public'));
+			await expect(build({ cwd: root })).rejects.toThrow(`Refusing to empty the output folder "${join(root, 'public')}": it is content/`);
+			expect(await readdir(join(root, 'content'))).toEqual(before);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

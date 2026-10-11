@@ -6,7 +6,7 @@ import * as templates from './utils/templates';
 import * as http from './utils/http';
 import * as log from './utils/log';
 import * as fs from './utils/fs';
-import { build, prepare } from './build';
+import { build, prepare, wipe } from './build';
 import { LoadError } from './utils/config';
 import { normalize } from './utils/argv';
 
@@ -106,6 +106,9 @@ export async function dev(argv: Argv) {
 	normalize(argv);
 
 	const flags = argv as Required<Argv>;
+
+	// Nothing from an earlier run is served, even before the first build ends.
+	await wipe(flags);
 
 	// Start server before build so the banner + URL appear instantly.
 	// sirv reads files per-request in dev mode, so it only needs the

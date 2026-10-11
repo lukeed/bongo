@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -185,4 +185,25 @@ describe('dev', () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	}, 30_000);
+});
+
+describe('output folder', () => {
+	test('dev empties public/ before it serves', async () => {
+		let root = await site({
+			'bongo.config.ts': `await new Promise(r => setTimeout(r, 1500));\nexport default { $site: { url: 'https://example.com/', title: 'x', lang: 'en' } };`,
+			'layouts/html.hbs': '{{{ $page.content }}}',
+			'content/index.html': '<p>home</p>',
+			'public/old/stale.html': 'old',
+		});
+		let server = await serve(root);
+		try {
+			expect((await fetch(server.url + '/old/stale.html')).status).toBe(404);
+			expect(await readdir(join(root, 'public'))).not.toContain('old');
+			expect(await readdir(join(root, 'public'))).not.toContain('index.html');
+			await until(async () => (await server.page()).includes('<p>home</p>'), 'the first build', server);
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });

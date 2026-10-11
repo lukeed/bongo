@@ -139,20 +139,28 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	}
 }
 
+/**
+ * Empty the output folder. It refuses a folder that resolves to the project root, a source folder, or outside the project.
+ * @example await wipe(argv);
+ */
+export async function wipe(argv: Required<Argv>): Promise<void> {
+	await fs.empty(argv.dest, argv.cwd, [argv.assets, argv.content, argv.data, argv.layouts, argv.partials]);
+}
+
 async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog): Promise<void> {
 	let t0 = Date.now();
+
+	// A dev rebuild writes over its last good build, so a failed one leaves that build serving.
+	if (!opts.only && !(argv.dev && OUTPUT.get(argv.dest)?.dev)) {
+		await wipe(argv);
+		OUTPUT.delete(argv.dest);
+	}
 
 	const { config, $data } = opts.inputs ?? await prepare(argv);
 	const { $site, $assets: ASSETS } = config;
 	const debug = argv.debug ? log.debug : () => {};
 
 	debug('[build.argv]', argv);
-
-	// A dev rebuild writes over its last good build, so a failed one leaves that build serving.
-	if (!opts.only && !(argv.dev && OUTPUT.get(argv.dest)?.dev)) {
-		await fs.rmdir(argv.dest);
-		OUTPUT.delete(argv.dest);
-	}
 
 	const context: templates.Context = {
 		...config,

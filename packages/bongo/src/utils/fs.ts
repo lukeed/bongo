@@ -1,7 +1,8 @@
-import { createReadStream, createWriteStream, watch as fsw } from 'node:fs';
+import { createReadStream, createWriteStream, realpathSync, watch as fsw } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { existsSync as exists } from 'node:fs';
-import { dirname, join, sep } from 'node:path';
+import { homedir } from 'node:os';
+import { basename, dirname, join, parse, relative, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 
 import type { FSWatcher } from 'node:fs';
@@ -15,9 +16,74 @@ export function rm(file: string): Promise<void> {
 	return fs.rm(file, { force: true });
 }
 
-// force: another process, like a second bongo in the same folder, may remove it first
-export async function rmdir(path: string): Promise<void> {
-	await fs.rm(path, { recursive: true, force: true, maxRetries: 3 });
+// The path with every symlink resolved; a part that does not exist yet is kept as written.
+function real(path: string): string {
+	let rest: string[] = [];
+	for (let at = resolve(path); ; at = dirname(at)) {
+		try {
+			return join(realpathSync(at), ...rest);
+		} catch {
+			if (at === dirname(at)) return resolve(path);
+			rest.unshift(basename(at));
+		}
+	}
+}
+
+function within(child: string, parent: string): boolean {
+	return child.startsWith(parent.endsWith(sep) ? parent : parent + sep);
+}
+
+/**
+ * Why `dir` may not be emptied as the output folder of the project at `root`, or undefined when it may.
+ * After symlinks resolve, it must be inside `root`, apart from each folder in `keep`, and away from the home folder.
+ * @example unsafe('/site', '/site', ['/site/content']) //=> 'it is the project root'
+ */
+export function unsafe(dir: string, root: string, keep: string[]): string | undefined {
+	let out = real(dir), top = real(root), home = real(homedir());
+	if (out === parse(out).root) return 'it is the file system root';
+	if (out === home) return 'it is the home folder';
+	if (within(home, out)) return 'it holds the home folder';
+	if (out === top) return 'it is the project root';
+	if (within(top, out)) return 'it holds the project root';
+	if (!within(out, top)) return 'it is outside the project';
+	for (let path of keep) {
+		let source = real(path);
+		let name = relative(top, source).split(sep).join('/') + '/';
+		if (out === source) return `it is ${name}`;
+		if (within(source, out)) return `it holds ${name}`;
+		if (within(out, source)) return `it is inside ${name}`;
+	}
+}
+
+/**
+ * Delete everything inside `dir`, the output folder, after `unsafe()` allows it. A symlink is deleted, never followed.
+ * Another bongo may empty the same folder at the same time.
+ * @example await empty('/site/public', '/site', ['/site/content', '/site/assets'])
+ */
+export async function empty(dir: string, root: string, keep: string[]): Promise<void> {
+	let reason = unsafe(dir, root, keep);
+	if (reason) throw new Error(`Refusing to empty the output folder "${dir}": ${reason}`);
+	try {
+		var names = await fs.readdir(dir);
+	} catch (err) {
+		if (err instanceof Error && 'code' in err && err.code === 'ENOENT') return;
+		throw err;
+	}
+	await Promise.all(names.map(name => remove(join(dir, name))));
+}
+
+// Another remover working on the same tree can make rm fail (EPERM in Bun); retry until the entry is gone.
+async function remove(path: string): Promise<void> {
+	for (let attempt = 1; ; attempt++) {
+		try {
+			return await fs.rm(path, { recursive: true, force: true });
+		} catch (err) {
+			let gone = await fs.lstat(path).then(() => false, () => true);
+			if (gone) return;
+			if (attempt === 10) throw err;
+			await new Promise(r => setTimeout(r, 10 * attempt));
+		}
+	}
 }
 
 /**
