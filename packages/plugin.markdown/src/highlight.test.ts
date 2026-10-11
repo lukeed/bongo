@@ -1,10 +1,37 @@
 import { describe, expect, test } from 'bun:test';
 
 import * as attrs from '../../bongo/src/utils/attrs';
-import { sugarhigh } from './highlight';
+import { shiki, sugarhigh } from './highlight';
 import { markdown } from './index';
 
 import type { Loader } from 'bongo';
+
+describe('shiki', () => {
+	test('highlights a loaded language', async () => {
+		let hl = await shiki({ theme: 'github-dark', langs: ['ts'] });
+		let html = hl('let a: number = 1;\n', { lang: 'ts' });
+		expect(html).toStartWith('<pre class="shiki github-dark"');
+		expect(html).toContain('<span style="color:#F97583">let</span>');
+	});
+
+	test('renders an unknown language as escaped plain text in the same theme', async () => {
+		let hl = await shiki({ theme: 'github-dark', langs: ['ts'] });
+		let html = hl('<b>x</b>\n', { lang: 'brainfuck' });
+		expect(html).toStartWith('<pre class="shiki github-dark"');
+		expect(html).toContain('&#x3C;b>x&#x3C;/b>');
+		expect(html).not.toContain('<b>');
+	});
+
+	test('throws on an unknown language when asked to', async () => {
+		let hl = await shiki({ theme: 'github-dark', langs: ['ts'], unknown: 'throw' });
+		expect(() => hl('x', { lang: 'brainfuck' })).toThrow('brainfuck');
+	});
+
+	test('leaves blocks without a language to md4x', async () => {
+		let hl = await shiki({ theme: 'github-dark' });
+		expect(hl('x', { lang: '' })).toBeUndefined();
+	});
+});
 
 describe('sugarhigh', () => {
 	test('wraps highlighted lines in pre and code', async () => {
