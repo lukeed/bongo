@@ -2,12 +2,13 @@
 
 > A static site generator built on Rolldown and LightningCSS.
 
-This repository contains the bongo static site generator, its Markdown plugin, the project scaffolder, and the example site used for development.
+This repository contains the bongo static site generator, its Markdown and feed plugins, the project scaffolder, and the example site used for development.
 
 ## Packages
 
 - [`bongo`](./packages/bongo/readme.md) — core SSG and optional browser runtime.
 - [`@bongo/markdown`](./packages/plugin.markdown/readme.md) — Markdown loader plugin.
+- [`@bongo/feed`](./packages/plugin.feed/readme.md) — RSS and Atom feed plugin.
 - [`create-bongo`](./packages/create-bongo/readme.md) — project scaffolding CLI.
 
 ## Development

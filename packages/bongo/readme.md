@@ -401,6 +401,20 @@ Allow: /
 Sitemap: {{ $site.url }}sitemap.xml
 ```
 
+A feed is an output file whose frontmatter has `format: rss` or `format: atom`. The [`@bongo/feed`](../plugin.feed/readme.md) plugin turns its `<feed:*>` elements into RSS or Atom, and each `<feed:link>` in your layouts into a link to it. In `content/blog/index.xml.hbs`:
+
+```hbs
+---
+format: rss
+title: My blog
+---
+<feed:channel>
+{{#each $section.filter(post => post.params.date) as post}}
+<feed:item href="{{ post.path }}" title="{{ post.title }}" date="{{ post.params.date }}" summary="{{ post.summary }}" />
+{{/each}}
+</feed:channel>
+```
+
 `content/feed.json.hbs` also works, but it is not recommended: `{{ }}` escapes text for HTML, not for JSON, so the output is easily invalid. If you must, print each value with `{{{ JSON.stringify(value) }}}`. Data modules for JSON output are planned in [#52](https://github.com/lukeed/bongo/issues/52).
 
 ## Images

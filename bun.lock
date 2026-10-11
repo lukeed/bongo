@@ -49,6 +49,10 @@
         "mri": "^1.1.0",
       },
     },
+    "packages/plugin.feed": {
+      "name": "@bongo/feed",
+      "version": "0.0.0",
+    },
     "packages/plugin.markdown": {
       "name": "@bongo/markdown",
       "version": "0.0.12",
@@ -73,6 +77,8 @@
     "md4x@0.0.25": "patches/md4x@0.0.25.patch",
   },
   "packages": {
+    "@bongo/feed": ["@bongo/feed@workspace:packages/plugin.feed"],
+
     "@bongo/markdown": ["@bongo/markdown@workspace:packages/plugin.markdown"],
 
     "@emnapi/core": ["@emnapi/core@1.10.0", "", { "dependencies": { "@emnapi/wasi-threads": "1.2.1", "tslib": "^2.4.0" } }, "sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw=="],
