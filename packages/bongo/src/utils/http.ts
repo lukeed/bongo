@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { createServer as createNetServer } from 'node:net';
 import { join } from 'node:path';
 
 import * as mime from 'mrmime';
@@ -24,7 +25,37 @@ export function send(msg: HmrMessage): void {
 	}
 }
 
-export function start(argv: Required<Argv>): Promise<Server> {
+// localhost and wildcard hosts are reachable on both loopbacks, so a server on either one holds the port.
+function addresses(host: string): string[] {
+	if (host === 'localhost') return ['127.0.0.1', '::1'];
+	return ['0.0.0.0', '::', ''].includes(host) ? [host, '127.0.0.1', '::1'] : [host];
+}
+
+// Whether nothing listens on `port` at `address`; an address the machine lacks, like ::1 without IPv6, is free.
+function free(port: number, address: string): Promise<boolean> {
+	return new Promise(resolve => {
+		let probe = createNetServer();
+		probe.once('error', (err: NodeJS.ErrnoException) => resolve(err.code === 'EADDRNOTAVAIL' || err.code === 'EAFNOSUPPORT'));
+		probe.listen(port, address, () => probe.close(() => resolve(true)));
+	});
+}
+
+function listen(server: Server, port: number, host: string): Promise<void> {
+	return new Promise((resolve, reject) => {
+		server.once('error', reject);
+		server.listen(port, host, () => {
+			server.off('error', reject);
+			resolve();
+		});
+	});
+}
+
+/**
+ * Serve `argv.dest` with live reload on the first port from `argv.port` that is free on every address `argv.host` can mean.
+ * Sets `argv.port` to the port it took.
+ * @example let server = await http.start(argv);
+ */
+export async function start(argv: Required<Argv>): Promise<Server> {
 	clients.clear();
 
 	const handler = sirv(argv.dest, {
@@ -42,7 +73,7 @@ export function start(argv: Required<Argv>): Promise<Server> {
 		},
 	});
 
-	const server = createServer((req, res) => {
+	const respond = (req: IncomingMessage, res: ServerResponse) => {
 		if (req.url !== RELOAD) {
 			let pathname = (req.url || '/').replace(/[?#].*/, '');
 			let name = pathname.slice(pathname.lastIndexOf('/') + 1);
@@ -82,23 +113,24 @@ export function start(argv: Required<Argv>): Promise<Server> {
 
 		res.write('event: status\ndata: open\n\n');
 
-		return clients.add(res);
-	});
+		clients.add(res);
+	};
 
-	return new Promise((resolve, reject) => {
-		function tryListen(port: number, remaining: number): void {
-			server.once('error', (err: NodeJS.ErrnoException) => {
-				if (err.code === 'EADDRINUSE' && remaining > 0) {
-					tryListen(port + 1, remaining - 1);
-				} else {
-					reject(err);
-				}
-			});
-			server.listen(port, argv.host, () => {
-				argv.port = port;
-				resolve(server);
-			});
+	let last = argv.port + 10;
+	for (let port = argv.port; port <= last; port++) {
+		let checks = await Promise.all(addresses(argv.host).map(address => free(port, address)));
+		if (checks.includes(false)) continue;
+
+		// a fresh server for each try, since a server that failed to listen may not listen again
+		let server = createServer(respond);
+		try {
+			await listen(server, port, argv.host);
+		} catch (err) {
+			if (err instanceof Error && 'code' in err && err.code === 'EADDRINUSE') continue;
+			throw err;
 		}
-		tryListen(argv.port, 10);
-	});
+		argv.port = port;
+		return server;
+	}
+	throw new Error(`Ports ${argv.port} to ${last} are all in use`);
 }

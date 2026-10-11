@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -88,6 +89,25 @@ describe('404', () => {
 });
 
 describe('start', () => {
+	for (let held of ['::1', '127.0.0.1']) {
+		test(`skips a port that another server holds on ${held}, which localhost can reach`, async () => {
+			let port = 6100 + Math.floor(Math.random() * 1500);
+			let old = createServer((_, res) => res.end('old'));
+			await new Promise<void>(resolve => old.listen(port, held, resolve));
+			let opts = { ...argv(), host: 'localhost', port };
+			let server = await http.start(opts);
+			try {
+				expect(opts.port).toBe(port + 1);
+				expect(server.listenerCount('listening')).toBe(createServer().listenerCount('listening'));
+				let res = await fetch(`http://localhost:${opts.port}/`);
+				expect(await res.text()).toBe('<h1>ok</h1>');
+			} finally {
+				server.close();
+				old.close();
+			}
+		});
+	}
+
 	test('survives a reload stream queued behind another response', async () => {
 		let opts = argv();
 		let server = await http.start(opts);
