@@ -275,6 +275,8 @@ If a relative `url()` points at a file that does not exist, the build fails with
 
 `bongo dev` starts the HTTP server and runs the initial build behind it. File changes in `assets/`, `layouts/`, `partials/`, or `content/` trigger a rebuild.
 
+A path with no matching file gets a `404` status, the same as on a static host, so broken links show up during development. The response body is your own 404 page when the build has one: `404.html`, or `404/index.html` (which `content/404.md` produces).
+
 Rebuilds push one of these SSE messages to the browser:
 
 | Message | Meaning |

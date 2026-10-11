@@ -1,6 +1,10 @@
-import sirv from 'sirv';
+import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import type { Server, ServerResponse } from 'node:http';
+import { join } from 'node:path';
+
+import sirv from 'sirv';
+
+import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { Argv } from 'bongo';
 import type { HmrMessage } from './bundler';
 
@@ -20,9 +24,18 @@ export function start(argv: Required<Argv>): Promise<Server> {
 	clients.clear();
 
 	const handler = sirv(argv.dest, {
-		single: true,
 		etag: true,
 		dev: true,
+		async onNoMatch(_req: IncomingMessage, res: ServerResponse) {
+			let page = await readFile(join(argv.dest, '404.html'))
+				.catch(() => readFile(join(argv.dest, '404/index.html')))
+				.catch(() => undefined);
+			res.writeHead(404, {
+				'content-type': `text/${page ? 'html' : 'plain'}; charset=utf-8`,
+				'cache-control': 'no-store',
+			});
+			res.end(page ?? 'Not Found');
+		},
 	});
 
 	const server = createServer((req, res) => {
