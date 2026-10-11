@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { existsSync } from 'node:fs';
 import { copyFile, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -187,6 +188,41 @@ describe('prepare', () => {
 			let file = join(root, 'broken.jpg');
 			await writeFile(file, 'not a jpeg');
 			await expect(images.prepare(file, images.settings({}, {}), ctx)).rejects.toThrow(`Cannot read image "${file}"`);
+		} finally {
+			await done();
+		}
+	});
+});
+
+describe('serve', () => {
+	test('in dev, nothing is encoded until a file is requested', async () => {
+		let { outDir, cache, ctx, done } = await setup(true);
+		try {
+			let info = await images.prepare(PHOTO, images.settings({ formats: 'webp' }, {}), ctx);
+			expect(existsSync(outDir)).toBe(false);
+			expect(existsSync(cache)).toBe(false);
+
+			images.publish(ctx);
+			let body = await images.serve(info.filename)!;
+			expect((await sharp(body).metadata()).width).toBe(800);
+			expect(await readdir(cache)).toHaveLength(1);
+			expect(existsSync(outDir)).toBe(false);
+			expect(images.serve('photo-1.00000000.webp')).toBeUndefined();
+		} finally {
+			await done();
+		}
+	});
+
+	test('does not serve a source that changed since the build under its old name', async () => {
+		let { root, ctx, done } = await setup(true);
+		try {
+			let copy = join(root, 'photo.png');
+			await copyFile(PHOTO, copy);
+			let info = await images.prepare(copy, images.settings({ formats: 'webp' }, {}), ctx);
+			images.publish(ctx);
+			await sharp(PHOTO).negate().toFile(join(root, 'flipped.png'));
+			await copyFile(join(root, 'flipped.png'), copy);
+			await expect(images.serve(info.filename)!).rejects.toThrow(`"${copy}" changed after the build read it`);
 		} finally {
 			await done();
 		}

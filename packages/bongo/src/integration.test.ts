@@ -5,8 +5,11 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 
+import sharp from 'sharp';
+
 import { build } from './build';
 import * as bundler from './utils/bundler';
+import * as images from './utils/images';
 import * as templates from './utils/templates';
 
 const FIXTURES = join(import.meta.dirname, '../test/fixtures');
@@ -694,6 +697,32 @@ describe('integration: site-image', () => {
 		try {
 			await rm(join(root, 'content/blog/post/portrait.jpg'));
 			await expect(build({ cwd: root })).rejects.toThrow('Missing "content/blog/post/portrait.jpg" for <img src="portrait.jpg" alt="Portrait">, rendering content/blog/post.html');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('dev builds emit the same markup, and encode only what the server is asked for', async () => {
+		let root = await copyFixture('site-image');
+		try {
+			let tags = /<picture>[\s\S]*?<\/picture>|<img [^>]*>/g;
+			await build({ cwd: root });
+			let prod = [(await read(root)).html.match(tags), (await read(root, 'blog/post/index.html')).html.match(tags)];
+
+			bundler.reset();
+			await rm(join(root, 'node_modules'), { recursive: true });
+			await build({ cwd: root, dev: true });
+			let { files, html } = await read(root);
+			let post = await read(root, 'blog/post/index.html');
+			expect([html.match(tags), post.html.match(tags)]).toEqual(prod);
+
+			expect(files.filter(f => /\.(avif|webp)$/.test(f))).toEqual([]);
+			expect(files.filter(f => /\.(svg|gif)$/.test(f))).toHaveLength(3);
+
+			let name = html.match(/\/docs\/(hero-640\.[a-f0-9]{8}\.avif) 640w/)![1];
+			let body = await images.serve(name)!;
+			expect((await sharp(body).metadata()).width).toBe(640);
+			expect(await readdir(join(root, 'node_modules/.cache/bongo/images'))).toHaveLength(1);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

@@ -1,5 +1,10 @@
-import sirv from 'sirv';
 import { createServer } from 'node:http';
+import { basename } from 'node:path';
+import * as mime from 'mrmime';
+import sirv from 'sirv';
+import * as images from './images';
+import * as log from './log';
+
 import type { Server, ServerResponse } from 'node:http';
 import type { Argv } from 'bongo';
 import type { HmrMessage } from './bundler';
@@ -27,7 +32,25 @@ export function start(argv: Required<Argv>): Promise<Server> {
 
 	const server = createServer((req, res) => {
 		if (req.url !== RELOAD) {
-			return handler(req, res);
+			let { pathname } = new URL(req.url || '/', 'http://bongo');
+			let name = basename(pathname);
+			try { name = decodeURIComponent(name); } catch { /* keep as written */ }
+
+			// resized images are encoded on their first request, then read from the cache
+			let image = images.serve(name);
+			if (!image) return handler(req, res);
+			return void image.then(body => {
+				res.writeHead(200, {
+					'content-type': mime.lookup(name) || 'application/octet-stream',
+					'cache-control': 'public, max-age=31536000, immutable',
+				});
+				res.end(body);
+			}, err => {
+				let message = err instanceof Error ? err.message : String(err);
+				log.error(message);
+				res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+				res.end(message);
+			});
 		}
 
 		res.writeHead(200, {

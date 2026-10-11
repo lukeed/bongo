@@ -123,7 +123,7 @@ export async function dev(argv: Argv) {
 		let done = log.spin(rebuildLabel(flags.cwd, diff.file));
 		await rebuild(argv);
 		done();
-	});
+	}, flags.content);
 
 	// Layout/partial changes: blow away the compiled-template caches and run
 	// a full rebuild. A layout or partial edit can affect every page, so
