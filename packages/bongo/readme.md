@@ -123,6 +123,7 @@ Older versions of bongo read every value as a string and split each line on its 
 
 - `hidden: true` is now the boolean `true`, not `'true'`. Compare with `=== true`.
 - `stars: 120` is now the number `120`. In templates, `+` now adds instead of joins.
+- `forks: 0` is now the number `0`, which `{{#if $page.params.forks}}` treats as false. To show zeros, test `{{#if $page.params.forks != null}}`.
 - `version: 1.0` is now the number `1`. Quote values that must stay text: `version: "1.0"`.
 - `title: Issue #42` is now `Issue`, because ` #` starts a comment. Quote it: `title: "Issue #42"`.
 - `note:` with no value is now `null`, not `''`.
