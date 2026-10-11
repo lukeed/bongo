@@ -49,6 +49,19 @@ describe('start', () => {
 		}
 	});
 
+	test('survives request targets that are not valid urls', async () => {
+		let opts = argv();
+		let server = await http.start(opts);
+		try {
+			await raw(opts.port, 'GET // HTTP/1.1\r\nHost: x\r\n\r\n');
+			await raw(opts.port, 'GET //x:99999999/a HTTP/1.1\r\nHost: x\r\n\r\n');
+			let res = await fetch(`http://127.0.0.1:${opts.port}/`);
+			expect(res.status).toBe(200);
+		} finally {
+			server.close();
+		}
+	});
+
 	test('keeps sending after clients disconnect', async () => {
 		let opts = argv();
 		let server = await http.start(opts);

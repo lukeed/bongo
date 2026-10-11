@@ -1,5 +1,4 @@
 import { createServer } from 'node:http';
-import { basename } from 'node:path';
 import * as mime from 'mrmime';
 import sirv from 'sirv';
 import * as images from './images';
@@ -32,8 +31,8 @@ export function start(argv: Required<Argv>): Promise<Server> {
 
 	const server = createServer((req, res) => {
 		if (req.url !== RELOAD) {
-			let { pathname } = new URL(req.url || '/', 'http://bongo');
-			let name = basename(pathname);
+			let pathname = (req.url || '/').replace(/[?#].*/, '');
+			let name = pathname.slice(pathname.lastIndexOf('/') + 1);
 			try { name = decodeURIComponent(name); } catch { /* keep as written */ }
 
 			// resized images are encoded on their first request, then read from the cache
