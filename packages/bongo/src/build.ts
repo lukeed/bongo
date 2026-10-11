@@ -323,6 +323,7 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 				{ $page, $pages: Pages, $section, $tags, params: item.params, ...config }
 			)
 			: item.body;
+		rendered_content = tags.scanImages(rendered_content, argv as Required<Argv>, config, `content/${item.rel}`, item.path);
 		$page.content = rendered_content;
 
 		// lookup priority –> need "" for `/layouts/*` root

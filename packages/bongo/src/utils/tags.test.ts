@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 
-import { parseAttrs, scanBongoTags, rewriteTransitionAttrs } from './tags';
+import { parseAttrs, scanBongoTags, scanImages, rewriteTransitionAttrs } from './tags';
 import * as bundler from './bundler';
 
 import type { Argv, Config, Images } from 'bongo';
@@ -424,6 +424,82 @@ describe('scanBongoTags — <bongo:image>', () => {
 
 	test('missing src throws', async () => {
 		await expect(scan('<bongo:image alt="" />')).rejects.toThrow(/<bongo:image> missing required "src"/);
+	});
+});
+
+describe('scanImages', () => {
+	const TOKEN = /__BONGO_BUNDLE:[a-f0-9]{16}__/g;
+	const FROM = 'content/blog/post.md';
+
+	async function scan(html: string, files: string[] = [], images: Images.Options = {}): Promise<string> {
+		let dir = join(tmpdir(), `bongo-tags-content-${randomBytes(6).toString('hex')}`);
+		await Promise.all(files.map(async rel => {
+			await mkdir(dirname(join(dir, rel)), { recursive: true });
+			await writeFile(join(dir, rel), 'x');
+		}));
+		try {
+			let config = { ...makeConfig(), $images: images };
+			return scanImages(html, makeArgv(dir), config, FROM, '/blog/post/').replace(TOKEN, 'TOKEN');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	}
+
+	test('turns an <img> with a relative src into a stand-in, in place', async () => {
+		let files = ['content/blog/post/a.png', 'content/blog/b.jpg', 'content/blog/post/c d.svg'];
+		let out = await scan('<p><img src="a.png" alt="A &amp; B"></p>\n<img src="../b.jpg" class=x loading="eager"/>\n<img alt="" src=\'./c%20d.svg\' width="10" />', files);
+		expect(out.split('\n')).toEqual([
+			'<p><img data-bongo-image="TOKEN" sizes="auto, 100vw" alt="A &amp; B" loading="lazy" decoding="async"/></p>',
+			'<img data-bongo-image="TOKEN" sizes="100vw" class="x" loading="eager" decoding="async"/>',
+			'<img data-bongo-image="TOKEN" sizes="auto, 100vw" alt="" width="10" loading="lazy" decoding="async"/>',
+		]);
+	});
+
+	test('registers the same file and settings as <bongo:image> in the last format', async () => {
+		let dir = await tmpAssets({});
+		try {
+			await mkdir(join(dir, 'content/blog/post'), { recursive: true });
+			await writeFile(join(dir, 'content/blog/post/a.png'), 'x');
+			let config = { ...makeConfig(), $images: { formats: ['avif', 'jpeg'] } } as Required<Config>;
+			let token = (html: string) => html.match(TOKEN)![0];
+			let img = token(scanImages('<img src="a.png">', makeArgv(dir), config, FROM, '/blog/post/'));
+			let element = token(scanBongoTags('<bongo:image src="./a.png" formats="jpeg" />', makeArgv(dir), config, FROM, '/blog/post/'));
+			expect(img).toBe(element);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('leaves other images as written', async () => {
+		let html = [
+			'<img src="https://cdn.example.com/a.png" alt="">',
+			'<img src="//cdn.example.com/a.png">',
+			'<img src="/blog/post/a.png">',
+			'<img src="data:image/png;base64,AAAA">',
+			'<img src="#x">',
+			'<img src="a.png" srcset="a.png 1x">',
+			'<img src="page.html">',
+			'<img alt="no src">',
+			`<img src="<bongo:asset src='a.png' />">`,
+			'<picture><source srcset="a.avif"><img src="a.png"></picture>',
+			'<!-- <img src="a.png"> -->',
+			'<script>let html = \'<img src="a.png">\';</script>',
+			'<image href="a.png"/>',
+		].join('\n');
+		expect(await scan(html)).toBe(html);
+	});
+
+	test('does nothing when $images.content is false', async () => {
+		let html = '<img src="gone.png" alt="">';
+		expect(await scan(html, [], { content: false })).toBe(html);
+	});
+
+	test('a missing file names the resolved path, the tag, and the content file', async () => {
+		await expect(scan('<img src="gone.png" alt="">')).rejects.toThrow(`Missing "content/blog/post/gone.png" for <img src="gone.png" alt="">, rendering ${FROM}`);
+	});
+
+	test('bad $images settings name the tag and the content file', async () => {
+		await expect(scan('<img src="a.png">', ['content/blog/post/a.png'], { widths: [0] })).rejects.toThrow(`Invalid widths "0" for <img src="a.png">, rendering ${FROM}`);
 	});
 });
 

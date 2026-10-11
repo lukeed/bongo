@@ -76,12 +76,19 @@ function destination(type: string | undefined): string {
 	return 'fetch';
 }
 
-// `img/a.jpg` sits in assets/; `./a.jpg`, `../a.jpg`, and `/blog/a.jpg` resolve against the page url, in content/.
-function locate(src: string, argv: Required<Argv>, path: string): string {
-	if (!/^\.{0,2}\//.test(src)) return join(argv.assets, src);
+// Comments and elements whose text is not markup, which are kept as they are, or an `<img>` and its attributes.
+const CONTENT_IMG = /<!--[\s\S]*?-->|<(script|style|template|textarea|picture)\b[\s\S]*?<\/\1\s*>|<img\b((?:"[^"]*"|'[^']*'|[^>"'])*?)\s*\/?>/gi;
+const NOT_RELATIVE = /^([a-z][a-z\d+.-]*:|\/|#|\?)|</i;
+
+// Resolve a url against the page url, as a browser would, to the file in content/ that it points at.
+function inPage(src: string, argv: Required<Argv>, path: string): string {
 	let { pathname } = new URL(src, 'http://bongo' + path);
 	try { pathname = decodeURIComponent(pathname); } catch { /* keep as written */ }
 	return join(argv.content, pathname);
+}
+
+function reason(err: unknown): string {
+	return err instanceof Error ? err.message : String(err);
 }
 
 function preload(href: string, src: string, attrs: Attrs): string {
@@ -140,7 +147,8 @@ export function scanBongoTags(
 		let src = str(attrs.src);
 		if (!src) throw new Error(`<bongo:${kind}> missing required "src" attribute`);
 
-		let entry = kind === 'image' ? locate(src, argv, path) : join(argv.assets, src);
+		// `./a.jpg`, `../a.jpg`, and `/blog/a.jpg` images are in content/; any other path is in assets/
+		let entry = kind === 'image' && /^\.{0,2}\//.test(src) ? inPage(src, argv, path) : join(argv.assets, src);
 		if (!fs.exists(entry)) {
 			throw new Error(`Missing "${relative(argv.src, entry)}" for ${match.trim()}${where}`);
 		}
@@ -149,7 +157,7 @@ export function scanBongoTags(
 			try {
 				var image = images.settings(attrs, config.$images);
 			} catch (err) {
-				throw new Error(`${err instanceof Error ? err.message : err} for ${match.trim()}${where}`);
+				throw new Error(`${reason(err)} for ${match.trim()}${where}`);
 			}
 			let placeholder = bundler.register(entry, { kind: 'image', image });
 			return `<picture>${images.tag(placeholder, attrs, config.$images)}</picture>`;
@@ -193,6 +201,47 @@ export function scanBongoTags(
 		if (format !== 'cjs') extras += ' type="module"';
 		else if (bool(attrs.defer)) extras += ' defer';
 		return `<script${extras} src="${placeholder}"></script>`;
+	});
+}
+
+/**
+ * Replace each `<img>` in a page's content whose `src` is a relative path with the stand-in that
+ * `<bongo:image src="./…">` makes, in its last format only, so the markup keeps its shape.
+ * Images with a `srcset`, inside a `<picture>`, or with an absolute or root-relative url are left as written.
+ * @example scanImages('<img src="hero.jpg" alt="">', argv, config, 'content/blog/post.md', '/blog/post/')
+ */
+export function scanImages(
+	html: string,
+	argv: Required<Argv>,
+	config: Required<Config>,
+	from: string,
+	path: string,
+): string {
+	let options = config.$images;
+	if (options.content === false) return html;
+
+	let settings: images.Settings | undefined;
+	return html.replace(CONTENT_IMG, (match, _skipped, raw: string | undefined) => {
+		if (raw === undefined) return match;
+		let attrs = parseAttrs(raw);
+		let src = str(attrs.src);
+		if (!src || attrs.srcset !== undefined || NOT_RELATIVE.test(src)) return match;
+		if (!mime.lookup(src.replace(/[?#].*/, ''))?.startsWith('image/')) return match;
+
+		let file = inPage(src, argv, path);
+		if (!fs.exists(file)) {
+			throw new Error(`Missing "${relative(argv.src, file)}" for ${match}, rendering ${from}`);
+		}
+
+		try {
+			let formats = images.settings({}, options).formats;
+			settings ||= images.settings({ formats: formats[formats.length - 1] }, options);
+		} catch (err) {
+			throw new Error(`${reason(err)} for ${match}, rendering ${from}`);
+		}
+
+		let placeholder = bundler.register(file, { kind: 'image', image: settings });
+		return images.tag(placeholder, attrs, options);
 	});
 }
 

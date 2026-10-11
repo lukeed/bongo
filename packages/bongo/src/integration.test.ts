@@ -653,6 +653,52 @@ describe('integration: site-image', () => {
 		}
 	});
 
+	test('<img> in content gets a srcset in the fallback format, and its dimensions', async () => {
+		let root = await copyFixture('site-image');
+		try {
+			await build({ cwd: root });
+			let { files, html, find, set } = await read(root, 'blog/post/index.html');
+			let diagram = files.find(f => /^diagram\.[a-f0-9]{8}\.svg$/.test(f));
+			expect(files.filter(f => /^(photo|portrait)-.*\.avif$/.test(f))).toEqual([]);
+
+			expect(html).toContain(`<figure><img src="/docs/${find('photo', 800, 'webp')}" srcset="${set('photo', [640, 800], 'webp')}" sizes="auto, 100vw" alt="A &quot;photo&quot;" class="shot" loading="lazy" decoding="async" width="800" height="600"/></figure>`);
+			expect(html).toContain(`<img src="/docs/${find('portrait', 400, 'webp')}" srcset="${set('portrait', [400], 'webp')}" sizes="auto, 100vw" alt="Portrait" loading="lazy" decoding="async" width="400" height="600"/>`);
+			expect(html).toContain(`<img src="/docs/${diagram}" alt="Diagram" loading="lazy" decoding="async" width="300" height="150"/>`);
+			for (let kept of [
+				'<img src="https://cdn.example.com/x.png" alt="">',
+				'<img src="/blog/post/photo.png" alt="root">',
+				'<img src="photo.png" srcset="photo.png 1x" alt="manual">',
+				'<picture><img src="photo.png" alt="nested"></picture>',
+				'<!-- <img src="gone.png"> -->',
+			]) expect(html).toContain(kept);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('$images.content = false leaves content images as written', async () => {
+		let root = await copyFixture('site-image');
+		try {
+			await writeFile(join(root, 'bongo.config.ts'), `export default { $site: { url: 'https://example.com/docs/' }, $images: { content: false } };`);
+			await build({ cwd: root });
+			let { html } = await read(root, 'blog/post/index.html');
+			expect(html).toContain('<figure><img src="photo.png" alt="A &quot;photo&quot;" class="shot"/></figure>');
+			expect(html).toContain('<img src="portrait.jpg" alt="Portrait">');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a missing content image fails with the tag and the content file', async () => {
+		let root = await copyFixture('site-image');
+		try {
+			await rm(join(root, 'content/blog/post/portrait.jpg'));
+			await expect(build({ cwd: root })).rejects.toThrow('Missing "content/blog/post/portrait.jpg" for <img src="portrait.jpg" alt="Portrait">, rendering content/blog/post.html');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('rebuilds copy unchanged images from the cache', async () => {
 		let root = await copyFixture('site-image');
 		try {
