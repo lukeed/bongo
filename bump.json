@@ -3,7 +3,8 @@
   "packages": [
     "packages/bongo",
     "packages/create-bongo",
-    "packages/plugin.markdown"
+    "packages/plugin.markdown",
+    "packages/plugin.feed"
   ],
   "message": "v{VERSION}"
 }
