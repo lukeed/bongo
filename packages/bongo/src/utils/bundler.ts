@@ -504,6 +504,7 @@ async function follow(state: WatchState, files: Iterable<string>): Promise<void>
 	let fresh = new Set<string>();
 	for (let file of files) {
 		if (state.skip && file.startsWith(state.skip + path.sep)) continue;
+		if (file.split(path.sep).includes('node_modules')) continue;
 		state.files.add(file);
 		let dir = path.dirname(file);
 		let under = (root: string) => dir === root || dir.startsWith(root + path.sep);
