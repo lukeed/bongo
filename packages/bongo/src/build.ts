@@ -158,7 +158,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		...config,
 		$data,
 		$assets: {
-			// @ts-ignore -> switcheroo
+			// switcheroo: templates get a reader for assets/ in place of the loader map
 			load(filename: string, encoding?: BufferEncoding) {
 				let file = join(argv.assets, filename);
 				fs.assert(file, `Missing "${filename}" asset!`);
