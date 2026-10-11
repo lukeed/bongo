@@ -1,7 +1,8 @@
-import { watch as fsw } from 'node:fs';
+import { createReadStream, createWriteStream, watch as fsw } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { existsSync as exists } from 'node:fs';
 import { dirname, join, sep } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 
 import type { FSWatcher } from 'node:fs';
 
@@ -50,9 +51,10 @@ export async function write(file: string, data: string|Buffer|Uint8Array) {
 	await fs.writeFile(file, data);
 }
 
+// Streams the bytes: Bun's copyFile clones on macOS, which reports a change to the source and made dev rebuild itself.
 export async function copy(src: string, dest: string) {
 	await mkdir(dest);
-	await fs.copyFile(src, dest);
+	await pipeline(createReadStream(src), createWriteStream(dest));
 }
 
 // NOTE: prevents Rollup import() -> require() transform

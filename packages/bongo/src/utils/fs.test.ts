@@ -16,6 +16,27 @@ async function until(check: () => boolean, ms = 3000): Promise<void> {
 	}
 }
 
+describe('copy', () => {
+	test('copies without reporting a change to the source, so dev does not rebuild itself', async () => {
+		let dir = sandbox();
+		let out = sandbox();
+		let bytes = Buffer.alloc(200_000, 7);
+		writeFileSync(join(dir, 'photo.jpg'), bytes);
+		let seen: string[] = [];
+		let stop = await fs.watch([dir], file => { seen.push(file); });
+		try {
+			await new Promise(r => setTimeout(r, 500));
+			seen.length = 0;
+			await fs.copy(join(dir, 'photo.jpg'), join(out, 'nested/photo.jpg'));
+			await new Promise(r => setTimeout(r, 300));
+			expect(readFileSync(join(out, 'nested/photo.jpg')).equals(bytes)).toBe(true);
+			expect(seen).toEqual([]);
+		} finally {
+			stop();
+		}
+	});
+});
+
 describe('prune', () => {
 	test('deletes a file and the folders it leaves empty, up to the root', async () => {
 		let root = sandbox();
