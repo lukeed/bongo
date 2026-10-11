@@ -2,6 +2,7 @@
 import * as preset from './preset';
 import * as prefetch from './prefetch';
 import * as internal from './internal';
+import * as styles from './styles';
 
 export { on, off } from './internal';
 
@@ -36,6 +37,8 @@ export function client(opts: ClientOptions = {}): void {
 	prefetch.install(prefetch.resolve(opts.prefetch));
 
 	if (!nav) return; // MPA fallback — no interception
+
+	styles.adopt(document);
 
 	// Take over scroll restoration from the browser so we can do it synchronously.
 	if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
@@ -78,14 +81,22 @@ export function client(opts: ClientOptions = {}): void {
 					let doc = new DOMParser().parseFromString(html, 'text/html');
 					internal.emit('bongo:replace', { to, from, doc });
 
-					await internal.transition(!!name, () => {
+					let staged = styles.stage(document, doc, signal);
+					try {
+						await staged.ready;
 						if (signal.aborted) return;
-						internal.reconcile(document, doc);
-						// alert('before scroll')
-						internal.restoreScroll(event, to);
-						// event.scroll?.();
-						internal.emit('bongo:replaced', { to, from });
-					});
+						await internal.transition(!!name, () => {
+							if (signal.aborted) return;
+							staged.commit();
+							internal.reconcile(document, doc);
+							// alert('before scroll')
+							internal.restoreScroll(event, to);
+							// event.scroll?.();
+							internal.emit('bongo:replaced', { to, from });
+						});
+					} finally {
+						staged.drop();
+					}
 					if (signal.aborted) return;
 
 					if (announcer) announcer.textContent = document.title;

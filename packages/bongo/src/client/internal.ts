@@ -63,25 +63,8 @@ export async function fetchPage(url: URL, signal?: AbortSignal): Promise<string>
 	return res.text();
 }
 
-function stylesheets(doc: Document): HTMLLinkElement[] {
-	return [ ...doc.querySelectorAll('link[rel=stylesheet]') ] as HTMLLinkElement[];
-}
-
 export function reconcile(current: Document, incoming: Document): void {
 	current.title = incoming.title;
-
-	// Diff <link rel="stylesheet"> by href.
-	let currentLinks = stylesheets(current);
-	let incomingLinks = stylesheets(incoming);
-	let curHrefs = new Set(currentLinks.map(l => l.href));
-	let incHrefs = new Set(incomingLinks.map(l => l.href));
-
-	for (let l of incomingLinks) {
-		curHrefs.has(l.href) || current.head.appendChild(l.cloneNode(true));
-	}
-	for (let l of currentLinks) {
-		incHrefs.has(l.href) || l.remove();
-	}
 
 	// Body swap.
 	current.body.replaceWith(incoming.body);
