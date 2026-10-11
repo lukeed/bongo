@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 type Message = { type: string; errors?: { message: string; file?: string }[] };
-type Server = { url: string; messages: Message[]; page(): Promise<string>; stop(): Promise<void> };
+type Server = { url: string; messages: Message[]; output(): string; page(): Promise<string>; stop(): Promise<void> };
 
 const DEV = join(import.meta.dirname, 'dev.ts');
 
@@ -18,10 +18,10 @@ async function site(files: Record<string, string>): Promise<string> {
 	return root;
 }
 
-async function until(check: () => boolean | Promise<boolean>, what: string, ms = 8000): Promise<void> {
+async function until(check: () => boolean | Promise<boolean>, what: string, server?: Server, ms = 8000): Promise<void> {
 	let start = Date.now();
 	while (!await check()) {
-		if (Date.now() - start > ms) throw new Error(`timed out waiting for ${what}`);
+		if (Date.now() - start > ms) throw new Error(`timed out waiting for ${what}\n${server?.output() ?? ''}`);
 		await new Promise(r => setTimeout(r, 50));
 	}
 }
@@ -36,9 +36,12 @@ async function serve(root: string): Promise<Server> {
 	(async () => {
 		for await (let chunk of proc.stdout) output += decoder.decode(chunk);
 	})();
+	(async () => {
+		for await (let chunk of proc.stderr) output += decoder.decode(chunk);
+	})();
 	await until(() => /http:\/\/127\.0\.0\.1:\d+\//.test(output) || proc.exitCode !== null, 'the dev server to start');
 	let url = /http:\/\/127\.0\.0\.1:\d+/.exec(output)?.[0];
-	if (!url) throw new Error(`dev did not start: ${output}${await new Response(proc.stderr).text()}`);
+	if (!url) throw new Error(`dev did not start: ${output}`);
 
 	let messages: Message[] = [];
 	let abort = new AbortController();
@@ -62,6 +65,7 @@ async function serve(root: string): Promise<Server> {
 	return {
 		url,
 		messages,
+		output: () => output,
 		page: () => fetch(url + '/').then(res => res.text()),
 		async stop() {
 			abort.abort();
@@ -86,20 +90,20 @@ describe('dev', () => {
 		});
 		let server = await serve(root);
 		try {
-			await until(async () => (await server.page()).includes('<title>A one</title><p>none</p>'), 'the first build');
+			await until(async () => (await server.page()).includes('<title>A one</title><p>none</p>'), 'the first build', server);
 
 			await writeFile(join(root, 'lib/meta.ts'), `export const tagline = 'two';`);
-			await until(async () => (await server.page()).includes('<title>A two</title>'), 'an imported module edit');
+			await until(async () => (await server.page()).includes('<title>A two</title>'), 'an imported module edit', server);
 
 			await writeFile(join(root, 'bongo.config.ts'), CONFIG('B'));
-			await until(async () => (await server.page()).includes('<title>B two</title>'), 'a config edit');
+			await until(async () => (await server.page()).includes('<title>B two</title>'), 'a config edit', server);
 
 			await mkdir(join(root, 'data'));
 			await writeFile(join(root, 'data/site.json'), '{ "name": "first" }');
-			await until(async () => (await server.page()).includes('<p>first</p>'), 'a new data/ folder');
+			await until(async () => (await server.page()).includes('<p>first</p>'), 'a new data/ folder', server);
 
 			await writeFile(join(root, 'data/site.json'), '{ "name": "second" }');
-			await until(async () => (await server.page()).includes('<p>second</p>'), 'a data edit');
+			await until(async () => (await server.page()).includes('<p>second</p>'), 'a data edit', server);
 			expect(server.messages.filter(m => m.type === 'error')).toEqual([]);
 		} finally {
 			await server.stop();
@@ -118,27 +122,31 @@ describe('dev', () => {
 		let server = await serve(root);
 		let good = '<title>A one</title><b>ok</b><main>home</main>';
 		let errors = () => server.messages.filter(m => m.type === 'error');
+		let seen = 0;
+		let next = async (match: (error: { message: string; file?: string }) => boolean, what: string) => {
+			let from = seen;
+			await until(() => errors().slice(from).some(m => m.errors?.some(match)), what, server);
+			seen = errors().length;
+		};
 		try {
-			await until(async () => (await server.page()).includes(good), 'the first build');
+			await until(async () => (await server.page()).includes(good), 'the first build', server);
 
 			await writeFile(join(root, 'lib/meta.ts'), 'export const tagline = ;');
-			await until(() => errors().length === 1, 'a syntax error in an imported module');
-			expect(errors()[0].errors?.[0].file).toEndWith('lib/meta.ts');
+			await next(error => !!error.file?.endsWith('lib/meta.ts') && error.message.includes('Unexpected token'), 'a syntax error in an imported module');
 			expect(await server.page()).toContain(good);
 
 			await writeFile(join(root, 'lib/meta.ts'), `export const tagline = 'one';\nthrow new Error('meta is broken');`);
-			await until(() => errors().length === 2, 'a config that throws');
-			expect(errors()[1].errors?.[0].message).toContain('meta is broken');
+			await next(error => error.message.includes('meta is broken'), 'a config that throws');
 			expect(await server.page()).toContain(good);
 
 			await writeFile(join(root, 'lib/meta.ts'), `export const tagline = 'one';`);
 			await writeFile(join(root, 'bongo.config.ts'), `export default { $site: { url: 'https://example.com/', title: 'C', lang: 'en' } };`);
-			await until(() => errors().length === 3, 'a config that breaks the build');
+			await next(error => error.message.includes('label'), 'a config that breaks the build');
 			expect(await server.page()).toContain(good);
 			expect(await fetch(server.url + '/about/').then(res => res.text())).toContain('<main>about</main>');
 
 			await writeFile(join(root, 'bongo.config.ts'), CONFIG('D'));
-			await until(async () => (await server.page()).includes('<title>D one</title><b>ok</b>'), 'the fixed config');
+			await until(async () => (await server.page()).includes('<title>D one</title><b>ok</b>'), 'the fixed config', server);
 		} finally {
 			await server.stop();
 			await rm(root, { recursive: true, force: true });
