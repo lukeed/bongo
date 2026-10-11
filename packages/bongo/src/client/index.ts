@@ -48,11 +48,6 @@ export function client(opts: ClientOptions = {}): void {
 	// Inject preset CSS if applicable (requires browser document).
 	if (name) preset.inject(name);
 
-	// Announcer is emitted inline by <bongo:client />. Resolve once; if absent
-	// (user bootstraps client() manually without the element), announcements
-	// are silently skipped.
-	let announcer = internal.announcer();
-
 	// Capture-phase click listener: sets BYPASS_NEXT for browsers that don't
 	// expose NavigateEvent.sourceElement.
 	document.addEventListener('click', (e) => {
@@ -99,6 +94,10 @@ export function client(opts: ClientOptions = {}): void {
 					}
 					if (signal.aborted) return;
 
+					// Announcer is emitted inline by <bongo:client />. The body swap can replace it,
+					// so resolve it per navigation; if absent (user bootstraps client() manually
+					// without the element), announcements are silently skipped.
+					let announcer = internal.announcer();
 					if (announcer) announcer.textContent = document.title;
 					internal.emit('bongo:navigated', { to, from });
 				} catch (err) {

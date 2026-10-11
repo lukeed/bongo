@@ -44,6 +44,7 @@ describe('prefetch.get() / warm()', () => {
 
 	afterEach(async () => {
 		spy.mockReset();
+		prefetch.reset();
 		Reflect.deleteProperty(globalThis, 'document');
 		Reflect.deleteProperty(globalThis, 'DOMParser');
 		await win?.happyDOM.close();

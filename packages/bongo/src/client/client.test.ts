@@ -81,10 +81,11 @@ describe('client() navigation', () => {
 	type Visit = { abort(): void; done: Promise<void> };
 
 	let CORE = '<link rel="stylesheet" href="/core.css">';
+	let LIVE = '<div id="bongo:live"></div>';
 	let PAGES: Record<string, Page> = {
-		'/': { head: CORE, body: 'A' },
-		'/b/': { head: CORE + '<link rel="stylesheet" href="/b.css">', body: 'B' },
-		'/c/': { head: CORE + '<link rel="stylesheet" href="/c.css">', body: 'C' },
+		'/': { head: '<title>A</title>' + CORE, body: '<h1>A</h1>' + LIVE },
+		'/b/': { head: '<title>B</title>' + CORE + '<link rel="stylesheet" href="/b.css">', body: '<h1>B</h1>' + LIVE },
+		'/c/': { head: '<title>C</title>' + CORE + '<link rel="stylesheet" href="/c.css">', body: '<h1>C</h1>' + LIVE },
 	};
 	let GLOBALS = [ 'document', 'DOMParser', 'location', 'history', 'window', 'navigation' ];
 
@@ -117,6 +118,10 @@ describe('client() navigation', () => {
 		});
 	}
 
+	function heading(): string | undefined {
+		return document.querySelector('h1')?.textContent;
+	}
+
 	function go(path: string, type: NavigationType = 'push'): Visit {
 		let ctrl = new AbortController();
 		let url = 'https://example.com' + path;
@@ -137,6 +142,8 @@ describe('client() navigation', () => {
 
 	async function boot(): Promise<void> {
 		let { client } = await import('./index');
+		let { reset } = await import('./prefetch');
+		reset();
 		let w: Window = win = new Window({
 			url: 'https://example.com/',
 			settings: {
@@ -171,8 +178,9 @@ describe('client() navigation', () => {
 	}
 
 	afterEach(async () => {
-		let { reset } = await import('./internal');
-		reset();
+		let [ internal, prefetch ] = await Promise.all([ import('./internal'), import('./prefetch') ]);
+		internal.reset();
+		prefetch.reset();
 		spy.mockReset();
 		for (let [ key, value ] of saved) {
 			if (value === undefined) Reflect.deleteProperty(globalThis, key);
@@ -190,13 +198,13 @@ describe('client() navigation', () => {
 		let b = go('/b/');
 		await Bun.sleep(10);
 		expect(log).toEqual([]);
-		expect(document.body.textContent).toBe('A');
+		expect(heading()).toBe('A');
 		expect(sheets()).toEqual([ '/core.css', '/b.css pending' ]);
 
 		load('/b.css');
 		await b.done;
 		expect(log).toEqual([ '/core.css /b.css off' ]);
-		expect(document.body.textContent).toBe('B');
+		expect(heading()).toBe('B');
 		expect(sheets()).toEqual([ '/core.css', '/b.css' ]);
 		expect(document.head.querySelector('style[data-bongo-preset]')).not.toBeNull();
 	});
@@ -210,7 +218,7 @@ describe('client() navigation', () => {
 		load('/c.css');
 		await Promise.all([ b.done, c.done ]);
 		expect(log).toEqual([ '/core.css /c.css off' ]);
-		expect(document.body.textContent).toBe('C');
+		expect(heading()).toBe('C');
 		expect(sheets()).toEqual([ '/core.css', '/c.css' ]);
 
 		load('/b.css');
@@ -223,16 +231,26 @@ describe('client() navigation', () => {
 		load('/b.css');
 		await go('/b/').done;
 		await go('/', 'traverse').done;
-		expect(document.body.textContent).toBe('A');
+		expect(heading()).toBe('A');
 		expect(sheets()).toEqual([ '/core.css' ]);
 
 		await go('/b/', 'traverse').done;
-		expect(document.body.textContent).toBe('B');
+		expect(heading()).toBe('B');
 		expect(sheets()).toEqual([ '/core.css', '/b.css' ]);
 		expect(log).toEqual([
 			'/core.css /b.css off',
 			'/core.css /b.css',
 			'/core.css /b.css off',
 		]);
+	});
+
+	test('announces the new title in the live region of the new page', async () => {
+		await boot();
+		load('/b.css');
+		await go('/b/').done;
+		expect(document.getElementById('bongo:live')?.textContent).toBe('B');
+
+		await go('/', 'traverse').done;
+		expect(document.getElementById('bongo:live')?.textContent).toBe('A');
 	});
 });
