@@ -93,6 +93,30 @@ describe('flush() — JS', () => {
 		}
 	});
 
+	test('reports modules in shared and dynamic chunks as dependencies', async () => {
+		let { dir, outDir } = await tmp({
+			'a.ts': 'import { s } from "./shared";\nimport("./lazy").then(m => console.log(s, m.l));',
+			'b.ts': 'import { s } from "./shared";\nconsole.log(s);',
+			'shared.ts': 'export const s = 1;',
+			'lazy.ts': 'import { d } from "./deep";\nexport const l = d;',
+			'deep.ts': 'export const d = 2;',
+		});
+		try {
+			let pa = bundler.register(join(dir, 'a.ts'), { kind: 'js', format: 'esm' });
+			let pb = bundler.register(join(dir, 'b.ts'), { kind: 'js', format: 'esm' });
+			let result = await bundler.flush({ outDir });
+			expect(result.errors).toEqual([]);
+			let file = (name: string) => realpathSync(join(dir, name));
+			let a = result.outputs.get(pa)!.dependencies;
+			let b = result.outputs.get(pb)!.dependencies;
+			expect(a).toEqual(expect.arrayContaining([file('a.ts'), file('shared.ts'), file('lazy.ts'), file('deep.ts')]));
+			expect(b).toEqual(expect.arrayContaining([file('b.ts'), file('shared.ts')]));
+			expect(b).not.toContain(file('lazy.ts'));
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	test('reports an error for a non-existent entry (no throw)', async () => {
 		let { outDir } = await tmp({ 'unused.ts': '' });
 		try {
@@ -422,6 +446,32 @@ describe('watch()', () => {
 				await new Promise(r => setTimeout(r, 20));
 			}
 			expect(changed).toContain(part);
+		} finally {
+			unsub();
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('reports changes to a module that is only imported dynamically', async () => {
+		let { dir, outDir } = await tmp({
+			'main.ts': 'import("./lazy").then(m => m.run());',
+			'lazy.ts': 'export function run() { return 1; }',
+		});
+		let changed: string[] = [];
+		let unsub = () => {};
+		try {
+			bundler.register(join(dir, 'main.ts'), { kind: 'js', format: 'esm' });
+			await bundler.flush({ outDir });
+			unsub = await bundler.watch(diff => { changed.push(diff.file); });
+			await new Promise(r => setTimeout(r, 150));
+
+			let lazy = realpathSync(join(dir, 'lazy.ts'));
+			await writeFile(lazy, 'export function run() { return 2; }');
+			let start = Date.now();
+			while (!changed.includes(lazy) && Date.now() - start < 3000) {
+				await new Promise(r => setTimeout(r, 20));
+			}
+			expect(changed).toContain(lazy);
 		} finally {
 			unsub();
 			await rm(dir, { recursive: true, force: true });

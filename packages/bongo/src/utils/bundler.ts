@@ -223,6 +223,33 @@ function loaderPlugin(assets: loaders.LoaderMap, utils: Loader.Utilities): Plugi
 	};
 }
 
+type ModuleGraph = Map<string, string[]>;
+
+// Chunks omit modules that were inlined or split away, so dependencies come from the module graph.
+function graphPlugin(graph: ModuleGraph): Plugin {
+	return {
+		name: 'bongo:graph',
+		buildEnd() {
+			for (let id of this.getModuleIds()) {
+				let info = this.getModuleInfo(id);
+				if (info && path.isAbsolute(id)) {
+					graph.set(id, [...info.importedIds, ...info.dynamicallyImportedIds]);
+				}
+			}
+		},
+	};
+}
+
+function reachable(entry: string, graph: ModuleGraph): string[] {
+	let seen: Set<string> = new Set([entry]);
+	for (let id of seen) {
+		for (let next of graph.get(id) ?? []) {
+			if (graph.has(next)) seen.add(next);
+		}
+	}
+	return [...seen];
+}
+
 async function flushJsGroup(
 	regs: Registration[],
 	outDir: string,
@@ -260,9 +287,10 @@ async function flushJsGroup(
 		let ext = path.extname(r.entry).substring(1);
 		return !NATIVE_JS_EXTS.has(ext) && ctx.assets![ext] != null;
 	});
+	let graph: ModuleGraph = new Map();
 	let plugins = needsLoader
-		? [loaderPlugin(ctx.assets!, ctx.utils!)]
-		: undefined;
+		? [loaderPlugin(ctx.assets!, ctx.utils!), graphPlugin(graph)]
+		: [graphPlugin(graph)];
 
 	let bundle = await rd.rolldown({
 		input,
@@ -293,7 +321,7 @@ async function flushJsGroup(
 			if (!reg) continue;
 			outputs.set(reg.placeholder, {
 				filename: chunk.fileName,
-				dependencies: Object.keys(chunk.modules ?? {}),
+				dependencies: chunk.facadeModuleId ? reachable(chunk.facadeModuleId, graph) : [],
 			});
 		}
 	} finally {
