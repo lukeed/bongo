@@ -59,7 +59,7 @@ Images next to a post need no element: bongo gives `![alt](hero.jpg)` and `<img 
 
 ## Options
 
-`markdown()` accepts md4x HTML options. Syntax highlighting is optional:
+`markdown()` accepts md4x HTML options. For example, `headingIds: true` gives each heading an `id` that links can target. Syntax highlighting is optional:
 
 ```ts
 import { markdown } from '@bongo/markdown';
@@ -95,3 +95,5 @@ import { shiki, sugarhigh } from '@bongo/markdown/highlight';
 `shiki(options)` loads Shiki with the requested theme and languages.
 
 `sugarhigh()` loads Sugar High, version 2 or later. It highlights fenced code in a language that Sugar High knows, such as `ts`, `py`, or `bash`. Other code blocks stay plain. Sugar High colors tokens with `--sh-*` CSS variables, so add a [theme](https://github.com/huozhi/sugar-high#styling) to your styles.
+
+A highlighter can also be your own function. md4x calls it once for each code block, with the code and the block details, such as `lang`. It must return synchronously: either the HTML for the whole block, `<pre>` included, or `undefined` to keep the plain block.
