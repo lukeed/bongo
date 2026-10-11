@@ -33,6 +33,7 @@ type Channel = {
 	language: string;
 	copyright: string;
 	self: string;
+	link: string;
 	site: string;
 };
 
@@ -102,10 +103,12 @@ function rss(meta: Channel, items: Item[]): string {
 	out += '>\n';
 	out += '<channel>\n';
 	out += `<title>${helpers.xml(meta.title)}</title>\n`;
-	if (meta.site) out += `<link>${helpers.xml(meta.site)}</link>\n`;
+	if (meta.link) out += `<link>${helpers.xml(meta.link)}</link>\n`;
 	out += `<description>${helpers.xml(meta.description || meta.subtitle || meta.title)}</description>\n`;
 	if (meta.language) out += `<language>${helpers.xml(meta.language)}</language>\n`;
 	if (meta.copyright) out += `<copyright>${helpers.xml(meta.copyright)}</copyright>\n`;
+	let latest = helpers.latest(items.map(it => it.date));
+	if (latest !== undefined) out += `<lastBuildDate>${new Date(latest).toUTCString()}</lastBuildDate>\n`;
 	out += `<atom:link href="${helpers.xml(meta.self)}" rel="self" type="${helpers.MIME.rss}"/>\n`;
 
 	for (let it of items) {
@@ -133,7 +136,7 @@ function atom(meta: Channel, items: Item[]): string {
 	out += `<title>${helpers.xml(meta.title)}</title>\n`;
 	out += `<id>${helpers.xml(meta.self)}</id>\n`;
 	out += `<link rel="self" href="${helpers.xml(meta.self)}" type="${helpers.MIME.atom}"/>\n`;
-	if (meta.site) out += `<link rel="alternate" href="${helpers.xml(meta.site)}"/>\n`;
+	if (meta.link) out += `<link rel="alternate" href="${helpers.xml(meta.link)}"/>\n`;
 	let subtitle = meta.subtitle || meta.description;
 	if (subtitle) out += `<subtitle>${helpers.xml(subtitle)}</subtitle>\n`;
 	if (meta.copyright) out += `<rights>${helpers.xml(meta.copyright)}</rights>\n`;
@@ -176,6 +179,7 @@ function channel(html: string, ctx: Build.Context, kind: Format): string {
 		language: text(params.language) || config.$site.lang,
 		copyright: text(params.copyright),
 		self: helpers.url(ctx.path, site),
+		link: helpers.url(text(params.link) || '/', site),
 		site,
 	};
 

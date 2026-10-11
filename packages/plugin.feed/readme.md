@@ -82,9 +82,10 @@ It holds the `<feed:item>` elements. The frontmatter of the feed file sets the r
 | `subtitle` | no | Atom `<subtitle>`. |
 | `language` | no | Defaults to `$site.lang`. |
 | `copyright` | no | RSS `<copyright>`, Atom `<rights>`. |
+| `link` | no | The page that the feed is for, such as `/blog/`, as a path or a URL. RSS `<link>`, Atom `<link rel="alternate">`. Defaults to `$site.url`. |
 | `author` | no | Atom `<author>` of the feed, for entries that do not name their own. Defaults to `$site.title`. |
 
-The URL of the feed comes from its path and `$site.url`.
+The URL of the feed comes from its path and `$site.url`. The latest item `date` becomes RSS `<lastBuildDate>` and Atom `<updated>`. An empty Atom feed gets the build time, because Atom requires `<updated>`.
 
 ### `<feed:item … />`
 

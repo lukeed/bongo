@@ -107,6 +107,23 @@ describe('<feed:channel> RSS', () => {
 	});
 });
 
+describe('<feed:channel> link', () => {
+	test('defaults to $site.url, or takes a path or a URL from frontmatter `link`', async () => {
+		expect(await run(BODY, output({ format: 'rss', title: 'T' }))).toContain('<link>https://example.com/</link>');
+		expect(await run(BODY, output({ format: 'rss', title: 'T', link: '/blog/' }))).toContain('<link>https://example.com/blog/</link>');
+		expect(await run(BODY, output({ format: 'atom', title: 'T', link: '/blog/' }))).toContain('<link rel="alternate" href="https://example.com/blog/"/>');
+		expect(await run(BODY, output({ format: 'rss', title: 'T', link: 'https://other.example/' }))).toContain('<link>https://other.example/</link>');
+		expect(await run(BODY, output({ format: 'rss', title: 'T', link: '/blog/' }, '/feed.xml', 'https://my.example/sub/'))).toContain('<link>https://my.example/sub/blog/</link>');
+	});
+});
+
+describe('<feed:channel> RSS lastBuildDate', () => {
+	test('is the latest item date, as Atom <updated> is, and is left out of an empty feed', async () => {
+		expect(await run(BODY, output({ format: 'rss', title: 'T' }))).toContain('<lastBuildDate>Thu, 20 Feb 2025 10:00:00 GMT</lastBuildDate>\n<atom:link');
+		expect(await run('<feed:channel></feed:channel>', output({ format: 'rss', title: 'T' }))).not.toContain('<lastBuildDate>');
+	});
+});
+
 describe('<feed:channel> Atom — same body, format-flip', () => {
 	test('produces well-formed Atom 1.0 from the same channel block', async () => {
 		let out = await run(BODY, output({ format: 'atom', title: 'Test Feed', subtitle: 'sub', language: 'en' }));
