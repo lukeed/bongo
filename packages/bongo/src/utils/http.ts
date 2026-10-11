@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
@@ -17,6 +17,9 @@ import type { Argv } from 'bongo';
 import type { HmrMessage } from './bundler';
 
 export const RELOAD = '/~/reload';
+
+/** This server run. A page that another run rendered reloads when its socket connects. */
+export const ID = randomBytes(6).toString('hex');
 
 // Fixed by RFC 6455 to prove the server speaks WebSocket.
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
@@ -56,12 +59,14 @@ function frame(text: string): Buffer {
 // Reloads use a WebSocket because browsers allow six HTTP/1.1 connections per host, and a stream per open tab starves page loads.
 function upgrade(req: IncomingMessage, socket: Duplex): void {
 	let key = req.headers['sec-websocket-key'];
-	if (req.url !== RELOAD || !key || req.headers.upgrade?.toLowerCase() !== 'websocket') return void socket.destroy();
+	let [path, query] = (req.url || '').split('?');
+	if (path !== RELOAD || !key || req.headers.upgrade?.toLowerCase() !== 'websocket') return void socket.destroy();
 
 	let accept = createHash('sha1').update(key + GUID).digest('base64');
 	socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
 	(socket as Socket).setTimeout?.(0);
 	clients.add(socket);
+	if (new URLSearchParams(query).get('id') !== ID) socket.write(frame(JSON.stringify({ type: 'reload' })));
 
 	let drop = () => clients.delete(socket);
 	socket.on('close', drop);
@@ -144,7 +149,7 @@ export async function start(argv: Required<Argv>): Promise<Server> {
 	};
 
 	const respond = (req: IncomingMessage, res: ServerResponse) => {
-		if (req.url !== RELOAD) return void ready.then(() => page(req, res));
+		if ((req.url || '').split('?')[0] !== RELOAD) return void ready.then(() => page(req, res));
 		res.writeHead(426, { 'upgrade': 'websocket', 'content-type': 'text/plain; charset=utf-8' });
 		res.end('Upgrade Required');
 	};

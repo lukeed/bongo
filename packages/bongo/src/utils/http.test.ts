@@ -31,9 +31,9 @@ function raw(port: number, payload: string, wait = 150): Promise<string> {
 	});
 }
 
-function socket(port: number): Promise<WebSocket> {
+function socket(port: number, id = http.ID): Promise<WebSocket> {
 	return new Promise((resolve, reject) => {
-		let ws = new WebSocket(`ws://127.0.0.1:${port}${http.RELOAD}`);
+		let ws = new WebSocket(`ws://127.0.0.1:${port}${http.RELOAD}?id=${id}`);
 		ws.onopen = () => resolve(ws);
 		ws.onerror = () => reject(new Error('reload socket failed'));
 	});
@@ -61,6 +61,25 @@ describe('send', () => {
 		} finally {
 			a.close();
 			b.close();
+			server.close();
+		}
+	});
+
+	test('reloads a page that a previous server run rendered, and leaves a reconnect alone', async () => {
+		let opts = argv();
+		let server = await http.start(opts);
+		let stale = await socket(opts.port, 'earlier-run');
+		let reload = next(stale);
+		let fresh = await socket(opts.port);
+		try {
+			let got: unknown[] = [];
+			fresh.onmessage = e => got.push(JSON.parse(String(e.data)));
+			expect(await reload).toEqual({ type: 'reload' });
+			await new Promise(r => setTimeout(r, 100));
+			expect(got).toEqual([]);
+		} finally {
+			stale.close();
+			fresh.close();
 			server.close();
 		}
 	});

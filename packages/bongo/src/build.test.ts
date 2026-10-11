@@ -7,6 +7,7 @@ import { join } from 'node:path';
 
 import { build } from './build';
 import * as bundler from './utils/bundler';
+import { ID, RELOAD } from './utils/http';
 import * as templates from './utils/templates';
 
 beforeEach(() => {
@@ -97,7 +98,7 @@ describe('output files', () => {
 		try {
 			await build({ cwd: root, dev: true });
 			expect(await read(root, 'notes.txt')).toBe(source);
-			expect(await read(root, 'index.html')).toContain('WebSocket');
+			expect(await read(root, 'index.html')).toContain(`${RELOAD}?id=${ID}`);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

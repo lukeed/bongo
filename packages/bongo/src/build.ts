@@ -15,7 +15,7 @@ import * as loaders from './utils/loaders';
 import * as templates from './utils/templates';
 import * as tags from './utils/tags';
 import { normalize } from './utils/argv';
-import { RELOAD } from './utils/http';
+import { ID, RELOAD } from './utils/http';
 
 import type { Argv, Build, Config, Loader, Template } from 'bongo';
 
@@ -485,10 +485,10 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 		if (argv.dev) {
 			rendered_content += `<script>`;
-			rendered_content +=   `(function __bongo_ws(again) {`;
-			rendered_content +=     `var ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '${RELOAD}');`;
-			rendered_content +=     `ws.onopen = function () { if (again) location.reload(); else console.log('[dev] live reload enabled'); };`;
-			rendered_content +=     `ws.onclose = function () { setTimeout(function () { __bongo_ws(true); }, 1000); };`;
+			rendered_content +=   `(function __bongo_ws() {`;
+			rendered_content +=     `var ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '${RELOAD}?id=${ID}');`;
+			rendered_content +=     `ws.onopen = function () { console.log('[dev] live reload enabled'); };`;
+			rendered_content +=     `ws.onclose = function () { setTimeout(__bongo_ws, 1000); };`;
 			rendered_content +=     `ws.onmessage = function (ev) {`;
 			rendered_content +=       `try {`;
 			rendered_content +=         `var m = JSON.parse(ev.data);`;
@@ -498,7 +498,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			rendered_content +=         `else if (m.type === 'error-clear') __bongo_err_clear();`;
 			rendered_content +=       `} catch (e) {}`;
 			rendered_content +=     `};`;
-			rendered_content +=   `})(false);`;
+			rendered_content +=   `})();`;
 			rendered_content +=   `function __bongo_esc(s) { return String(s||'').replace(/[<>&]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]}); }`;
 			rendered_content +=   `function __bongo_err(errs) {`;
 			rendered_content +=     `__bongo_err_clear();`;
