@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach } from 'bun:test';
+import { describe, expect, test, beforeEach, spyOn } from 'bun:test';
 import { on, off } from './index';
 import { emit, reset, getBypassNext, setBypassNext } from './internal';
 
@@ -55,9 +55,12 @@ describe('event bus', () => {
 
 	test('a throwing handler does not prevent other handlers from running', () => {
 		let reached = false;
+		let logged = spyOn(console, 'error').mockImplementation(() => {});
 		on('bongo:error', () => { throw new Error('boom'); });
 		on('bongo:error', () => { reached = true; });
 		emit('bongo:error', { to: new URL('https://example.com/'), error: new Error('nav failed') });
+		expect(logged).toHaveBeenCalledTimes(1);
+		logged.mockRestore();
 		expect(reached).toBe(true);
 	});
 
