@@ -4,8 +4,6 @@ import { copyFile, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/pro
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import sharp from 'sharp';
-
 import * as images from './images';
 
 const FIXTURE = join(import.meta.dirname, '../../test/fixtures/site-image');
@@ -14,6 +12,33 @@ const PORTRAIT = join(FIXTURE, 'content/blog/post/portrait.jpg');
 const DIAGRAM = join(FIXTURE, 'content/blog/post/diagram.svg');
 const LOGO = join(FIXTURE, 'assets/img/logo.svg');
 const SPIN = join(FIXTURE, 'assets/img/spin.gif');
+
+async function meta(file: string | Uint8Array) {
+	return new Bun.Image(typeof file === 'string' ? await Bun.file(file).bytes() : file).metadata();
+}
+
+// Runs `test` as if bongo ran under Node, where there is no Bun.Image.
+async function withoutBunImage<T>(test: () => Promise<T>): Promise<T> {
+	let Image = Bun.Image;
+	Object.defineProperty(Bun, 'Image', { value: undefined });
+	try {
+		return await test();
+	} finally {
+		Object.defineProperty(Bun, 'Image', { value: Image });
+	}
+}
+
+async function canEncodeAvif(): Promise<boolean> {
+	let png = await Bun.file(PHOTO).bytes();
+	let prev = Bun.Image.backend;
+	Bun.Image.backend = 'system';
+	try {
+		var run = new Bun.Image(png).resize(8).avif().bytes();
+	} finally {
+		Bun.Image.backend = prev;
+	}
+	return run.then(() => true, () => false);
+}
 
 async function setup(dev = false) {
 	let root = await mkdtemp(join(tmpdir(), 'bongo-images-'));
@@ -32,24 +57,23 @@ describe('settings', () => {
 	test('uses the defaults', () => {
 		expect(images.settings({}, {})).toEqual({
 			widths: [640, 1280, 1920],
-			formats: ['avif', 'webp'],
-			quality: { avif: 50, webp: 80 },
+			formats: ['webp', 'original'],
+			quality: { avif: 50, webp: 80, jpeg: 80 },
 		});
 	});
 
 	test('config overrides the defaults', () => {
-		let out = images.settings({}, { widths: [300, 100, 300], formats: ['webp', 'jpeg'], quality: { jpeg: 70 } });
-		expect(out).toEqual({ widths: [100, 300], formats: ['webp', 'jpeg'], quality: { webp: 80, jpeg: 70 } });
+		let out = images.settings({}, { widths: [300, 100, 300], formats: ['jpeg', 'webp', 'jpeg'], quality: { jpeg: 70 } });
+		expect(out).toEqual({ widths: [100, 300], formats: ['jpeg', 'webp'], quality: { avif: 50, webp: 80, jpeg: 70 } });
 	});
 
-	test('a number quality applies to every format, and png has none by default', () => {
-		expect(images.settings({}, { formats: ['avif', 'png'], quality: 60 }).quality).toEqual({ avif: 60, png: 60 });
-		expect(images.settings({}, { formats: ['png'] }).quality).toEqual({});
+	test('a number quality applies to every lossy format', () => {
+		expect(images.settings({}, { quality: 60 }).quality).toEqual({ avif: 60, webp: 60, jpeg: 60 });
 	});
 
 	test('attributes override the config', () => {
 		let out = images.settings({ widths: '320, 640', formats: 'webp', quality: '60' }, { widths: [1], formats: ['avif'] });
-		expect(out).toEqual({ widths: [320, 640], formats: ['webp'], quality: { webp: 60 } });
+		expect(out).toEqual({ widths: [320, 640], formats: ['webp'], quality: { avif: 60, webp: 60, jpeg: 60 } });
 	});
 
 	test('rejects bad values', () => {
@@ -57,41 +81,68 @@ describe('settings', () => {
 		expect(() => images.settings({ widths: 'big' }, {})).toThrow('Invalid widths "big"');
 		expect(() => images.settings({ widths: true }, {})).toThrow('Invalid widths');
 		expect(() => images.settings({}, { widths: [] })).toThrow('Invalid widths');
-		expect(() => images.settings({ formats: 'jpg' }, {})).toThrow('Unknown image format "jpg"; use avif, webp, jpeg, or png');
+		expect(() => images.settings({ formats: 'jpg' }, {})).toThrow('Unknown image format "jpg"; use avif, webp, jpeg, png, or original');
 		expect(() => images.settings({ quality: '101' }, {})).toThrow('Invalid quality "101"');
 		expect(() => images.settings({}, { quality: { webp: 0 } })).toThrow('Invalid quality "0"');
 	});
 });
 
 describe('prepare', () => {
-	test('encodes each width and format, never above the source width', async () => {
+	test('encodes webp and the original format at each width, never above the source width', async () => {
 		let { outDir, ctx, done } = await setup();
 		try {
 			let info = await images.prepare(PHOTO, images.settings({}, {}), ctx);
-			expect(info.width).toBe(800);
-			expect(info.height).toBe(600);
-			expect(info.variants.map(v => [v.format, v.width])).toEqual([['avif', 640], ['avif', 800], ['webp', 640], ['webp', 800]]);
+			expect([info.width, info.height]).toEqual([800, 600]);
+			expect(info.variants.map(v => [v.format, v.width])).toEqual([['webp', 640], ['webp', 800], ['png', 640], ['png', 800]]);
 			expect(info.filename).toBe(info.variants[3].filename);
 
 			for (let v of info.variants) {
 				expect(v.filename).toMatch(new RegExp(`^photo-${v.width}\\.[a-f0-9]{8}\\.${v.format}$`));
-				let meta = await sharp(join(outDir, v.filename)).metadata();
-				expect([meta.format, meta.width, meta.height]).toEqual([v.format === 'avif' ? 'heif' : v.format, v.width, v.width * 3 / 4]);
+				expect(await meta(join(outDir, v.filename))).toEqual({ format: v.format, width: v.width, height: v.width * 3 / 4 });
 			}
 		} finally {
 			await done();
 		}
 	});
 
-	test('keeps a source narrower than every width at its own width, upright', async () => {
+	test('keeps a jpeg upright, at its own width when every width is wider', async () => {
 		let { outDir, ctx, done } = await setup();
 		try {
-			let info = await images.prepare(PORTRAIT, images.settings({ formats: 'jpeg' }, {}), ctx);
+			let info = await images.prepare(PORTRAIT, images.settings({}, {}), ctx);
 			expect([info.width, info.height]).toEqual([400, 600]);
-			expect(info.variants).toEqual([{ format: 'jpeg', width: 400, filename: expect.stringMatching(/^portrait-400\.[a-f0-9]{8}\.jpg$/) }]);
-			let meta = await sharp(join(outDir, info.filename)).metadata();
-			expect([meta.width, meta.height, meta.orientation]).toEqual([400, 600, undefined]);
+			expect(info.variants.map(v => [v.format, v.width])).toEqual([['webp', 400], ['jpeg', 400]]);
+			expect(info.filename).toMatch(/^portrait-400\.[a-f0-9]{8}\.jpg$/);
+			expect(await meta(join(outDir, info.filename))).toEqual({ format: 'jpeg', width: 400, height: 600 });
 		} finally {
+			await done();
+		}
+	});
+
+	test('a webp source makes webp files only', async () => {
+		let { root, ctx, done } = await setup();
+		try {
+			let file = join(root, 'shot.webp');
+			await Bun.write(file, await new Bun.Image(await Bun.file(PHOTO).bytes()).webp().bytes());
+			let info = await images.prepare(file, images.settings({}, {}), ctx);
+			expect(info.variants.map(v => [v.format, v.width])).toEqual([['webp', 640], ['webp', 800]]);
+		} finally {
+			await done();
+		}
+	});
+
+	test('writes the same bytes whatever Bun.Image.backend the host chose, and leaves it as it was', async () => {
+		let { outDir, ctx, done } = await setup();
+		let prev = Bun.Image.backend;
+		try {
+			Bun.Image.backend = 'system';
+			let info = await images.prepare(PORTRAIT, images.settings({ formats: 'webp', widths: '200' }, {}), ctx);
+			expect(Bun.Image.backend).toBe('system');
+
+			Bun.Image.backend = 'bun';
+			let portable = await new Bun.Image(await Bun.file(PORTRAIT).bytes()).resize(200).webp({ quality: 80 }).bytes();
+			expect(Buffer.compare(await readFile(join(outDir, info.filename)), Buffer.from(portable))).toBe(0);
+		} finally {
+			Bun.Image.backend = prev;
 			await done();
 		}
 	});
@@ -129,10 +180,24 @@ describe('prepare', () => {
 			expect(await name({ formats: 'webp' })).toBe(base);
 			expect(await name({ formats: 'webp', quality: '50' })).not.toBe(base);
 
-			await sharp(PHOTO).negate().toFile(join(root, 'flipped.png'));
-			await copyFile(join(root, 'flipped.png'), copy);
+			await Bun.write(copy, await new Bun.Image(await Bun.file(PHOTO).bytes()).resize(799).png().bytes());
 			let fresh = images.context({ ...ctx });
 			expect((await images.prepare(copy, images.settings({ formats: 'webp' }, {}), fresh)).filename).not.toBe(base);
+		} finally {
+			await done();
+		}
+	});
+
+	test('avif is opt-in, and fails the build where the machine cannot encode it', async () => {
+		let { ctx, done } = await setup();
+		try {
+			let run = images.prepare(PHOTO, images.settings({ formats: 'avif,webp', widths: '320' }, {}), ctx);
+			if (await canEncodeAvif()) {
+				let info = await run;
+				expect(info.variants.map(v => v.format)).toEqual(['avif', 'webp']);
+			} else {
+				await expect(run).rejects.toThrow(`Cannot encode "${PHOTO}" as AVIF on this machine. Bun.Image encodes AVIF only on Apple Silicon M3 or newer Macs and on Windows; remove "avif" from formats.`);
+			}
 		} finally {
 			await done();
 		}
@@ -146,6 +211,19 @@ describe('prepare', () => {
 			expect(await images.prepare(DIAGRAM, opts, ctx)).toEqual({ filename: 'diagram.0123abcd.svg', width: 300, height: 150, variants: [] });
 			expect(await images.prepare(SPIN, opts, ctx)).toEqual({ filename: 'spin.0123abcd.gif', width: 2, height: 3, variants: [] });
 			expect((await readdir(outDir)).sort()).toEqual(['diagram.0123abcd.svg', 'logo.0123abcd.svg', 'spin.0123abcd.gif']);
+		} finally {
+			await done();
+		}
+	});
+
+	test('copies tiff, avif, and heic sources as they are, since Linux cannot read them', async () => {
+		let { root, ctx, done } = await setup();
+		try {
+			for (let ext of ['tiff', 'avif', 'heic']) {
+				let file = join(root, `x.${ext}`);
+				await writeFile(file, 'not decoded');
+				expect(await images.prepare(file, images.settings({}, {}), ctx)).toEqual({ filename: `x.0123abcd.${ext}`, variants: [] });
+			}
 		} finally {
 			await done();
 		}
@@ -169,14 +247,26 @@ describe('prepare', () => {
 		}
 	});
 
-	test('copies an animated image as it is', async () => {
+	test('copies animated png and webp as they are, with their size', async () => {
 		let { root, ctx, done } = await setup();
 		try {
-			let file = join(root, 'anim.webp');
-			let frame = (background: string) => sharp({ create: { width: 4, height: 8, channels: 3, background } }).png().toBuffer();
-			await sharp([await frame('#000'), await frame('#fff')], { join: { animated: true } }).webp().toFile(file);
-			let info = await images.prepare(file, images.settings({}, {}), ctx);
-			expect(info).toEqual({ filename: 'anim.0123abcd.webp', width: 4, height: 8, variants: [] });
+			let png = await readFile(PHOTO);
+			let actl = Buffer.from([0, 0, 0, 8, ...Buffer.from('acTL'), 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0]);
+			let apng = join(root, 'anim.png');
+			await writeFile(apng, Buffer.concat([png.subarray(0, 33), actl, png.subarray(33)]));
+			expect(await images.prepare(apng, images.settings({}, {}), ctx)).toEqual({ filename: 'anim.0123abcd.png', width: 800, height: 600, variants: [] });
+
+			let webp = Buffer.alloc(30);
+			webp.write('RIFF', 0);
+			webp.writeUInt32LE(22, 4);
+			webp.write('WEBPVP8X', 8);
+			webp.writeUInt32LE(10, 16);
+			webp[20] = 0x02;
+			webp.writeUIntLE(4 - 1, 24, 3);
+			webp.writeUIntLE(8 - 1, 27, 3);
+			let anim = join(root, 'anim.webp');
+			await writeFile(anim, webp);
+			expect(await images.prepare(anim, images.settings({}, {}), ctx)).toEqual({ filename: 'anim.0123abcd.webp', width: 4, height: 8, variants: [] });
 		} finally {
 			await done();
 		}
@@ -192,6 +282,21 @@ describe('prepare', () => {
 			await done();
 		}
 	});
+
+	test('without Bun.Image, copies the original once and notes it once', async () => {
+		let { outDir, ctx, done } = await setup();
+		try {
+			await withoutBunImage(async () => {
+				expect(await images.prepare(PHOTO, images.settings({}, {}), ctx)).toEqual({ filename: 'photo.0123abcd.png', variants: [] });
+				expect(await images.prepare(PORTRAIT, images.settings({ formats: 'avif' }, {}), ctx)).toEqual({ filename: 'portrait.0123abcd.jpg', variants: [] });
+				expect(await images.prepare(LOGO, images.settings({}, {}), ctx)).toEqual({ filename: 'logo.0123abcd.svg', width: 120, height: 40, variants: [] });
+			});
+			expect([...ctx.notices]).toEqual(['images: copied as-is; resizing them needs Bun, eg: bunx --bun bongo']);
+			expect((await readdir(outDir)).sort()).toEqual(['logo.0123abcd.svg', 'photo.0123abcd.png', 'portrait.0123abcd.jpg']);
+		} finally {
+			await done();
+		}
+	});
 });
 
 describe('serve', () => {
@@ -203,7 +308,7 @@ describe('serve', () => {
 			expect(existsSync(cache)).toBe(false);
 
 			let body = await images.serve(info.filename)!;
-			expect((await sharp(body).metadata()).width).toBe(800);
+			expect(await meta(body)).toEqual({ format: 'webp', width: 800, height: 600 });
 			expect(await readdir(cache)).toHaveLength(1);
 			expect(existsSync(outDir)).toBe(false);
 			expect(images.serve('photo-1.00000000.webp')).toBeUndefined();
@@ -218,8 +323,7 @@ describe('serve', () => {
 			let copy = join(root, 'photo.png');
 			await copyFile(PHOTO, copy);
 			let info = await images.prepare(copy, images.settings({ formats: 'webp' }, {}), ctx);
-			await sharp(PHOTO).negate().toFile(join(root, 'flipped.png'));
-			await copyFile(join(root, 'flipped.png'), copy);
+			await Bun.write(copy, await new Bun.Image(await Bun.file(PHOTO).bytes()).resize(799).png().bytes());
 			await expect(images.serve(info.filename)!).rejects.toThrow(`"${copy}" changed after the build read it`);
 		} finally {
 			await done();

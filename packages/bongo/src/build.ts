@@ -509,6 +509,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		debug('[bundler.warning]', w.message);
 	}
 
+	for (let notice of flushResult.notices) log.info(notice);
+
 	watch.step('writing pages');
 
 	// Pass 2: substitute placeholders and write pages.

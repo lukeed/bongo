@@ -5,7 +5,6 @@ import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import sharp from 'sharp';
 
 import * as http from './http';
 import * as images from './images';
@@ -166,7 +165,7 @@ describe('images', () => {
 			expect(res.status).toBe(200);
 			expect(res.headers.get('content-type')).toBe('image/webp');
 			expect(res.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
-			expect((await sharp(Buffer.from(await res.arrayBuffer())).metadata()).width).toBe(800);
+			expect((await new Bun.Image(await res.arrayBuffer()).metadata()).width).toBe(800);
 
 			let page = await fetch(`http://127.0.0.1:${opts.port}/`);
 			expect(await page.text()).toBe('<h1>ok</h1>');

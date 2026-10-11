@@ -56,6 +56,7 @@ export type FlushResult = {
 	warnings: Warning[];
 	errors: BuildError[];
 	files: string[];                          // every file written, relative to outDir
+	notices: string[];                        // one line each, for the build log
 };
 
 export type WatchDiff = {
@@ -463,7 +464,7 @@ export async function flush(opts: {
 		await follow(WATCH, files);
 	}
 
-	return { outputs, warnings, errors, files: [...files] };
+	return { outputs, warnings, errors, files: [...files], notices: [...ctx.images.notices] };
 }
 
 // ---------------------------------------------------------------------------

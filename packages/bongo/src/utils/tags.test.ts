@@ -446,7 +446,7 @@ describe('scanBongoTags — <bongo:image>', () => {
 
 	test('bad settings name the tag and where it was rendered', async () => {
 		let run = scan('<bongo:image src="a.jpg" formats="gif" />', ['assets/a.jpg'], { from: 'content/index.html' });
-		await expect(run).rejects.toThrow('Unknown image format "gif"; use avif, webp, jpeg, or png for <bongo:image src="a.jpg" formats="gif" />, rendering content/index.html');
+		await expect(run).rejects.toThrow('Unknown image format "gif"; use avif, webp, jpeg, png, or original for <bongo:image src="a.jpg" formats="gif" />, rendering content/index.html');
 	});
 
 	test('missing src throws', async () => {

@@ -6,17 +6,15 @@ import { basename, extname, join } from 'node:path';
 import * as fs from './fs';
 
 import type { Images } from 'bongo';
-import type sharp from 'sharp';
 import type { Attrs } from './tags';
 
-type Sharp = typeof sharp;
 type Format = Images.Format;
 type Quality = Partial<Record<Format, number>>;
 type Size = { width?: number; height?: number };
 
 export type Settings = {
 	widths: number[];
-	formats: Format[];
+	formats: (Format | 'original')[];
 	quality: Quality;
 };
 
@@ -31,13 +29,10 @@ export type Info = Size & {
 	variants: Variant[];
 };
 
-type Source = {
-	hash: string;
-	width: number;
-	height: number;
-	animated: boolean;
-	encoder: string;
-};
+type Source =
+	| { type: 'still'; hash: string; width: number; height: number; format: Format }
+	| { type: 'copy'; width?: number; height?: number }
+	| { type: 'unprocessed' };
 
 type Job = {
 	file: string;
@@ -45,7 +40,7 @@ type Job = {
 	key: string;
 	format: Format;
 	width: number;
-	options: { quality?: number; mozjpeg?: boolean };
+	options: { quality?: number; progressive?: boolean };
 	cache: string;
 	filename: string;
 };
@@ -57,16 +52,20 @@ export type Context = {
 	emit(file: string): Promise<string>;
 	jobs: Map<string, Job>;
 	sources: Map<string, Promise<Source>>;
+	notices: Set<string>;
 };
 
 const EXTENSION: Record<Format, string> = { avif: 'avif', webp: 'webp', jpeg: 'jpg', png: 'png' };
 const QUALITY: Quality = { avif: 50, webp: 80, jpeg: 80 };
-const RASTER = /\.(jpe?g|png|webp|avif|tiff?)$/i;
+const LOSSY: Format[] = ['avif', 'webp', 'jpeg'];
+const RASTER = /\.(jpe?g|png|webp)$/i;
 const LIMIT = availableParallelism();
+const PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+const UNPROCESSED = 'images: copied as-is; resizing them needs Bun, eg: bunx --bun bongo';
 
-let SHARP: Sharp | undefined;
 let SERVED: Map<string, Job> = new Map();
 let INFLIGHT: Map<string, Promise<string>> = new Map();
+let AVIF: Promise<boolean> | undefined;
 let active = 0;
 let waiting: (() => void)[] = [];
 
@@ -108,17 +107,45 @@ async function slot<T>(run: () => Promise<T>): Promise<T> {
 	}
 }
 
-async function load(file: string): Promise<Sharp> {
-	try {
-		return SHARP ||= (await import('sharp')).default;
-	} catch (err) {
-		throw new Error(`Processing "${file}" needs the "sharp" package: bun add -d sharp`, { cause: err });
-	}
+// Bun.Image exists only in the Bun runtime.
+function codec(): typeof Bun.Image | undefined {
+	return typeof Bun === 'undefined' ? undefined : Bun.Image;
 }
 
 function unreadable(file: string, err: unknown): Error {
 	let reason = err instanceof Error ? err.message : String(err);
 	return new Error(`Cannot read image "${file}": ${reason}`, { cause: err });
+}
+
+function noAvif(file: string): Error {
+	return new Error(`Cannot encode "${file}" as AVIF on this machine. Bun.Image encodes AVIF only on Apple Silicon M3 or newer Macs and on Windows; remove "avif" from formats.`);
+}
+
+function unsupported(err: unknown): boolean {
+	return err instanceof Error && 'code' in err && err.code === 'ERR_IMAGE_FORMAT_UNSUPPORTED';
+}
+
+// JPEG, PNG, and WebP use the portable backend, so their bytes are the same on every machine; AVIF needs the OS encoder.
+function encode(image: Bun.Image, format: Format, options: Job['options']): Promise<Uint8Array> {
+	if (format === 'avif') image.avif(options);
+	else if (format === 'webp') image.webp(options);
+	else if (format === 'jpeg') image.jpeg(options);
+	else image.png();
+
+	let prev = Bun.Image.backend;
+	Bun.Image.backend = format === 'avif' ? 'system' : 'bun';
+	try {
+		return image.bytes();
+	} finally {
+		Bun.Image.backend = prev;
+	}
+}
+
+function avif(Image: typeof Bun.Image): Promise<boolean> {
+	return AVIF ||= encode(new Image(Buffer.from(PIXEL, 'base64')), 'avif', {}).then(() => true, err => {
+		if (unsupported(err)) return false;
+		throw err;
+	});
 }
 
 function svg(text: string): Size {
@@ -151,38 +178,54 @@ async function measure(file: string): Promise<Size> {
 	return { width: head.readUInt16LE(6), height: head.readUInt16LE(8) };
 }
 
+// The canvas of an animated PNG or WebP, which resizing would flatten; undefined for a still image.
+function animation(bytes: Buffer): Size | undefined {
+	if (bytes.toString('latin1', 1, 4) === 'PNG') {
+		for (let at = 8; at + 8 <= bytes.length; at += 12 + bytes.readUInt32BE(at)) {
+			let type = bytes.toString('latin1', at + 4, at + 8);
+			if (type === 'IDAT') return;
+			if (type === 'acTL' && bytes.length >= 24) return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+		}
+		return;
+	}
+	if (bytes.length >= 30 && bytes.toString('latin1', 8, 16) === 'WEBPVP8X' && bytes[20] & 0x02) {
+		return { width: bytes.readUIntLE(24, 3) + 1, height: bytes.readUIntLE(27, 3) + 1 };
+	}
+}
+
 function source(file: string, ctx: Context): Promise<Source> {
 	let hit = ctx.sources.get(file);
 	if (hit) return hit;
-	hit = slot(async () => {
-		let sharp = await load(file);
+	hit = slot(async (): Promise<Source> => {
 		let bytes = await readFile(file);
+		let canvas = animation(bytes);
+		if (canvas) return { type: 'copy', ...canvas };
+
+		let Image = codec();
+		if (!Image) return { type: 'unprocessed' };
 		try {
-			var meta = await sharp(bytes).metadata();
+			var meta = await new Image(bytes).metadata();
 		} catch (err) {
 			throw unreadable(file, err);
 		}
-		return {
-			hash: sha256(bytes),
-			width: meta.autoOrient.width,
-			height: meta.autoOrient.height,
-			animated: (meta.pages ?? 1) > 1,
-			encoder: `sharp@${sharp.versions.sharp} vips@${sharp.versions.vips}`,
-		};
+		let { width, height, format } = meta;
+		if (format !== 'jpeg' && format !== 'png' && format !== 'webp') return { type: 'copy', width, height };
+		return { type: 'still', hash: sha256(bytes), width, height, format };
 	});
 	ctx.sources.set(file, hit);
 	return hit;
 }
 
-async function encode(job: Job, out: string): Promise<string> {
+async function write(job: Job, out: string): Promise<string> {
 	let bytes = await readFile(job.file);
 	if (sha256(bytes) !== job.hash) throw new Error(`"${job.file}" changed after the build read it`);
 
-	let sharp = await load(job.file);
+	let Image = codec();
+	if (!Image) throw new Error(`Resizing "${job.file}" needs Bun`);
 	try {
-		var data = await sharp(bytes).autoOrient().resize({ width: job.width }).toFormat(job.format, job.options).toBuffer();
+		var data = await encode(new Image(bytes).resize(job.width, undefined, { withoutEnlargement: true }), job.format, job.options);
 	} catch (err) {
-		throw unreadable(job.file, err);
+		throw unsupported(err) ? noAvif(job.file) : unreadable(job.file, err);
 	}
 
 	await mkdir(job.cache, { recursive: true });
@@ -203,14 +246,15 @@ function ensure(job: Job): Promise<string> {
 	if (fs.exists(out)) return Promise.resolve(out);
 	let hit = INFLIGHT.get(out);
 	if (hit) return hit;
-	hit = slot(() => encode(job, out)).finally(() => INFLIGHT.delete(out));
+	hit = slot(() => write(job, out)).finally(() => INFLIGHT.delete(out));
 	INFLIGHT.set(out, hit);
 	return hit;
 }
 
 /**
  * Resolve processing settings: element attributes, then the `$images` config, then the defaults.
- * @example images.settings({ widths: '320,640' }, { formats: ['webp'] }) //=> { widths: [320, 640], formats: ['webp'], quality: { webp: 80 } }
+ * `original` in formats stands for the format of each source.
+ * @example images.settings({ widths: '320,640' }, { formats: ['webp'] }) //=> { widths: [320, 640], formats: ['webp'], quality: { avif: 50, webp: 80, jpeg: 80 } }
  */
 export function settings(attrs: Attrs, options: Images.Options): Settings {
 	let widths = attrs.widths === undefined ? options.widths ?? [640, 1280, 1920] : list(attrs.widths).map(Number);
@@ -218,18 +262,18 @@ export function settings(attrs: Attrs, options: Images.Options): Settings {
 		throw new Error(`Invalid widths "${attrs.widths ?? widths}"`);
 	}
 
-	let names = attrs.formats === undefined ? options.formats ?? ['avif', 'webp'] : list(attrs.formats);
+	let names = attrs.formats === undefined ? options.formats ?? ['webp', 'original'] : list(attrs.formats);
 	if (!names.length) throw new Error(`Invalid formats "${attrs.formats ?? names}"`);
 
-	let formats: Format[] = [];
+	let formats: Settings['formats'] = [];
 	for (let name of names) {
-		if (!known(name)) throw new Error(`Unknown image format "${name}"; use avif, webp, jpeg, or png`);
+		if (name !== 'original' && !known(name)) throw new Error(`Unknown image format "${name}"; use avif, webp, jpeg, png, or original`);
 		if (!formats.includes(name)) formats.push(name);
 	}
 
 	let value = attrs.quality === undefined ? options.quality : attrs.quality === true ? NaN : Number(attrs.quality);
 	let quality: Quality = {};
-	for (let format of formats) {
+	for (let format of LOSSY) {
 		let q = typeof value === 'number' ? value : value?.[format] ?? QUALITY[format];
 		if (q === undefined) continue;
 		if (!Number.isInteger(q) || q < 1 || q > 100) throw new Error(`Invalid quality "${attrs.quality ?? q}"`);
@@ -244,35 +288,45 @@ export function settings(attrs: Attrs, options: Images.Options): Settings {
  * @example let ctx = images.context({ outDir: 'public', cache: 'node_modules/.cache/bongo/images', dev: false, emit })
  */
 export function context(opts: Pick<Context, 'outDir' | 'cache' | 'dev' | 'emit'>): Context {
-	return { ...opts, jobs: new Map(), sources: new Map() };
+	return { ...opts, jobs: new Map(), sources: new Map(), notices: new Set() };
 }
 
 /**
  * Write the resized copies of an image, from the cache when it has them. In dev, list them for `serve()` instead.
- * SVG, GIF, animated, and unknown images are copied as they are, with their size when known.
+ * Without Bun.Image, as under Node, an image is copied as it is and the flush gets one notice.
+ * SVG, GIF, animated, and other images are copied as they are, with their size when known.
  * @example let info = await images.prepare('/site/assets/hero.jpg', images.settings({}, {}), ctx)
  */
 export async function prepare(file: string, settings: Settings, ctx: Context): Promise<Info> {
-	if (!RASTER.test(file)) {
-		return { filename: await ctx.emit(file), ...await measure(file), variants: [] };
+	let src: Source = RASTER.test(file) ? await source(file, ctx) : { type: 'copy', ...await measure(file) };
+	if (src.type === 'unprocessed') ctx.notices.add(UNPROCESSED);
+	if (src.type !== 'still') {
+		let size = src.type === 'copy' ? { width: src.width, height: src.height } : {};
+		return { filename: await ctx.emit(file), ...size, variants: [] };
 	}
 
-	let src = await source(file, ctx);
-	let size = { width: src.width, height: src.height };
-	if (src.animated) return { filename: await ctx.emit(file), ...size, variants: [] };
+	let { hash, width, height } = src;
+	let formats: Format[] = [];
+	for (let choice of settings.formats) {
+		let format = choice === 'original' ? src.format : choice;
+		if (!formats.includes(format)) formats.push(format);
+	}
+	if (formats.includes('avif') && !await avif(Bun.Image)) throw noAvif(file);
 
-	let widths = settings.widths.filter(w => w < src.width);
-	if (widths.length < settings.widths.length) widths.push(src.width);
+	let widths = settings.widths.filter(w => w < width);
+	if (widths.length < settings.widths.length) widths.push(width);
 
 	let name = basename(file, extname(file));
+	let encoder = `Bun.Image ${Bun.version}`;
 	let jobs: Job[] = [];
-	for (let format of settings.formats) {
+	for (let format of formats) {
 		let quality = settings.quality[format];
-		let options = format === 'jpeg' ? { quality, mozjpeg: true } : { quality };
-		for (let width of widths) {
-			let key = sha256(JSON.stringify([src.hash, src.encoder, format, width, options])).slice(0, 16);
-			let filename = `${name}-${width}.${key.slice(0, 8)}.${EXTENSION[format]}`;
-			jobs.push({ file, hash: src.hash, key, format, width, options, cache: ctx.cache, filename });
+		let options = format === 'jpeg' ? { quality, progressive: true } : { quality };
+		let backend = format === 'avif' ? 'system' : 'bun';
+		for (let w of widths) {
+			let key = sha256(JSON.stringify([hash, encoder, backend, format, w, options])).slice(0, 16);
+			let filename = `${name}-${w}.${key.slice(0, 8)}.${EXTENSION[format]}`;
+			jobs.push({ file, hash, key, format, width: w, options, cache: ctx.cache, filename });
 		}
 	}
 
@@ -286,8 +340,8 @@ export async function prepare(file: string, settings: Settings, ctx: Context): P
 		await Promise.all(fresh.map(async job => copyFile(await ensure(job), join(ctx.outDir, job.filename))));
 	}
 
-	let variants = jobs.map(({ format, width, filename }) => ({ format, width, filename }));
-	return { filename: variants[variants.length - 1].filename, ...size, variants };
+	let variants = jobs.map(job => ({ format: job.format, width: job.width, filename: job.filename }));
+	return { filename: variants[variants.length - 1].filename, width, height, variants };
 }
 
 /**

@@ -142,9 +142,9 @@ export namespace Images {
 	type Options = {
 		/** Output widths in pixels. A source is never enlarged: wider ones become its own width. @default [640, 1280, 1920] */
 		widths?: number[];
-		/** Output formats, best first. The last is the `<img>` fallback, and the only one content images use. @default ['avif', 'webp'] */
-		formats?: Format[];
-		/** Encoder quality from 1 to 100, for all formats or per format. PNG stays lossless unless set. @default { avif: 50, webp: 80, jpeg: 80 } */
+		/** Output formats, best first; `original` is the format of each source. The last is the `<img>` fallback, and the only one content images use. `avif` needs an Apple Silicon M3+ Mac or Windows. @default ['webp', 'original'] */
+		formats?: (Format | 'original')[];
+		/** Encoder quality from 1 to 100, for all lossy formats or per format. PNG is always lossless. @default { avif: 50, webp: 80, jpeg: 80 } */
 		quality?: number | Partial<Record<Format, number>>;
 		/** The `sizes` of images that do not set one. A leading `auto` applies only to lazy images. @default 'auto, 100vw' */
 		sizes?: string;
