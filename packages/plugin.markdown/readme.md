@@ -95,3 +95,56 @@ import { shiki, sugarhigh } from '@bongo/markdown/highlight';
 `shiki(options)` loads Shiki with the requested theme and languages.
 
 `sugarhigh()` loads Sugar High.
+
+### Twinkleplop
+
+[Twinkleplop](https://twinkleplop.pngwn.at) writes CSS classes, not inline colors, so a theme stylesheet gives the colors. Install its markdown core, one package for each language you use, and a theme:
+
+```sh
+bun add @twinkleplop/markdown-core @twinkleplop/typescript @twinkleplop/bash @twinkleplop/theme-github
+```
+
+Then give your languages to `twinkleplop()` from `@bongo/markdown/twinkleplop`:
+
+```ts
+import { markdown } from '@bongo/markdown';
+import { twinkleplop } from '@bongo/markdown/twinkleplop';
+import { language as bash } from '@twinkleplop/bash';
+import { language as typescript } from '@twinkleplop/typescript';
+
+export default {
+	plugins: [
+		markdown({
+			highlighter: twinkleplop({
+				languages: {
+					typescript: typescript(),
+					bash: bash(),
+				},
+			}),
+		}),
+	],
+};
+```
+
+`languages` maps a fence name to a highlighter, or to the name of another entry, such as `js: 'typescript'`. Common aliases resolve to the languages you register: `typescript` also covers `ts`, `mts`, and `cts` fences, and `bash` covers `sh`, `shell`, and `zsh`. Your own entries take priority.
+
+A fence in a language that is not in `languages` renders as escaped plain text. Set `on_unknown_language: 'throw'` to fail the build instead. A fence with no language keeps the md4x `<pre><code>` output, unless you set `default_language`.
+
+The other options, such as `default_language`, `line_numbers`, and `render`, are the same as in the [twinkleplop markdown plugins](https://twinkleplop.pngwn.at/docs/markdown). Fences can mark lines with `{1,3-4}`, add a title with `[app.ts]`, and turn on line numbers with `ts:line-numbers`.
+
+Import the theme in your CSS. An `@import` path is relative to the CSS file, so point it at the theme in `node_modules`:
+
+```css
+/* assets/app.css */
+@import "../node_modules/@twinkleplop/theme-github/dist/index.css";
+
+.twinkleplop {
+	background: var(--twp-background);
+}
+```
+
+```hbs
+<bongo:style src="app.css"></bongo:style>
+```
+
+The theme has light and dark colors. A `dark` class on an ancestor, such as `<html class="dark">`, selects the dark colors. To use one set only, import `dist/light.css` or `dist/dark.css`.
