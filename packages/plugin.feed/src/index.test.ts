@@ -162,6 +162,10 @@ describe('<feed:channel> errors', () => {
 		await expect(run('<feed:channel></feed:channel>', output({ title: 'T', format: 'json' }))).rejects.toThrow(message);
 	});
 
+	test('errors on attributes, which <feed:channel> does not take', async () => {
+		await expect(run('<feed:channel title="T"></feed:channel>', output({ format: 'rss', title: 'T' }))).rejects.toThrow('<feed:channel> unknown attribute "title"; set it in the frontmatter');
+	});
+
 	test('errors when the feed has no title', async () => {
 		await expect(run('<feed:channel></feed:channel>', output({ format: 'rss' }))).rejects.toThrow('<feed:channel> "/feed.xml" missing required "title" in frontmatter');
 	});

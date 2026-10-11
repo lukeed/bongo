@@ -164,6 +164,9 @@ function atom(meta: Channel, items: Item[]): string {
 function channel(html: string, ctx: Build.Context, kind: Format): string {
 	let match = CHANNEL.exec(html);
 	if (!match) throw new Error('A feed must contain a <feed:channel>...</feed:channel> block');
+	for (let key in helpers.attrs(match[1])) {
+		throw new Error(`<feed:channel> unknown attribute "${key}"; set it in the frontmatter`);
+	}
 
 	let items = [...match[2].matchAll(ITEM)].map(found => item(found[1]));
 	let { params, config } = ctx;

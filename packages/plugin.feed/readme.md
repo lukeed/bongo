@@ -72,7 +72,7 @@ Use it in a layout or a page.
 
 ### `<feed:channel>…</feed:channel>`
 
-It holds the `<feed:item>` elements. The frontmatter of the feed file sets the rest:
+It holds the `<feed:item>` elements and takes no attributes. The frontmatter of the feed file sets the rest:
 
 | Frontmatter | Required | Notes |
 | --- | --- | --- |
