@@ -362,8 +362,8 @@ With the default settings and a 2400×1600 JPEG, this becomes the following, on 
 
 ```html
 <picture>
-  <source type="image/webp" srcset="/hero-640.1a2b3c4d.webp 640w, /hero-1280.2b3c4d5e.webp 1280w, /hero-1920.3c4d5e6f.webp 1920w" sizes="(min-width: 800px) 720px, 100vw"/>
-  <img src="/hero-1920.4d5e6f7a.jpg" srcset="/hero-640.5e6f7a8b.jpg 640w, /hero-1280.6f7a8b9c.jpg 1280w, /hero-1920.4d5e6f7a.jpg 1920w" sizes="(min-width: 800px) 720px, 100vw" alt="A hero" loading="lazy" decoding="async" width="2400" height="1600"/>
+  <source type="image/webp" srcset="/hero-640.1a2b3c4d.webp 640w, /hero-960.2b3c4d5e.webp 960w, /hero-1280.3c4d5e6f.webp 1280w, /hero-1920.4d5e6f7a.webp 1920w, /hero-2400.5e6f7a8b.webp 2400w" sizes="(min-width: 800px) 720px, 100vw"/>
+  <img src="/hero-2400.6f7a8b9c.jpg" srcset="/hero-640.7a8b9c0d.jpg 640w, /hero-960.8b9c0d1e.jpg 960w, /hero-1280.9c0d1e2f.jpg 1280w, /hero-1920.0d1e2f3a.jpg 1920w, /hero-2400.6f7a8b9c.jpg 2400w" sizes="(min-width: 800px) 720px, 100vw" alt="A hero" loading="lazy" decoding="async" width="2400" height="1600"/>
 </picture>
 ```
 
@@ -386,9 +386,9 @@ A `sizes` value that starts with `auto` lets the browser use the width of the im
 
 ### Content images
 
-bongo also processes each `<img>` in content whose `src` is a relative path. This includes Markdown images, such as `![A hero](hero.jpg)`, and `<img>` elements that you write in Markdown, HTML, or `.hbs` content. The path resolves against the URL of the page, as for `./` paths.
+By default, bongo also processes each `<img>` in content whose `src` is a relative path. This includes Markdown images, such as `![A hero](hero.jpg)`, and `<img>` elements that you write in Markdown, HTML, or `.hbs` content. The path resolves against the URL of the page, as for `./` paths.
 
-The `<img>` stays where it is. bongo does not add a `<picture>`, so CSS such as `p > img` still applies. The `<img>` gets a `src`, `srcset`, and `sizes` in the last format in `$images.formats` (by default, the format of the source), its `width` and `height`, `loading="lazy"`, and `decoding="async"`. Attributes that you write, such as `width`, `sizes`, or `loading`, stay as you wrote them.
+The `<img>` stays where it is. bongo does not add a `<picture>`, so CSS such as `p > img` still applies. The `<img>` gets a `src`, `srcset`, and `sizes` in the first format in `$images.formats`, which is WebP by default and which every current browser supports, its `width` and `height`, `loading="lazy"`, and `decoding="async"`. Attributes that you write, such as `width`, `sizes`, or `loading`, stay as you wrote them.
 
 bongo does not change an `<img>` that:
 
@@ -408,6 +408,8 @@ To leave all content images as written, set `$images.content` to `false`. To get
 ### Cache
 
 bongo keeps encoded images in `node_modules/.cache/bongo/images`. A rebuild copies unchanged images from there, and encodes only new or changed images. To clear the cache, delete the directory.
+
+bongo records when a build last used each cached file, as the file's modified time, which it updates at most once a day. At the end of a build, at most once a day, bongo deletes the files that no build has used for 30 days. Set `$images.prune` to another number of days, or to `false` to keep every file. When two builds run at the same time and one deletes a file that the other is about to use, the other encodes it again, so a prune never breaks a build.
 
 ### Dev
 
@@ -430,22 +432,24 @@ An image path that resolves outside `assets/` or `content/` also fails the build
 ```ts
 export default {
 	$images: {
-		widths: [640, 1280, 1920],
+		widths: [640, 960, 1280, 1920, 2880],
 		formats: ['webp', 'original'],
 		quality: { avif: 50, webp: 80, jpeg: 80 },
 		sizes: 'auto, 100vw',
 		content: true,
+		prune: 30,
 	},
 };
 ```
 
 These are the defaults.
 
-- `widths` — output widths, in pixels.
-- `formats` — `avif`, `webp`, `jpeg`, `png`, or `original`, best first. `original` is the format of each source. The last format is the fallback in the `<img>`, and the only format for content images, so use one that all browsers support. `avif` is not in the defaults, because only some machines can encode it.
+- `widths` — output widths, in pixels. 2880 serves a full-width image on a 1440 pixel screen with a pixel ratio of 2.
+- `formats` — `avif`, `webp`, `jpeg`, `png`, or `original`, best first. `original` is the format of each source. Content images use only the first format. `<bongo:image>` puts the last format in its `<img>` as the fallback and the others in `<source>` elements. Both should be formats that all browsers support. `avif` is not in the defaults, because only some machines can encode it.
 - `quality` — from 1 to 100, for AVIF, WebP, and JPEG. Give one number for all of them, or one number for each format. PNG is always lossless.
 - `sizes` — the `sizes` of images that do not have one.
 - `content` — process `<img>` elements in content.
+- `prune` — delete cached images that no build has used for this many days, or `false` to keep them all.
 
 ## CSS
 
