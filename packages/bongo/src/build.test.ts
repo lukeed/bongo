@@ -196,3 +196,75 @@ describe('output files', () => {
 		}
 	});
 });
+
+describe('$hooks.transform', () => {
+	test('changes each page, after its asset links resolve, and each output file, and knows what each one is', async () => {
+		let root = await site({
+			'bongo.config.ts': [
+				`export default {`,
+				`	$site: { url: 'https://example.com/', title: 'T', lang: 'en' },`,
+				`	$hooks: {`,
+				`		transform(text, ctx) {`,
+				`			let { kind, path, params, outputs } = ctx;`,
+				`			return text + '|' + JSON.stringify({ kind, path, params, outputs, title: ctx.config.$site.title, placeholders: text.includes('__BONGO_BUNDLE') });`,
+				`		},`,
+				`	},`,
+				`};`,
+			].join('\n'),
+			'assets/style.css': 'b { color: red }',
+			'content/index.html': '---\ntitle: Home\n---\n<bongo:style src="style.css" />',
+			'content/z.txt.hbs': 'z',
+			'content/feed.xml.hbs': '---\nformat: rss\n---\n<feed/>',
+		});
+		let outputs = [{ path: '/feed.xml', params: { format: 'rss' } }, { path: '/z.txt', params: {} }];
+		let info = async (rel: string) => JSON.parse((await read(root, rel)).split('|')[1]);
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toMatch(/^<html>\n<link rel="stylesheet" href="\/style\.[\w-]+\.css"\/><\/html>\|/);
+			expect(await info('index.html')).toEqual({ kind: 'page', path: '/', params: { title: 'Home' }, outputs, title: 'T', placeholders: false });
+			expect(await read(root, 'feed.xml')).toStartWith('<feed/>|');
+			expect(await info('feed.xml')).toEqual({ kind: 'output', path: '/feed.xml', params: { format: 'rss' }, outputs, title: 'T', placeholders: false });
+
+			await build({ cwd: root }, { only: 'index.html' });
+			expect((await info('index.html')).outputs).toEqual(outputs);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('an error fails the build and names the file and the layouts that rendered it', async () => {
+		let config = (path: string) => `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $hooks: { transform(text, ctx) { if (ctx.path === '${path}') throw new Error('no thanks'); return text; } } };`;
+		let root = await site({
+			'bongo.config.ts': config('/blog/'),
+			'content/blog/index.html': '<p>blog</p>',
+			'content/list.txt.hbs': 'list',
+		});
+		try {
+			await expect(build({ cwd: root })).rejects.toThrow('no thanks, rendering content/blog/index.html → layouts/html.hbs');
+			await writeFile(join(root, 'bongo.config.ts'), config('/list.txt'));
+			await expect(build({ cwd: root })).rejects.toThrow('no thanks, rendering content/list.txt.hbs');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a failed dev rebuild writes nothing, so the last good build keeps serving', async () => {
+		let config = (version: string, path: string) => `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $hooks: { transform(text, ctx) { if (ctx.path === '${path}') throw new Error('no thanks'); return text + '${version}'; } } };`;
+		let root = await site({
+			'bongo.config.ts': config('v1', ''),
+			'content/index.html': '<p>home</p>',
+			'content/blog/index.html': '<p>blog</p>',
+			'content/list.txt.hbs': 'list',
+		});
+		try {
+			await build({ cwd: root, dev: true });
+			await writeFile(join(root, 'bongo.config.ts'), config('v2', '/blog/'));
+			await expect(build({ cwd: root, dev: true })).rejects.toThrow('no thanks');
+			expect(await read(root, 'index.html')).toEndWith('</script>v1');
+			expect(await read(root, 'blog/index.html')).toEndWith('</script>v1');
+			expect(await read(root, 'list.txt')).toBe('listv1');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});

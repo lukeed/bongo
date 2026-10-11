@@ -136,6 +136,35 @@ interface Helpers {
   [name: string]: Function | Promise<any> | Helpers;
 }
 
+export namespace Build {
+	/** A content file that a build writes: a page, or an output file such as `sitemap.xml.hbs`. */
+	type File = {
+		/** The URL path, like `/blog/post/` for a page or `/blog/index.xml` for an output file. */
+		path: string;
+		/** The frontmatter. */
+		params: Template.Params;
+	};
+
+	type Context = File & {
+		kind: 'page' | 'output';
+		/** Every output file of the build, sorted by path. */
+		outputs: File[];
+		/** The config, with its plugins merged. */
+		config: Required<Config>;
+	};
+
+	/**
+	 * Change a rendered page or output file before it is written. Pages arrive with their final asset URLs.
+	 * @example const year: Build.Transform = (text, ctx) => ctx.kind === 'page' ? text.replace('{year}', '2026') : text;
+	 */
+	type Transform = (text: string, ctx: Context) => Promisable<string>;
+
+	type Hooks = {
+		/** Plugins run first, in order, then the config's own; each gets the text the last one returned. */
+		transform?: Transform;
+	};
+}
+
 export namespace Images {
 	type Format = 'avif' | 'webp' | 'jpeg' | 'png';
 
@@ -176,6 +205,7 @@ export interface Config {
 		target?: string | string[];  // browserslist query or array of queries
 	};
 	$images?: Images.Options;
+	$hooks?: Build.Hooks;
 	plugins?: Partial<Config>[];
 }
 

@@ -95,6 +95,7 @@ Config fields:
 - `$utils` — helper functions available in templates.
 - `$partials` — programmatic partial functions.
 - `$images` — image defaults; see [Images](#images).
+- `$hooks` — functions that change the build output; see [Hooks](#hooks).
 - `plugins` — array of partial config objects, merged in order.
 
 ## Frontmatter
@@ -196,6 +197,30 @@ Loader utilities:
 - `utils.render(partialName, args)` — invoke a registered partial.
 - `utils.attrs(input)` — parse element attributes, like `title="Hi" count=2 tags=[a, b] featured`, into data. Values are never evaluated. `@bongo/markdown` uses it for `<bongo:*>` partial elements.
 - `utils.frontmatter(content)` — parse the `---` block at the top of `content`, as described in [Frontmatter](#frontmatter). Returns `{ offset, value }`, where `offset` is where the body starts.
+
+## Hooks
+
+`$hooks.transform(text, ctx)` changes each page and each [output file](#output-files) after it renders and before bongo writes it. Pages arrive with their final asset URLs. Return the new text, or a promise of it.
+
+```ts
+export default {
+	$hooks: {
+		transform(text, ctx) {
+			return ctx.kind === 'page' ? text.replace('{year}', String(new Date().getFullYear())) : text;
+		},
+	},
+};
+```
+
+`ctx` has:
+
+- `kind` — `'page'` or `'output'`.
+- `path` — the URL path, such as `/blog/post/` or `/blog/index.xml`.
+- `params` — the frontmatter.
+- `outputs` — every output file of the build, as `{ path, params }`, sorted by path.
+- `config` — the config, with its plugins merged.
+
+When plugins and the config each set `transform`, all of them run: first the plugins, in order, then the config's own. Each one gets the text that the one before it returned. If one throws, the build fails, and the error names the content file and the layouts that rendered it.
 
 ## publicPath
 

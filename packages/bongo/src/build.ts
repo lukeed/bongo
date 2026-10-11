@@ -16,7 +16,7 @@ import * as tags from './utils/tags';
 import { normalize } from './utils/argv';
 import { RELOAD } from './utils/http';
 
-import type { Argv, Config, Loader, Template } from 'bongo';
+import type { Argv, Build, Config, Loader, Template } from 'bongo';
 
 // Per-page frontmatter signatures from the last completed build. A narrow
 // rebuild (`opts.only`) compares the target's current frontmatter hash against
@@ -61,6 +61,9 @@ function deriveSection(rel: string): string {
 type CollectedPage = {
 	output: string;   // absolute path to write
 	html: string;     // rendered HTML, may contain placeholders
+	path: string;
+	params: Template.Params;
+	from: string;     // what rendered it, for errors (eg, "content/index.md → layouts/html.hbs")
 };
 
 // `sitemap.xml.hbs` or `robots.txt.hbs`: an output file, written as rendered, never a page
@@ -335,9 +338,13 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	// Between walks — build Pages and Sections registries.
 	let Pages: Template.PageInfo[] = [];
 	let Sections: Map<string, Template.PageInfo[]> = new Map();
+	let Outputs: Build.File[] = [];
 
 	for (let item of scanned) {
-		if (item.kind === 'output') continue;
+		if (item.kind === 'output') {
+			Outputs.push({ path: item.path, params: item.params });
+			continue;
+		}
 
 		let info: Template.PageInfo = {
 			path: item.path,
@@ -360,6 +367,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	// Sort each registry by path ascending for stable iteration.
 	Pages.sort((a, b) => a.path.localeCompare(b.path));
+	Outputs.sort((a, b) => a.path.localeCompare(b.path));
 	for (let list of Sections.values()) {
 		list.sort((a, b) => a.path.localeCompare(b.path));
 	}
@@ -423,7 +431,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			: item.body;
 
 		if (item.kind === 'output') {
-			outputs.push({ output: item.output, html: rendered_content });
+			outputs.push({ output: item.output, html: rendered_content, path: item.path, params: item.params, from: `content/${item.rel}` });
 			continue;
 		}
 
@@ -513,7 +521,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		rendered_content = tags.rewriteTransitionAttrs(rendered_content);
 
 		assets.set(item.rel, bundler.placeholders(rendered_content));
-		pages.push({ output: item.output, html: rendered_content });
+		pages.push({ output: item.output, html: rendered_content, path: item.path, params: item.params, from: chain.join(' → ') });
 	}
 
 	bundler.retain(new Set([...assets.values()].flat()));
@@ -552,18 +560,32 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	// Pass 2: substitute placeholders and write pages.
 	let readOutput = (filename: string) => fs.read(join(dest, filename), 'utf8');
+	let { transform } = config.$hooks;
 
-	await Promise.all([
+	async function finish(file: CollectedPage, kind: Build.Context['kind'], text: string): Promise<[string, string]> {
+		if (!transform) return [file.output, text];
+		try {
+			var final = await transform(text, { kind, path: file.path, params: file.params, outputs: Outputs, config });
+		} catch (err) {
+			let reason = err instanceof Error ? err.message : String(err);
+			throw new Error(`${reason}, rendering ${file.from}`, { cause: err });
+		}
+		return [file.output, final];
+	}
+
+	// every file is ready before any is written, so a failed dev rebuild leaves the last good build
+	let ready = await Promise.all([
 		...pages.map(async page => {
 			let html = await templates.substitute(page.html, {
 				outputs: flushResult.outputs,
 				publicPath,
 				readFile: readOutput,
 			});
-			await fs.write(page.output, html);
+			return finish(page, 'page', html);
 		}),
-		...outputs.map(file => fs.write(file.output, file.html)),
+		...outputs.map(file => finish(file, 'output', file.html)),
 	]);
+	await Promise.all(ready.map(([file, text]) => fs.write(file, text)));
 
 	if (argv.minify) watch.step('minifying html');
 	if (argv.minify && !await minify.html(pages.map(page => page.output))) {

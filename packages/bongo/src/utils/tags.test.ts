@@ -56,6 +56,7 @@ function makeConfig(): Required<Config> {
 		$partials: {},
 		$build: {},
 		$images: {},
+		$hooks: {},
 		plugins: [],
 	} as Required<Config>;
 }

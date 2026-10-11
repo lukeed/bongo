@@ -6,6 +6,8 @@ import { pathToFileURL } from 'node:url';
 
 import * as config from './config';
 
+import type { Build } from 'bongo';
+
 function makeBase() {
 	return {
 		$site: { url: '', lang: '', title: '', description: '', menu: {} },
@@ -17,6 +19,7 @@ function makeBase() {
 		},
 		$assets: {},
 		$partials: {},
+		$hooks: {},
 		plugins: [],
 	} as any;
 }
@@ -71,6 +74,19 @@ describe('merge', () => {
 		config.merge(base, { $partials: { header: partial } } as any);
 
 		expect(base.$partials.header).toBe(partial);
+	});
+
+	test('chains $hooks.transform: plugins in order, then the config\'s own, each given the last result', async () => {
+		let base = makeBase();
+		let append = (tag: string): Build.Transform => text => text + tag;
+		config.merge(base, {
+			plugins: [{ $hooks: { transform: append('a') } }, { $hooks: {} }, { $hooks: { transform: append('b') } }],
+			$hooks: { transform: async text => text + 'c' },
+		});
+
+		let transform: Build.Transform = base.$hooks.transform;
+		let ctx: Build.Context = { kind: 'page', path: '/', params: {}, outputs: [], config: base };
+		expect(await transform('x', ctx)).toBe('xabc');
 	});
 });
 

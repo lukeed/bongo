@@ -163,6 +163,11 @@ export function merge(base: Required<Config>, custom: Partial<Config>) {
 	if (custom.$images) {
 		Object.assign(base.$images, custom.$images);
 	}
+	let next = custom.$hooks?.transform;
+	if (next) {
+		let prev = base.$hooks.transform;
+		base.$hooks.transform = prev ? async (text, ctx) => next(await prev(text, ctx), ctx) : next;
+	}
 	for (let key in custom.$utils) {
 		if (typeof custom.$utils[key] !== 'object') {
 			base.$utils[key] = custom.$utils[key];
@@ -219,6 +224,7 @@ export async function load(root: string): Promise<Loaded> {
 		},
 		$build: {},
 		$images: {},
+		$hooks: {},
 		plugins: [
 			// any user plugins
 		]
