@@ -22,8 +22,13 @@ export async function shiki(options: ShikiOptions): Promise<CodeBlockHighlighter
 }
 
 export async function sugarhigh(): Promise<CodeBlockHighlighter> {
-	let { highlight } = await import('sugar-high');
-	return function (code) {
-		return highlight(code);
+	let [{ highlight }, { lang }] = await Promise.all([
+		import('sugar-high'),
+		import('sugar-high/lang'),
+	]);
+
+	return function (code, block) {
+		let name = lang(block.lang);
+		if (name) return `<pre><code class="language-${name}">${highlight(code.replace(/\n$/, ''), { lang: name })}</code></pre>`;
 	};
 }

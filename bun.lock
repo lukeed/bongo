@@ -61,11 +61,11 @@
       },
       "devDependencies": {
         "shiki": "^4.0.2",
-        "sugar-high": "^1.1.0",
+        "sugar-high": "^2.6.0",
       },
       "peerDependencies": {
         "shiki": ">=4.0.0",
-        "sugar-high": ">=1.0.0",
+        "sugar-high": ">=2.0.0",
       },
       "optionalPeers": [
         "shiki",
@@ -283,7 +283,7 @@
 
     "stringify-entities": ["stringify-entities@4.0.4", "", { "dependencies": { "character-entities-html4": "^2.0.0", "character-entities-legacy": "^3.0.0" } }, "sha512-IwfBptatlO+QCJUo19AqvrPNqlVMpW9YEL2LIVY+Rpv2qsjCGxaDLNRgeGsQWJhfItebuJhsGSLjaBbNSQ+ieg=="],
 
-    "sugar-high": ["sugar-high@1.1.0", "", {}, "sha512-pL68G9H5VgK5z5aRAp8Yl4+obwbfEpr4BCCdO9V9JrWTFQiPMuN2GKxl9Vn/oxzkcS8TOTFFNti3LXe0UWX2Yw=="],
+    "sugar-high": ["sugar-high@2.6.0", "", {}, "sha512-G2xyakJ3Zk7Ja6Cw6mnWlkekllsgHrz14T/QXWYF4qmo64Ca96qt3YHAGIjgjLoCjhs1ZjjAGcrFjwmAxFlbXA=="],
 
     "tempura": ["tempura@0.3.2", "", {}, "sha512-Gm5VpRLxAQWTec2WalfqYXqjpXnvU95Us0vYTcBCwbwL9ZkVtVKqM4///uxa0n4rHSfSG9Ws9WzgOLsvdcpydQ=="],
 
