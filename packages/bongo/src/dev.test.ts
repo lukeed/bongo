@@ -133,6 +133,36 @@ describe('dev', () => {
 		}
 	}, 30_000);
 
+	test('runs a data module again when a page, the module, or a file it imports changes', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' } };`,
+			'lib/prefix.ts': `export const prefix = 'v1';`,
+			'layouts/html.hbs': '{{{ $page.content }}}',
+			'content/index.html': '---\ntitle: Home\n---\n<main>home</main>',
+			'content/titles.json.ts': `import { prefix } from '../lib/prefix';\nexport default ({ $pages }: Record<string, any>) => $pages.map((p: { title: string }) => prefix + ':' + p.title);`,
+		});
+		let server = await serve(root);
+		let json = () => fetch(server.url + '/titles.json').then(res => res.text());
+		try {
+			await until(async () => await json() === '["v1:Home"]', 'the first build', server);
+			let res = await fetch(server.url + '/titles.json');
+			expect(res.headers.get('content-type')).toContain('application/json');
+
+			await writeFile(join(root, 'content/index.html'), '---\ntitle: Start\n---\n<main>home</main>');
+			await until(async () => await json() === '["v1:Start"]', 'a page edit', server);
+
+			await writeFile(join(root, 'lib/prefix.ts'), `export const prefix = 'v2';`);
+			await until(async () => await json() === '["v2:Start"]', 'an imported module edit', server);
+
+			await writeFile(join(root, 'content/titles.json.ts'), `export default ['edited'];`);
+			await until(async () => await json() === '["edited"]', 'a module edit', server);
+			expect(server.messages.filter(m => m.type === 'error')).toEqual([]);
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+
 	test('a broken config shows the overlay and keeps the last good build serving', async () => {
 		let root = await site({
 			'bongo.config.ts': CONFIG('A'),

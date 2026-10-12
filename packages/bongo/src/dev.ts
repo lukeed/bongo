@@ -6,7 +6,7 @@ import * as templates from './utils/templates';
 import * as http from './utils/http';
 import * as log from './utils/log';
 import * as fs from './utils/fs';
-import { build, prepare, wipe } from './build';
+import { build, imports, prepare, wipe } from './build';
 import { LoadError } from './utils/config';
 import { normalize } from './utils/argv';
 
@@ -168,6 +168,7 @@ export async function dev(argv: Argv) {
 		// pages in `public/` are left alone.
 		let narrow = files.length === 1 && changes.has('content') && !deleted;
 		await rebuild(argv, { inputs, only: narrow ? relative(flags.content, files[0]) : undefined });
+		await track();
 		done();
 	}
 
@@ -187,6 +188,15 @@ export async function dev(argv: Argv) {
 
 	function changed(file: string): void {
 		if (tracked.has(file) || file.startsWith(flags.data + sep)) schedule(file, 'inputs');
+	}
+
+	// Files that data modules import from outside content/ count as inputs too.
+	async function track(): Promise<void> {
+		let size = tracked.size;
+		imports().forEach(file => tracked.add(file));
+		if (tracked.size === size) return;
+		stop();
+		stop = await follow();
 	}
 
 	async function reload(): Promise<boolean> {
@@ -229,7 +239,10 @@ export async function dev(argv: Argv) {
 	inputs.files.forEach(file => tracked.add(file));
 	stop();
 	stop = await follow();
-	await build(argv, { inputs }).finally(built);
+	await build(argv, { inputs }).finally(async () => {
+		built();
+		await track();
+	});
 	done();
 
 	// Reload any page that connected before the build finished.

@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { build } from './build';
+import { build, imports } from './build';
 import * as bundler from './utils/bundler';
 import { ID, RELOAD } from './utils/http';
 import * as templates from './utils/templates';
@@ -210,6 +210,124 @@ describe('output files', () => {
 			await build({ cwd: root }, { only: 'list.txt.hbs' });
 			expect(await read(root, 'list.txt')).toBe('[A][B]');
 			expect(await mtime('b/index.html')).toBe(sibling);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('data modules', () => {
+	test('a <name>.json.ts file writes its default export as compact JSON, from the context of .hbs content', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $utils: { up: s => s.toUpperCase() } };`,
+			'data/meta.json': '{ "owner": "luke" }',
+			'content/index.html': '<p>home</p>',
+			'content/blog/a.html': '---\ntitle: A\ntags: x\n---\n<p>a</p>',
+			'content/blog/b.html': '---\ntitle: B\n---\n<p>b</p>',
+			'content/blog/posts.json.ts': [
+				'type Page = { path: string; title: string };',
+				'export default async ({ $site, $pages, $section, $tags, $data, $utils }: Record<string, any>) => ({',
+				'	site: $site.title,',
+				'	owner: $data.meta.owner,',
+				'	up: $utils.up("x"),',
+				'	pages: $pages.map((p: Page) => p.path),',
+				'	section: $section.map((p: Page) => p.title),',
+				'	tags: $tags.map((t: { tag: string }) => t.tag),',
+				'});',
+			].join('\n'),
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'blog/posts.json')).toBe(JSON.stringify({
+				site: 'T',
+				owner: 'luke',
+				up: 'X',
+				pages: ['/', '/blog/a/', '/blog/b/'],
+				section: ['A', 'B'],
+				tags: ['x'],
+			}));
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a module may export a plain value, and a .json.js file works too', async () => {
+		let root = await site({
+			'content/index.html': '<p>home</p>',
+			'content/a.json.ts': 'export default [1, { two: 2 }];',
+			'content/b.json.js': 'export default "three";',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'a.json')).toBe('[1,{"two":2}]');
+			expect(await read(root, 'b.json')).toBe('"three"');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a data module is not a page, and no page lists it', async () => {
+		let root = await site({
+			'content/index.html': '<p>home</p>',
+			'content/list.txt.hbs': '{{#each $pages as p}}{{ p.path }};{{/each}}',
+			'content/data.json.ts': 'export default { ok: true };',
+		});
+		try {
+			await build({ cwd: root, minify: true });
+			expect(await read(root, 'list.txt')).toBe('/;');
+			expect(await read(root, 'data.json')).toBe('{"ok":true}');
+			expect(existsSync(join(root, 'public/data.json.ts'))).toBe(false);
+			expect(existsSync(join(root, 'public/data.json/index.html'))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a narrow rebuild runs every data module again', async () => {
+		let root = await site({
+			'content/a.html': '---\ntitle: A\n---\n<p>a</p>',
+			'content/titles.json.ts': 'export default ({ $pages }: Record<string, any>) => $pages.map((p: { title: string }) => p.title);',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'titles.json')).toBe('["A"]');
+			await writeFile(join(root, 'content/a.html'), '---\ntitle: A2\n---\n<p>a</p>');
+			await build({ cwd: root }, { only: 'a.html' });
+			expect(await read(root, 'titles.json')).toBe('["A2"]');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a module with no default export, or one that throws, fails the build and names the file', async () => {
+		for (let [source, message] of [
+			['export const value = 1;', 'needs a default export'],
+			['export default () => { throw new Error("boom"); };', 'boom'],
+			['export default () => undefined;', 'is not JSON'],
+		]) {
+			let root = await site({ 'content/index.html': '<p>home</p>', 'content/bad.json.ts': source });
+			try {
+				let failed = await build({ cwd: root }).then(() => '', (err: Error) => err.message);
+				expect(failed).toContain('content/bad.json.ts');
+				expect(failed).toContain(message);
+			} finally {
+				await rm(root, { recursive: true, force: true });
+			}
+		}
+	});
+
+	test('lists the local files that data modules import from outside content/, for dev to watch', async () => {
+		let root = await site({
+			'lib/names.ts': 'export const names = ["a", "b"];',
+			'content/index.html': '<p>home</p>',
+			'content/names.json.ts': 'import { names } from "../lib/names";\nexport default names;',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'names.json')).toBe('["a","b"]');
+			let files = imports().map(file => realpathSync(file));
+			expect(files).toContain(realpathSync(join(root, 'lib/names.ts')));
+			expect(files).not.toContain(realpathSync(join(root, 'content/names.json.ts')));
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
