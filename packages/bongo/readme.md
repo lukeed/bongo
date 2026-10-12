@@ -50,9 +50,9 @@ bongo deletes a symlink in `public/`, but never the file or folder that it point
 
 When you run `bongo build`:
 
-1. `public/` is emptied. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` by walking upward from `cwd`. Rolldown bundles the config and the local files it imports into one temporary `.mjs` module, which bongo imports and then deletes. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual, and `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials and `data/` modules load the same way.
+1. `public/` is emptied. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` by walking upward from `cwd`. Rolldown bundles the config and the local files it imports into one temporary `.mjs` module, which bongo imports and then deletes. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual, and `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials, `data/` modules, and [data modules](#data-modules) load the same way.
 2. Files in `data/` are loaded as `$data`. Layouts and partials are collected from `layouts/` and `partials/`. Handlebars files (`.hbs`) are compiled with tempura. JavaScript and TypeScript partials are loaded as modules.
-3. Content files are passed through registered loaders, then rendered through the matching layout chain. [Output files](#output-files), such as `sitemap.xml.hbs`, get no layout.
+3. Content files are passed through registered loaders, then rendered through the matching layout chain. [Output files](#output-files), such as `sitemap.xml.hbs`, get no layout. [Data modules](#data-modules), such as `search.json.ts`, run once every page is known, and write JSON.
 4. Rendered HTML is scanned for `<bongo:*>` elements, and each page's content for `<img>` elements with a relative `src`. Assets are registered and replaced with placeholder tokens.
 5. Asset groups are flushed. JavaScript goes through Rolldown; CSS goes through LightningCSS; images go through `Bun.Image`. Output filenames include content hashes.
 6. Placeholders are substituted with external asset URLs or inline asset contents.
@@ -415,7 +415,34 @@ title: My blog
 </feed:channel>
 ```
 
-`content/feed.json.hbs` also works, but it is not recommended: `{{ }}` escapes text for HTML, not for JSON, so the output is easily invalid. If you must, print each value with `{{{ JSON.stringify(value) }}}`. Data modules for JSON output are planned in [#52](https://github.com/lukeed/bongo/issues/52).
+`content/feed.json.hbs` also works, but it is not recommended: `{{ }}` escapes text for HTML, not for JSON, so the output is easily invalid. For JSON, use a [data module](#data-modules).
+
+## Data modules
+
+A `.json.ts` or `.json.js` file in `content/` is a data module. bongo runs it and writes its default export as JSON, without the script extension:
+
+| File | Output |
+| --- | --- |
+| `content/search.json.ts` | `/search.json` |
+| `content/blog/posts.json.js` | `/blog/posts.json` |
+
+The default export is a value, or a function that returns one. The function receives `$site`, `$pages`, `$section`, `$tags`, `$data`, and `$utils`, as `.hbs` content does, and it may be async. Type it with `Build.Data`:
+
+```ts
+// content/search.json.ts
+import type { Build } from 'bongo';
+
+export default ({ $pages }: Build.Data) => $pages
+	.filter(page => page.section === 'blog')
+	.map(page => ({ title: page.title, path: page.path }));
+```
+
+A data module is like an output file:
+
+- It is not a page: it gets no layout, is not in `$pages`, `$section`, or `$tags`, and is never minified or passed to `$hooks.transform`. The JSON is always compact.
+- It may import local files and packages, as the config does. It runs on every build, so it always reads the current pages.
+- `bongo dev` serves it as `application/json`. It runs again after every change to a page, to the module, or to a local file it imports.
+- If it has no default export, throws, or returns something JSON cannot hold, such as `undefined`, the build fails and names the file.
 
 ## Images
 

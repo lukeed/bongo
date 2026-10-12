@@ -163,6 +163,20 @@ export namespace Build {
 		/** Plugins run first, in order, then the config's own; each gets the text the last one returned. */
 		transform?: Transform;
 	};
+
+	/**
+	 * What the default export of a data module, such as `content/search.json.ts`, receives when it is a function.
+	 * @example export default ({ $pages }: Build.Data) => $pages.map(page => ({ title: page.title, path: page.path }));
+	 */
+	type Data = {
+		$site: Template.Site;
+		$pages: Template.PageInfo[];
+		/** The pages in the module's own folder. */
+		$section: Template.PageInfo[];
+		$tags: Template.TagEntry[];
+		$data: Record<string, unknown>;
+		$utils: NonNullable<Config['$utils']>;
+	};
 }
 
 export namespace Images {

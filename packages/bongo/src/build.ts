@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { extname, join } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { extname, join, sep } from 'node:path';
 import { dim, green } from 'kleur/colors';
 import * as mime from 'mrmime';
 
@@ -10,7 +11,7 @@ import * as images from './utils/images';
 import * as log from './utils/log';
 import * as minify from './utils/minify';
 import * as bundler from './utils/bundler';
-import { load } from './utils/config';
+import { load, loadModule, LoadError } from './utils/config';
 import * as loaders from './utils/loaders';
 import * as templates from './utils/templates';
 import * as tags from './utils/tags';
@@ -30,6 +31,12 @@ let FRONTMATTER_SIG: Map<string, string> = new Map();
 // Per output dir, the last good build's files and each page's assets, to keep or delete on the next build.
 type Output = { assets: Map<string, string[]>; files: Set<string>; dev: boolean };
 let OUTPUT: Map<string, Output> = new Map();
+
+// Local files outside content/ that the last build's data modules read.
+let IMPORTS: string[] = [];
+
+// `search.json.ts` writes `search.json`
+const DATA_MODULE = /\.json\.[jt]s$/;
 
 function frontmatterSig(raw: string): string {
 	let { offset } = templates.frontmatter(raw);
@@ -71,7 +78,7 @@ type ScanItem = {
 	input: string;           // absolute source path
 	rel: string;             // path relative to content/
 	name: string;            // basename with ext
-	kind: 'page' | 'output';
+	kind: 'page' | 'output' | 'data';
 	ext: string;             // final extension (post-loader chain) — 'hbs'|'html'|'htm'
 	body: string;            // frontmatter stripped, loaders run; `.hbs` still raw for walk-2 compile
 	params: Template.Params;
@@ -144,6 +151,14 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	} finally {
 		watch.stop();
 	}
+}
+
+/**
+ * The local files outside `content/` that the last build's data modules imported, for dev to watch.
+ * @example for (let file of imports()) watch(file);
+ */
+export function imports(): string[] {
+	return IMPORTS;
 }
 
 /**
@@ -229,6 +244,13 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		let params: Template.Params = {};
 		let src = '';
 		let raw = '';
+
+		if (DATA_MODULE.test(name)) {
+			let file = rel.substring(0, rel.length - ext.length - 1);
+			let path = '/' + file.replace(/\\/g, '/');
+			scanned.push({ input, rel, name, kind: 'data', ext, body: '', params, path, url: new URL(path.substring(1), site).href, output: join(dest, file), section: deriveSection(rel), title: '', summary: '', tags: [], sig: frontmatterSig('') });
+			return;
+		}
 
 		if (isPage.test(ext)) {
 			src = await fs.read(input, 'utf8');
@@ -345,6 +367,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	let Outputs: Build.File[] = [];
 
 	for (let item of scanned) {
+		if (item.kind === 'data') continue;
 		if (item.kind === 'output') {
 			Outputs.push({ path: item.path, params: item.params });
 			continue;
@@ -405,10 +428,15 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	// Output files always render, since they read `$pages`.
 	let pages: CollectedPage[] = [];
 	let outputs: CollectedPage[] = [];
+	let modules: ScanItem[] = [];
 	let assets: Map<string, string[]> = new Map(narrowOnly && last ? last.assets : []);
 
 	for (let item of scanned) {
 		if (narrowOnly && item.rel !== narrowOnly && item.kind === 'page') continue;
+		if (item.kind === 'data') {
+			modules.push(item);
+			continue;
+		}
 
 		let $page: Template.Page = {
 			path: item.path,
@@ -533,6 +561,32 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	bundler.retain(new Set([...assets.values()].flat()));
 
+	// Data modules run on every build, narrow ones too, since they read `$pages`.
+	let imported: Set<string> = new Set();
+	let roots = [content, realpathSync(content)].map(dir => dir + sep);
+	let note = (files: string[]) => files.forEach(file => roots.some(root => file.startsWith(root)) || imported.add(file));
+	let json: [string, string][] = [];
+	try {
+		for (let item of modules) {
+			try {
+				var mod = await loadModule(item.input, argv.cwd);
+				note(mod.files);
+				if (!('default' in mod.exports)) throw new Error('needs a default export');
+				let value = mod.exports.default;
+				if (typeof value === 'function') value = await value({ $site, $pages: Pages, $section: Sections.get(item.section) || [], $tags, $data, $utils: context.$utils });
+				var serialized = JSON.stringify(value);
+				if (serialized === undefined) throw new Error(`its default export is not JSON: ${typeof value}`);
+			} catch (err) {
+				if (err instanceof LoadError) note(err.files);
+				let reason = err instanceof Error ? err.message : String(err);
+				throw new Error(`content/${item.rel}: ${reason}`, { cause: err });
+			}
+			json.push([item.output, serialized]);
+		}
+	} finally {
+		IMPORTS = [...imported];
+	}
+
 	// Flush: run every bundle group in parallel.
 	let publicPath = derivePublicPath($site.url);
 	let cache = join(argv.cwd, 'node_modules', '.cache', 'bongo', 'images');
@@ -591,6 +645,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			return finish(page, 'page', html);
 		}),
 		...outputs.map(file => finish(file, 'output', file.html)),
+		...json,
 	]);
 	await Promise.all(ready.map(([file, text]) => fs.write(file, text)));
 
