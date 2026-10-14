@@ -31,7 +31,7 @@ import type { Blocks } from './utils/tempura/index';
 let FRONTMATTER_SIG: Map<string, string> = new Map();
 
 // Per sink, the last good build's files, and each page's assets and renders, to keep or delete on the next build.
-type Output = { assets: Map<string, string[]>; renders: Map<string, string[]>; files: Set<string>; dev: boolean };
+type Output = { assets: Map<string, string[]>; renders: Map<string, string[]>; keys: Map<string, { key: string; from: string }>; files: Set<string>; dev: boolean };
 let OUTPUT: Map<output.Sink, Output> = new Map();
 
 // Local files outside content/ that the last build's data modules read.
@@ -450,6 +450,13 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	let bundles: Map<string, string[]> = new Map(narrowOnly && last ? last.assets : []);
 	let rendered: Map<string, string[]> = new Map(narrowOnly && last ? last.renders : []);
 	rendered.set('', loose);
+	for (let [rel, names] of rendered) {
+		if (rel === narrowOnly || rel === '') continue;
+		for (let name of names) {
+			let hit = last?.keys.get(name);
+			if (hit) renders.seen.set(name, hit);
+		}
+	}
 
 	for (let item of scanned) {
 		if (narrowOnly && item.rel !== narrowOnly && item.kind === 'page') continue;
@@ -689,7 +696,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	let files = new Set([...taken, ...[...rendered.values()].flat().map(name => join(dest, name))]);
 	await Promise.all([...last?.files ?? []].filter(file => !files.has(file)).map(file => sink.remove(file)));
-	OUTPUT.set(sink, { assets: bundles, renders: rendered, files, dev: argv.dev });
+	let keys = new Map([...renders.seen, ...[...renders.files].map(([name, { key, from }]) => [name, { key, from }] as const)]);
+	OUTPUT.set(sink, { assets: bundles, renders: rendered, keys, files, dev: argv.dev });
 
 	// Refresh the frontmatter-sig snapshot for the next narrow rebuild. Only
 	// pages actually scanned in this build are updated; narrow builds don't

@@ -54,7 +54,10 @@ export type Context = {
 	cache: string;
 	quality: Partial<Record<'jpeg' | 'webp', number>>;
 	files: Map<string, { key: string; from: string; make(): Promise<Buffer> }>;
+	/** The renders of pages that a narrow rebuild does not render again. */
+	seen: Map<string, { key: string; from: string }>;
 	reads: Map<string, Promise<Read>>;
+	uris: Map<string, Promise<string>>;
 };
 
 const FORMATS: Record<string, Format> = { svg: 'svg', png: 'png', jpg: 'jpeg', jpeg: 'jpeg', webp: 'webp' };
@@ -65,7 +68,7 @@ const WEIGHTS: Weight[] = [100, 200, 300, 400, 500, 600, 700, 800, 900];
 
 const STYLE = /<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi;
 const FACE = /@font-face\s*\{([^}]*)\}/gi;
-const TAG = /<!--[\s\S]*?-->|<!doctype[^>]*>|<\/([a-z][\w:.-]*)\s*>|<([a-z][\w:.-]*)((?:\s+[^\s"'>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*)\s*(\/?)>/gi;
+const TAG = /<!--[\s\S]*?-->|<!doctype[^>]*>|<\?[\s\S]*?\?>|<!\[CDATA\[[\s\S]*?\]\]>|<\/([a-z][\w:.-]*)\s*>|<([a-z][\w:.-]*)((?:\s+[^\s"'>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*)\s*(\/?)>/gi;
 const ATTR = /([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
 const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
 const ENTITY = /&(?:#(\d+)|#x([\da-f]+)|([a-z]+));/gi;
@@ -86,8 +89,9 @@ function sha256(input: string | Uint8Array): string {
 
 function decode(text: string): string {
 	return text.replace(ENTITY, (match, dec?: string, hex?: string, name?: string) => {
-		if (dec || hex) return String.fromCodePoint(parseInt(dec || hex || '', dec ? 10 : 16));
-		return NAMED[name ?? ''] ?? match;
+		if (name) return Object.hasOwn(NAMED, name) ? NAMED[name] : match;
+		let code = parseInt(dec || hex || '', dec ? 10 : 16);
+		return code <= 0x10ffff ? String.fromCodePoint(code) : match;
 	});
 }
 
@@ -125,29 +129,37 @@ function unquote(text: string): string {
 // A path in assets/ for a `src` or `url()` that names a local file; undefined for a data: or remote URL.
 function local(src: string): string | undefined {
 	if (REMOTE.test(src)) return;
-	let path = posix.normalize(src.replace(/\\/g, '/').replace(/^\/+/, ''));
+	let raw = src.replace(/[?#].*$/, '');
+	try { raw = decodeURIComponent(raw); } catch { /* keep as written */ }
+	let path = posix.normalize(raw.replace(/\\/g, '/').replace(/^\/+/, ''));
+	if (path === '.') throw new Error(`an empty src names no file`);
 	if (path === '..' || path.startsWith('../')) throw new Error(`"${src}" is outside assets/`);
 	return path;
 }
 
 function font(text: string): Font {
 	let rule = declarations(text);
-	let name = unquote(rule.fontFamily ?? '');
+	let name = unquote(split(rule.fontFamily ?? '', ',')[0] ?? '');
 	if (!name) throw new Error('@font-face needs a font-family');
 	if (!rule.src) throw new Error(`@font-face "${name}" needs a src`);
 
-	let sources = split(rule.src, ',').filter(entry => /^url\(/i.test(entry));
-	let usable = sources.find(entry => !/woff2/i.test(entry));
+	let sources = split(rule.src, ',').flatMap(entry => {
+		URL_FN.lastIndex = 0;
+		let match = /^url\(/i.test(entry) && URL_FN.exec(entry);
+		if (!match) return [];
+		let url = match[1] ?? match[2] ?? match[3] ?? '';
+		let format = /format\(\s*['"]?([\w-]+)/i.exec(entry)?.[1];
+		return [{ url, woff2: format ? /^woff2/i.test(format) : /\.woff2$/i.test(url.replace(/[?#].*$/, '')) }];
+	});
+	let usable = sources.find(source => !source.woff2);
 	if (!usable) throw new Error(`@font-face "${name}" has only WOFF2 sources, and Satori cannot read WOFF2; use a WOFF, TTF, or OTF file`);
-	URL_FN.lastIndex = 0;
-	let match = URL_FN.exec(usable);
-	let url = match ? match[1] ?? match[2] ?? match[3] : '';
-	let src = local(url);
-	if (!src) throw new Error(`@font-face "${name}" src "${url}" must be a file in assets/`);
+	let src = local(usable.url);
+	if (!src) throw new Error(`@font-face "${name}" src "${usable.url}" must be a file in assets/`);
 
-	let value = (rule.fontWeight ?? 'normal').toLowerCase();
-	let number = value === 'bold' ? 700 : value === 'normal' ? 400 : parseFloat(value);
-	let weight = WEIGHTS[Math.min(8, Math.max(0, (Math.round(number / 100) || 4) - 1))];
+	let value = (rule.fontWeight ?? 'normal').toLowerCase().split(/\s+/)[0];
+	let number = value === 'bold' ? 700 : value === 'normal' ? 400 : Number(value);
+	if (!(number >= 1 && number <= 1000)) throw new Error(`@font-face "${name}" font-weight "${rule.fontWeight}" is not a number, normal, or bold`);
+	let weight = WEIGHTS[Math.min(8, Math.max(0, Math.round(number / 100) - 1))];
 	let style: Font['style'] = /^(italic|oblique)/i.test(rule.fontStyle ?? '') ? 'italic' : 'normal';
 	return { name, src, weight, style };
 }
@@ -161,7 +173,7 @@ export function parse(html: string): { fonts: Font[]; root: Element } {
 	let fonts: Font[] = [];
 	html = html.replace(STYLE, (_, css: string) => {
 		let rest = css.replace(/\/\*[\s\S]*?\*\//g, '').replace(FACE, (_, rule: string) => (fonts.push(font(rule)), ''));
-		if (rest.trim()) throw new Error('<style> may hold only @font-face rules; style elements with their style attribute');
+		if (rest.trim()) throw new Error('<style> may hold only @font-face rules; set the styles of an element with its style attribute');
 		return '';
 	});
 
@@ -178,6 +190,7 @@ export function parse(html: string): { fonts: Font[]; root: Element } {
 		last = TAG.lastIndex;
 		let [, close, open, attrs, slash] = match;
 		if (close) {
+			if (VOID.has(close.toLowerCase())) continue;
 			let at = stack.findLastIndex(item => item.type.toLowerCase() === close.toLowerCase());
 			if (at < 0) throw new Error(`</${close}> closes no element`);
 			if (at < stack.length - 1) throw new Error(`<${stack[stack.length - 1].type}> is not closed`);
@@ -224,24 +237,32 @@ function read(ctx: Context, rel: string): Promise<Read> {
 	return hit;
 }
 
-async function uri(ctx: Context, src: string): Promise<string> {
-	let rel = local(src);
-	if (rel === undefined) return src;
-	let { data } = await read(ctx, rel);
-	return `data:${mime.lookup(rel) || 'application/octet-stream'};base64,${data.toString('base64')}`;
+// One data: URL for each file, shared by every page that uses it.
+function uri(ctx: Context, rel: string): Promise<string> {
+	let hit = ctx.uris.get(rel);
+	if (hit) return hit;
+	hit = read(ctx, rel).then(({ data }) => `data:${mime.lookup(rel) || 'application/octet-stream'};base64,${data.toString('base64')}`);
+	ctx.uris.set(rel, hit);
+	return hit;
 }
 
 async function inline(ctx: Context, node: Element): Promise<Element> {
 	let { style, children, ...props } = node.props;
 	let out: Element['props'] = { ...props };
 
-	if (node.type === 'img' && typeof props.src === 'string') out.src = await uri(ctx, props.src);
+	let src = node.type === 'img' && typeof props.src === 'string' ? props.src : undefined;
+	let rel = src === undefined ? undefined : local(src);
+	if (rel !== undefined) out.src = await uri(ctx, rel);
 	if (style) {
 		let entries = await Promise.all(Object.entries(style).map(async ([name, value]): Promise<[string, string]> => {
-			let urls: Promise<string>[] = [];
-			value.replace(URL_FN, (_, a?: string, b?: string, c?: string) => (urls.push(uri(ctx, a ?? b ?? c ?? '')), ''));
-			let found = await Promise.all(urls);
-			return [name, found.length ? value.replace(URL_FN, () => `url(${found.shift()})`) : value];
+			let parts: Promise<string>[] = [];
+			value.replace(URL_FN, (match, a?: string, b?: string, c?: string) => {
+				let rel = local(a ?? b ?? c ?? '');
+				parts.push(rel === undefined ? Promise.resolve(match) : uri(ctx, rel).then(data => `url("${data}")`));
+				return match;
+			});
+			let found = await Promise.all(parts);
+			return [name, found.length ? value.replace(URL_FN, () => found.shift() ?? '') : value];
 		}));
 		out.style = Object.fromEntries(entries);
 	}
@@ -299,7 +320,7 @@ function make(job: Job): Promise<Buffer> {
 			let cached = await readFile(out).catch(() => undefined);
 			if (cached) return cached;
 		}
-		let data = await draw(job);
+		let data = await images.slot(() => draw(job));
 		await mkdir(job.cache, { recursive: true });
 		let tmp = `${out}.${randomBytes(4).toString('hex')}.tmp`;
 		try {
@@ -320,7 +341,7 @@ function make(job: Job): Promise<Buffer> {
  * @example let ctx = render.context({ assets: 'assets', cache: 'node_modules/.cache/bongo/render', quality: { jpeg: 80, webp: 80 } })
  */
 export function context(opts: Pick<Context, 'assets' | 'cache' | 'quality'>): Context {
-	return { ...opts, files: new Map(), reads: new Map() };
+	return { ...opts, files: new Map(), seen: new Map(), reads: new Map(), uris: new Map() };
 }
 
 /**
@@ -367,9 +388,9 @@ export async function add(ctx: Context, request: Request): Promise<string> {
 	let key = sha256(JSON.stringify([engine, format, width, height, quality, root, fonts.map(face => [face.name, face.weight, face.style, face.hash])])).slice(0, 16);
 
 	let name = path ?? `${posix.basename(template)}.${key.slice(0, 8)}.png`;
-	let prev = ctx.files.get(name);
+	let prev = ctx.files.get(name) ?? ctx.seen.get(name);
 	if (prev && prev.key !== key) throw new Error(`"${name}" renders twice with different content, from ${prev.from} and ${from}`);
-	if (!prev) {
+	if (!ctx.files.has(name)) {
 		let job: Job = { key, format, root, fonts: fonts.map(({ hash, ...face }) => face), width, height, quality, cache: ctx.cache };
 		ctx.files.set(name, {
 			key,

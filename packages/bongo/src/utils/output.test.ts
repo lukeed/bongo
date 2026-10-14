@@ -109,6 +109,20 @@ describe('defer', () => {
 		await rm(argv.cwd, { recursive: true, force: true });
 	});
 
+	test('memory tries a deferred file again after its maker fails', async () => {
+		let argv = await project();
+		let sink = output.memory(argv.dest);
+		let tries = 0;
+		let file = join(argv.dest, 'og/card.png');
+		await sink.defer(file, async () => {
+			if (++tries === 1) throw new Error('busy');
+			return Buffer.from('png');
+		});
+		await expect(sink.read(file)).rejects.toThrow('busy');
+		expect(String(await sink.read(file))).toBe('png');
+		await rm(argv.cwd, { recursive: true, force: true });
+	});
+
 	test('a disk sink, and the mirror of a memory sink, make the file at once', async () => {
 		let argv = await project();
 		let sink = output.memory(argv.dest, output.disk(argv));

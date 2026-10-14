@@ -93,6 +93,9 @@ export function memory(dir: string, mirror?: Sink): Memory {
 					let data = Buffer.from(bytes);
 					if (files.get(file) === entry) files.set(file, { data, version: ++version });
 					return data;
+				}, err => {
+					made = undefined;
+					throw err;
 				}),
 			};
 			files.set(file, entry);

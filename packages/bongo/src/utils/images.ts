@@ -96,8 +96,11 @@ function serialize(attrs: [string, Attrs[string] | undefined][]): string {
 	return out;
 }
 
-// Bounds how many images are decoded at once, so a large site does not hold every source in memory.
-async function slot<T>(run: () => Promise<T>): Promise<T> {
+/**
+ * Run `run` when fewer than one job per CPU is running, so a large site does not hold every image in memory at once.
+ * @example let bytes = await images.slot(() => encode(file))
+ */
+export async function slot<T>(run: () => Promise<T>): Promise<T> {
 	if (active < LIMIT) active++;
 	else await new Promise<void>(next => waiting.push(next));
 	try {

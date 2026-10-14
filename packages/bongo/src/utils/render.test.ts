@@ -86,6 +86,25 @@ describe('parse', () => {
 		expect(root).toEqual({ type: 'p', props: { children: 'hi' } });
 	});
 
+	test('skips XML declarations and CDATA, ignores a stray void close tag, and leaves unknown entities as written', () => {
+		let { root } = render.parse('<?xml version="1.0"?><div><![CDATA[x]]>&constructor; &#99999999; &#65;<br></br></div>');
+		expect(root).toEqual({ type: 'div', props: { children: ['&constructor; &#99999999; A', { type: 'br', props: {} }] } });
+	});
+
+	test('reads the first family, the first weight of a range, and a src without its query or hash', () => {
+		let { fonts } = render.parse([
+			'<style>',
+			'  @font-face { font-family: "A", sans-serif; src: url(fonts/inter-woff2/My%20Font.ttf?v=2#x); font-weight: 100 900 }',
+			'  @font-face { font-family: B; src: url(b.woff2?v=1), url(b.woff) format("woff") }',
+			'</style>',
+			'<p>hi</p>',
+		].join('\n'));
+		expect(fonts).toEqual([
+			{ name: 'A', src: 'fonts/inter-woff2/My Font.ttf', weight: 100, style: 'normal' },
+			{ name: 'B', src: 'b.woff', weight: 400, style: 'normal' },
+		]);
+	});
+
 	test('fails on markup or styles that Satori cannot draw', () => {
 		expect(() => render.parse('<div><p>a</div>')).toThrow('<p> is not closed');
 		expect(() => render.parse('<div>a</p></div>')).toThrow('</p> closes no element');
@@ -96,6 +115,8 @@ describe('parse', () => {
 		expect(() => render.parse('<style>@font-face { font-family: A }</style><p>a</p>')).toThrow('@font-face "A" needs a src');
 		expect(() => render.parse('<style>@font-face { font-family: A; src: url(a.woff2) }</style><p>a</p>')).toThrow('Satori cannot read WOFF2');
 		expect(() => render.parse('<style>@font-face { font-family: A; src: url(https://x.dev/a.woff) }</style><p>a</p>')).toThrow('a file in assets/');
+		expect(() => render.parse('<style>@font-face { font-family: A; src: url(a.woff); font-weight: bolder }</style><p>a</p>')).toThrow('@font-face "A" font-weight "bolder" is not a number, normal, or bold');
+		expect(() => render.parse('<style>@font-face { font-family: A; src: url(a.woff) format("woff2") }</style><p>a</p>')).toThrow('Satori cannot read WOFF2');
 	});
 });
 
@@ -202,6 +223,42 @@ describe('$assets.render', () => {
 		}
 	});
 
+	test('keeps a url() that is not a file in assets/ as written', async () => {
+		let image = 'data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;10&quot; height=&quot;10&quot;><rect width=&quot;10&quot; height=&quot;10&quot; fill=&quot;rgb(171, 205, 239)&quot;/></svg>';
+		let root = await site({
+			'partials/card.hbs': `<div style="display: flex; width: 100%; height: 100%; background-image: url('${image}')"></div>`,
+			'content/index.hbs': `{{ await $assets.render('card', 'card.svg') }}`,
+		});
+		try {
+			await build({ cwd: root });
+			let svg = await readFile(join(root, 'public/card.svg'), 'utf8');
+			let drawn = /<pattern[^>]*><image[^>]*href="data:image\/svg\+xml;base64,([^"]+)"/.exec(svg)?.[1] ?? '';
+			expect(Buffer.from(drawn, 'base64').toString()).toContain('fill="rgb(171, 205, 239)"');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a narrow rebuild fails when a page renders over the image of a page it did not render again', async () => {
+		let root = await site({
+			'partials/card.hbs': '<div style="display: flex; width: 100%; height: 100%; background: {{ $page.params.color }}"></div>',
+			'content/a.hbs': `---\ncolor: red\n---\n{{ await $assets.render('card', 'a.png') }}`,
+			'content/b.hbs': `---\ncolor: blue\n---\n{{ await $assets.render('card', 'b.png') }}`,
+		});
+		try {
+			await build({ cwd: root });
+			await writeFile(join(root, 'content/b.hbs'), `---\ncolor: blue\n---\n{{ await $assets.render('card', 'a.png') }}`);
+			let err = await build({ cwd: root }, { only: 'b.hbs' }).then(() => undefined, (err: Error) => err);
+			expect(err?.message).toContain('"a.png" renders twice with different content, from /a/ and /b/');
+
+			await writeFile(join(root, 'content/b.hbs'), `---\ncolor: blue\n---\n{{ await $assets.render('card', 'c.png') }}`);
+			await build({ cwd: root }, { only: 'b.hbs' });
+			expect((await readdir(join(root, 'public'))).filter(name => name.endsWith('.png')).sort()).toEqual(['a.png', 'c.png']);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('keeps each render in the cache, so the next build reads it from there', async () => {
 		let root = await site({
 			'partials/card.hbs': '<div style="display: flex; width: 100%; height: 100%; background: red"></div>',
@@ -226,6 +283,7 @@ describe('$assets.render', () => {
 			[{ 'partials/card.hbs': '<style>@font-face { font-family: A; src: url(fonts/none.woff) }</style><p>hi</p>' }, 'Missing "fonts/none.woff" asset'],
 			[{ 'partials/card.hbs': '<style>@font-face { font-family: A; src: url(fonts/fake.woff) }</style><p>hi</p>', 'assets/fonts/fake.woff': 'wOF2xxxx' }, '"fonts/fake.woff" is WOFF2, which Satori cannot read'],
 			[{ 'partials/card.hbs': '<div><img src="img/none.png"></div>' }, 'Missing "img/none.png" asset'],
+			[{ 'partials/card.hbs': '<div><img src=""></div>' }, 'Cannot render "card.png" from partials/card.hbs: an empty src names no file'],
 			[{ 'partials/card.hbs': '<p>a</p><p>b</p>' }, 'Cannot render "card.png" from partials/card.hbs: it needs one root element, not 2'],
 			[{ 'partials/card.hbs': '<div></div>', 'content/index.hbs': `{{ await $assets.render('card', 'card.gif') }}` }, 'Cannot render "card.gif": use .svg, .png, .jpg, or .webp'],
 			[{ 'partials/card.hbs': '<div></div>', 'content/index.hbs': `{{ await $assets.render('card', '../card.png') }}` }, 'Cannot render "../card.png": the path leaves the site'],
