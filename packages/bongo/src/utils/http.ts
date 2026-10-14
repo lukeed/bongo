@@ -178,8 +178,15 @@ export async function start(argv: Required<Argv>, sink: Memory): Promise<Server>
 		let path = (req.url || '/').replace(/[?#].*/, '');
 		try { path = decodeURIComponent(path); } catch { /* keep as written */ }
 		path = posix.normalize('/' + path);
-		for (let candidate of candidates(path)) {
-			if (await deliver(req, res, sink, join(argv.dest, candidate))) return;
+		let base = sink.base;
+		if (base !== '/' && (path === '/' || path === base.slice(0, -1))) {
+			res.writeHead(302, { 'location': base, 'cache-control': 'no-store' });
+			return void res.end();
+		}
+		if (path.startsWith(base)) {
+			for (let candidate of candidates(path.slice(base.length - 1))) {
+				if (await deliver(req, res, sink, join(argv.dest, candidate))) return;
+			}
 		}
 		for (let page of ['404.html', '404/index.html']) {
 			if (await deliver(req, res, sink, join(argv.dest, page), 404)) return;

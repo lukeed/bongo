@@ -605,6 +605,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	// Flush: run every bundle group in parallel.
 	let publicPath = derivePublicPath($site.url);
+	if ('base' in sink) sink.base = publicPath;
 	let cache = join(argv.cwd, 'node_modules', '.cache', 'bongo', 'images');
 	watch.step('bundling assets');
 	let flushResult = await bundler.flush({

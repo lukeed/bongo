@@ -318,7 +318,7 @@ The `publicPath` prefix applied to external asset URLs is derived from `$site.ur
 - Root-served site (`https://example.com`) -> `publicPath = /`
 - Subpath-served site (`https://example.com/blog/`) -> `publicPath = /blog/`
 
-No manual configuration is required. The absolute `url` of each page, in `$page.url` and `$pages`, includes the subpath too: `content/post.md` is `https://example.com/blog/post/`.
+No manual configuration is required. The absolute `url` of each page, in `$page.url` and `$pages`, includes the subpath too: `content/post.md` is `https://example.com/blog/post/`. `bongo dev` serves the site under the same subpath.
 
 ## Layouts
 
@@ -718,6 +718,8 @@ If a relative `url()` points at a file that does not exist, the build fails with
 The dev server keeps each build in memory and serves it from there, as Vite does. It does not read or write `public/`, unless you pass `--write`; see [Output folder](#output-folder). It serves a file that bongo only copies from `content/`, such as a PDF, from its source, so an edit shows at once. It encodes each resized image the first time the browser asks for it, then reads it from `node_modules/.cache/bongo/images`.
 
 A change to the config, to any local file it imports, or to anything in `data/` loads the config and data again, then rebuilds every page. A workspace package, or any package linked into `node_modules` from outside it, counts as a local file. You do not need to restart. If the config or a data file fails to load, the error overlay shows the error, and the last good build keeps serving until you fix it. The same is true for a rebuild that fails.
+
+When `$site.url` has a subpath, such as `https://example.com/blog/`, `bongo dev` serves the site under `/blog/`, as a host does, and redirects `/` there.
 
 A path with no matching file gets a `404` status, the same as on a static host, so broken links show up during development. The response body is your own 404 page when the build has one: `404.html`, or `404/index.html` (which `content/404.md` produces). Most static hosts serve `404.html` for a missing path, so give that page `url: /404.html`.
 

@@ -25,6 +25,8 @@ export type Sink = {
 };
 
 export type Memory = Sink & {
+	/** The URL path the site lives under, from `$site.url`, such as `/blog/`. */
+	base: string;
 	get(file: string): Entry | undefined;
 };
 
@@ -71,6 +73,7 @@ export function memory(dir: string, mirror?: Sink): Memory {
 
 	let sink: Memory = {
 		dir,
+		base: '/',
 		get: file => files.get(file),
 		async write(file, data) {
 			files.set(file, { data: Buffer.from(data), version: ++version });

@@ -51,6 +51,8 @@ The dev server serves a file that bongo only copies from `content/`, such as a P
 
 ## Not found pages
 
+When `$site.url` has a subpath, such as `https://example.com/blog/`, `bongo dev` serves the site under `/blog/`, as a host does, and redirects `/` there.
+
 A path with no matching file gets a `404` status, the same as on a static host. Thus broken links show up during development. The response body is your own 404 page when the build has one: `404.html`, or `404/index.html`, which `content/404.md` produces. To write `404.html`, give the page `url: /404.html`. See [Custom URLs](/docs/content/#custom-urls).
 
 ## Reload messages

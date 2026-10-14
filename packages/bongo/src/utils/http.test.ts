@@ -159,6 +159,33 @@ describe('404', () => {
 	});
 });
 
+describe('subpath', () => {
+	test('serves a site whose $site.url has a subpath under that subpath, as a host does', async () => {
+		let opts = argv();
+		opts.sink.base = '/blog/';
+		await opts.sink.write(join(opts.dest, 'style.css'), 'b{}');
+		await opts.sink.write(join(opts.dest, 'post/index.html'), '<h1>post</h1>');
+		await opts.sink.write(join(opts.dest, '404.html'), '<h1>lost</h1>');
+		let server = await http.start(opts, opts.sink);
+		let url = `http://127.0.0.1:${opts.port}`;
+		try {
+			expect(await (await fetch(url + '/blog/')).text()).toBe('<h1>ok</h1>');
+			expect(await (await fetch(url + '/blog/post/')).text()).toBe('<h1>post</h1>');
+			expect(await (await fetch(url + '/blog/style.css')).text()).toBe('b{}');
+			for (let path of ['/', '/blog']) {
+				let res = await fetch(url + path, { redirect: 'manual' });
+				expect(res.status).toBe(302);
+				expect(res.headers.get('location')).toBe('/blog/');
+			}
+			let outside = await fetch(url + '/style.css');
+			expect(outside.status).toBe(404);
+			expect(await outside.text()).toBe('<h1>lost</h1>');
+		} finally {
+			server.close();
+		}
+	});
+});
+
 describe('memory', () => {
 	test('serves files from the sink with their content type, an etag, HEAD, and ranges', async () => {
 		let opts = argv();
