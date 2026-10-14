@@ -3,11 +3,17 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { language as typescript } from '@twinkleplop/typescript';
+
 import { build } from '../../bongo/src/build';
 import * as attrs from '../../bongo/src/utils/attrs';
+import { shiki, sugarhigh } from './highlight';
 import { markdown } from './index';
+import { twinkleplop } from './twinkleplop';
 
 import type { Loader } from 'bongo';
+import type { CodeBlock, CodeBlockHighlighter } from 'md4x';
+import type { Fence, Options } from './index';
 
 function setup() {
 	let calls: [string, Record<string, unknown>][] = [];
@@ -278,5 +284,70 @@ describe('headings', () => {
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
+	});
+});
+
+describe('fence', () => {
+	const SOURCE = '```ts [src/a.ts] {1}\nlet a = 1 < 2;\n```\n\n```\nplain <b>\n```\n\n    indented &\n';
+
+	async function load(options: Options, src = SOURCE) {
+		let { utils } = setup();
+		let blocks: Fence.Block[] = [];
+		let fence: Fence = (html, block) => {
+			blocks.push(block);
+			return `<F lang="${block.lang}" file="${block.filename ?? ''}" lines="${block.highlights?.join() ?? ''}">${html}</F>`;
+		};
+		let result = await markdown({ ...options, fence }).$loaders!.md!('x.md', src, utils);
+		return { html: String(result.content), blocks };
+	}
+
+	test('wraps every code block, fenced and indented, with md4x html when there is no highlighter', async () => {
+		let { html, blocks } = await load({});
+		expect(html).toContain('<F lang="ts" file="src/a.ts" lines="1"><pre><code class="language-ts">let a = 1 &lt; 2;\n</code></pre></F>');
+		expect(html).toContain('<F lang="" file="" lines=""><pre><code>plain &lt;b&gt;\n</code></pre></F>');
+		expect(html).toContain('<F lang="" file="" lines=""><pre><code>indented &amp;\n</code></pre></F>');
+		expect(blocks.map(block => block.code)).toEqual(['let a = 1 < 2;\n', 'plain <b>\n', 'indented &\n']);
+	});
+
+	test('wraps the output of a custom highlighter, which no longer gets the file name', async () => {
+		let seen: CodeBlock[] = [];
+		let highlighter: CodeBlockHighlighter = (code, block) => {
+			seen.push(block);
+			return block.lang === 'ts' ? `<pre class="hl">${code.length}</pre>` : undefined;
+		};
+		let { html } = await load({ highlighter });
+		expect(html).toContain('<F lang="ts" file="src/a.ts" lines="1"><pre class="hl">15</pre></F>');
+		expect(html).toContain('<F lang="" file="" lines=""><pre><code>plain &lt;b&gt;\n</code></pre></F>');
+		expect(seen.map(block => 'filename' in block)).toEqual([false, false, false]);
+		expect(seen[0].highlights).toEqual([1]);
+	});
+
+	test('wraps shiki, sugar-high, and twinkleplop output, with one title from the fence', async () => {
+		let shikied = (await load({ highlighter: shiki({ theme: 'github-dark', langs: ['ts'] }) })).html;
+		expect(shikied).toContain('<F lang="ts" file="src/a.ts" lines="1"><pre class="shiki github-dark"');
+
+		let sugared = (await load({ highlighter: sugarhigh() })).html;
+		expect(sugared).toContain('<F lang="ts" file="src/a.ts" lines="1"><pre><code class="language-typescript"><span class="sh__line">');
+
+		let twinkled = (await load({ highlighter: twinkleplop({ languages: { typescript: typescript() } }) })).html;
+		expect(twinkled).toContain('<F lang="ts" file="src/a.ts" lines="1"><pre class="twinkleplop language-ts');
+		expect(twinkled).not.toContain('twinkleplop-title');
+		expect(twinkled).not.toContain('<figure');
+	});
+
+	test('leaves code blocks to the highlighter when there is no fence', async () => {
+		let { utils } = setup();
+		let html = String((await markdown({ highlighter: twinkleplop({ languages: { typescript: typescript() } }) }).$loaders!.md!('x.md', SOURCE, utils)).content);
+		expect(html).toContain('<figcaption class="twinkleplop-title">src/a.ts</figcaption>');
+	});
+
+	test('types the callback with the same block that the highlighter gets', () => {
+		let extendsBlock: Fence.Block extends CodeBlock & { code: string } ? true : false = true;
+		expect(extendsBlock).toBe(true);
+		// @ts-expect-error a fence returns a string
+		markdown({ fence: () => 1 });
+		// @ts-expect-error a block has no `name`
+		markdown({ fence: (html, block) => html + block.name });
+		markdown({ fence: (html, block) => `${html}${block.lang}${block.code}${block.filename ?? ''}${block.highlights?.length ?? 0}` });
 	});
 });

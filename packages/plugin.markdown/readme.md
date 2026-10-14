@@ -164,3 +164,30 @@ Import the theme in your CSS by its package name:
 ```
 
 The theme has light and dark colors. A `dark` class on an ancestor, such as `<html class="dark">`, selects the dark colors. To use one set only, import `@twinkleplop/theme-github/light` or `@twinkleplop/theme-github/dark`.
+
+## Code blocks
+
+`fence` wraps the HTML of each code block. Use it to add a title bar, a language label, or a copy button. It works with every highlighter, and without one:
+
+```ts
+import { markdown } from '@bongo/markdown';
+import type { Fence } from '@bongo/markdown';
+
+const escape = (text: string) => text.replace(/[&<>"]/g, char => `&#${char.charCodeAt(0)};`);
+
+const fence: Fence = (html, block) => {
+	let title = escape(block.filename ?? block.lang);
+	return `<figure class="code"><figcaption>${title}</figcaption>${html}</figure>`;
+};
+
+export default {
+	plugins: [markdown({ fence })],
+};
+```
+
+- `html` is the output of the highlighter. When there is no highlighter, or when the highlighter returns `undefined`, such as for an unknown language, it is the md4x `<pre><code>` block with the code escaped.
+- `block` is the block that the highlighter gets, typed as `Fence.Block`: `lang` (an empty string when the block has no language), `filename` from `[app.ts]`, and `highlights` from `{1,3-4}`. It also has `code`, the text of the block, with its last line break.
+- Every code block goes through `fence`: fences with a language, fences without one, and indented code blocks.
+- When you set `fence`, the highlighter does not get `filename`. Thus a highlighter that prints its own title, such as twinkleplop with `[app.ts]`, does not add a second one. Print the title in `fence`.
+- `lang` and `filename` are text from your Markdown, as you wrote it. Escape them before you put them in HTML.
+- `fence` runs during the render, so it must return a string, not a promise.

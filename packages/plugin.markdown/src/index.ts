@@ -1,9 +1,23 @@
 import { parseAST, renderToHtml } from 'md4x';
 import type { Config, Args, Loader } from 'bongo';
-import type { CodeBlockHighlighter, ComarkNode, ComarkTree, HtmlOptions } from 'md4x';
+import type { CodeBlock, CodeBlockHighlighter, ComarkNode, ComarkTree, HtmlOptions } from 'md4x';
+
+/**
+ * Wrap the HTML of each code block, such as in a figure with a title bar.
+ * @example markdown({ fence: (html, block) => `<figure data-lang="${block.lang}">${html}</figure>` })
+ */
+export type Fence = (html: string, block: Fence.Block) => string;
+
+export namespace Fence {
+	/** The block that the highlighter gets, plus its code. */
+	export type Block = CodeBlock & {
+		code: string;
+	};
+}
 
 export type Options = Omit<HtmlOptions, 'highlighter'> & {
 	highlighter?: CodeBlockHighlighter | Promise<CodeBlockHighlighter>;
+	fence?: Fence;
 };
 
 type Range = [start: number, end: number];
@@ -176,8 +190,19 @@ async function unpack(raw: string, stash: string[], utils: Loader.Utilities, opt
 }
 
 export function markdown(options: Options = {}): Partial<Config> {
-	let { highlighter, ...rest } = options;
-	let ready: Promise<HtmlOptions> = Promise.resolve(highlighter).then(fn => ({ ...rest, highlighter: fn }));
+	let { highlighter, fence, ...rest } = options;
+	let ready: Promise<HtmlOptions> = Promise.resolve(highlighter).then(fn => {
+		if (!fence) return { ...rest, highlighter: fn };
+		let wrap = fence;
+		return {
+			...rest,
+			highlighter(code, block) {
+				let { filename, ...bare } = block;
+				let html = fn?.(code, bare) ?? `<pre><code${block.lang ? ` class="language-${escape(block.lang)}"` : ''}>${escape(code)}</code></pre>`;
+				return wrap(html, { ...block, code });
+			},
+		};
+	});
 
 	return {
 		$loaders: {
