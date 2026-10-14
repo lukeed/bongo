@@ -120,7 +120,7 @@ The site also has `content/index.md`, `content/about.md`, `content/blog/index.md
 
 ### `$page`
 
-The page that renders:
+An object with data about the current page. For the example `content/blog/hello.md` file, the `$page` object holds:
 
 ```ts
 {
