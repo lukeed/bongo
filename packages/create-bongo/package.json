@@ -10,7 +10,7 @@
   "bin": "bin.js",
   "description": "WIP",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "files": [
     "bin.js",

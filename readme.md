@@ -13,7 +13,7 @@ This repository contains the bongo static site generator, its Markdown and feed 
 
 ## Development
 
-Bun is the primary development tool. Node 24+ is still supported at runtime, but workspace commands use bun.
+Bun 1.4+ is the primary development tool. Node 24+ is still supported at runtime, but workspace commands use bun.
 
 ```sh
 bun install

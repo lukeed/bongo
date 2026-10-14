@@ -48,11 +48,11 @@ All examples in these docs use the name `bongo`.
 
 ## Runtimes
 
-bongo runs in Bun, Deno, and Node 24 or later. Image processing uses `Bun.Image`, so it needs the Bun runtime. Without Bun, bongo copies each image as it is. See [Images](/images/#bun-runtime). [Dynamic images](/dynamic-images/) work in every runtime as SVG and PNG, and need Bun for JPEG and WebP.
+bongo runs in Bun 1.4 or later, Deno, and Node 24 or later. Image processing uses `Bun.Image`, so it needs the Bun runtime. Without Bun, bongo copies each image as it is. See [Images](/images/#bun-runtime). [Dynamic images](/dynamic-images/) work in every runtime as SVG and PNG, and need Bun for JPEG and WebP.
 
 ## Work on bongo
 
-The bongo repository holds the static site generator, its Markdown and feed plugins, the project scaffolder, and an example site for development. Bun is the primary development tool. Node 24 or later is still supported at runtime, but the workspace commands use Bun:
+The bongo repository holds the static site generator, its Markdown and feed plugins, the project scaffolder, and an example site for development. Bun 1.4 or later is the primary development tool. Node 24 or later is still supported at runtime, but the workspace commands use Bun:
 
 ```sh
 bun install
