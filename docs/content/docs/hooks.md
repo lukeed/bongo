@@ -2,7 +2,7 @@
 title: Hooks
 summary: How $hooks.transform changes each page and output file after it renders and before bongo writes it.
 group: Reference
-order: 2
+order: 3
 ---
 
 `$hooks.transform(text, ctx)` changes each page and each [output file](/docs/output-files/) after it renders and before bongo writes it. Pages arrive with their final asset URLs. Return the new text, or a promise of it. [Data modules](/docs/data-modules/) do not pass through it.

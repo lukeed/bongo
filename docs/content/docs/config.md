@@ -94,30 +94,11 @@ bongo itself reads only `url`. Templates get every field as it is. [@bongo/feed]
 
 ### `$utils`
 
-`$utils` holds helper functions. Templates call them as `{{ $utils.excerpt($page.summary, 80) }}`. Layouts, partials, `.hbs` content, and [data modules](/docs/data-modules/) all get `$utils`.
-
-bongo gives `$utils` these helpers:
-
-| Helper | Returns |
-| --- | --- |
-| `truncate(text, length)` | The first `length` characters of `text`, with no ellipsis. An empty `text` gives `''`. |
-| `excerpt(html, length)` | The plain text of `html`, cut to at most `length` characters at the end of a word, with `…` when it cuts. It removes tags, comments, scripts, and styles, decodes entities such as `&amp;`, and collapses whitespace. A block tag, such as `<p>` or `<br>`, counts as a space. A first word longer than `length` is cut. `excerpt('<p>Hello <b>big</b> world</p>', 12)` is `Hello big…`. |
-| `countwords(text)` | The number of words in `text`, split on whitespace. An empty `text` gives `0`. |
-| `minutes(text, wpm?)` | The reading time of `text` in whole minutes, rounded up, at `wpm` words a minute (default `200`). It counts the words of the plain text, as `excerpt` makes it, so `$page.content` works. Text with no words gives `0`. |
-| `slug(text)` | A URL or anchor slug: `text` in lower case, with punctuation, symbols, and emoji removed, and each space as `-`. Letters and digits of every language stay. It is the id that `@bongo/markdown` gives a heading with `headingIds: true`, so `slug(heading.text)` equals `heading.id`, except that `slug` does not add `-1` to a repeated slug. `slug('Hello, world!')` is `hello-world`. |
-| `url.abs(to, from?)` | The full URL of `to`, resolved against `from`, or against `$site.url` when there is no `from`. For `https://example.com/blog/`, `url.abs('post/')` is `https://example.com/blog/post/`, and `url.abs('/about/')` is `https://example.com/about/`. |
-| `url.path(to, from?)` | The URL path of `to`, with its query and hash, resolved as `url.abs` resolves it. For `https://example.com/blog/`, `url.path('docs/')` is `/blog/docs/`, and `url.path('/about/')` is `/about/`. A path that already starts with `/`, such as `$page.path`, stays as it is, so links work on a site under a subpath. |
-| `date.format(value, options?)` | `value` as an ISO 8601 string, such as `2024-05-01T00:00:00.000Z`. With [`Intl.DateTimeFormat`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DateTimeFormat/DateTimeFormat#options) options, the date in the language of `$site.lang`, in UTC unless you set `timeZone`: `date.format('2024-05-01', { dateStyle: 'long' })` is `May 1, 2024`. An invalid date fails the build. |
-| `json(value)` | `value` as JSON that is safe inside a `<script>` element: it escapes `<`, `>`, `&`, U+2028, and U+2029 as `\u003c` and so on, so text such as `</script>` cannot end the element. Print it raw, with `{{{ }}}`: `<script type="application/ld+json">{{{ $utils.json(data) }}}</script>`. `undefined` gives `null`. |
-
-A function in your `$utils` replaces the built-in one with the same name. The `url` and `date` groups merge with yours, so `$utils: { date: { year } }` keeps `date.format`. You can add your own groups too, such as `$utils: { str: { up } }`:
+`$utils` holds helper functions for templates, such as `{{ $utils.excerpt($page.content, 140) }}`. bongo gives you built-in helpers for text, URLs, dates, and JSON. Add your own here, or replace a built-in one:
 
 ```ts [bongo.config.ts]
 export default {
 	$utils: {
-		truncate(text: string, length: number) {
-			return text.length > length ? text.slice(0, length) + '…' : text;
-		},
 		date: {
 			year: (value: string) => new Date(value).getUTCFullYear(),
 		},
@@ -125,7 +106,7 @@ export default {
 };
 ```
 
-Helpers do not get `$data` automatically. Give them the value that they need. See [Data](/docs/data/#where-data-is-available).
+See [Utilities](/docs/utilities/) for every built-in helper, with examples, and for how your helpers merge with them.
 
 ## Build targets
 

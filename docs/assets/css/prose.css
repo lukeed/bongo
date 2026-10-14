@@ -84,9 +84,14 @@
 	color: var(--ink);
 }
 
-.prose h2 code,
-.prose h3 code {
+.prose h2 code {
 	font-size: .8em;
+}
+
+.prose h3 code {
+	font-size: .92em;
+	font-weight: 700;
+	padding: .12em .4em;
 }
 
 .prose ul,

@@ -2,7 +2,7 @@
 title: TypeScript
 summary: The JSX types that bongo ships for its elements and attributes, and the types it exports for the config, loaders, hooks, and data modules.
 group: Reference
-order: 4
+order: 5
 ---
 
 `bongo` ships ambient JSX types for its custom elements and attributes, and exports types for the config and the build.
