@@ -343,6 +343,18 @@ describe('built-in utils', () => {
 		expect(slug?.('')).toBe('');
 	});
 
+	test('excerpt gives plain text, cut at a word, with … only when it cuts', async () => {
+		let { excerpt } = await builtins(`{ url: 'https://example.com/', lang: 'en', title: 'T' }`);
+		expect(excerpt?.('<p>Hello <b>big</b> world &amp; friends</p>', 15)).toBe('Hello big world…');
+		expect(excerpt?.('<p>One, two three</p>', 4)).toBe('One…');
+		expect(excerpt?.('Supercalifragilistic', 5)).toBe('Super…');
+		expect(excerpt?.('short', 10)).toBe('short');
+		expect(excerpt?.('', 5)).toBe('');
+		expect(excerpt?.('<h2>Title</h2><p>a</p>\n\n<p>b<br>c</p><script>x()</script><!-- note -->', 99)).toBe('Title a b c');
+		expect(excerpt?.('a &lt;b&gt; &#169; &#x263A; &quot;q&quot; it&#39;s&nbsp;ok', 99)).toBe('a <b> © ☺ "q" it\'s ok');
+		expect(excerpt?.('&#99999999; &bogus; &AMP;', 99)).toBe('&#99999999; &bogus; &');
+	});
+
 	test('date.format gives ISO 8601, or a date in $site.lang from Intl options, in UTC', async () => {
 		let { date } = await builtins(`{ url: 'https://example.com/', lang: 'fr', title: 'T' }`);
 		expect(date?.format?.('2024-05-01')).toBe('2024-05-01T00:00:00.000Z');

@@ -256,6 +256,24 @@ export type Loaded = {
 	files: string[];
 };
 
+const BLOCK = /<\/?(?:address|article|aside|blockquote|br|dd|div|dl|dt|figcaption|figure|footer|h[1-6]|header|hr|li|main|nav|ol|p|pre|section|table|td|th|tr|ul)\b[^>]*>/gi;
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+
+// The text of an HTML string: no tags, comments, scripts, or styles; entities decoded; whitespace collapsed.
+function plain(html: string): string {
+	return (html || '')
+		.replace(/<!--[\s\S]*?-->|<(script|style)\b[\s\S]*?<\/\1\s*>/gi, ' ')
+		.replace(BLOCK, ' ')
+		.replace(/<[^>]*>/g, '')
+		.replace(/&(?:#(\d+)|#x([\da-f]+)|(\w+));/gi, (all, dec, hex, name) => {
+			if (name) return ENTITIES[name.toLowerCase()] ?? all;
+			let code = parseInt(dec || hex, dec ? 10 : 16);
+			return code <= 0x10FFFF ? String.fromCodePoint(code) : all;
+		})
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
 /**
  * Find and load the config above `root`, merged over bongo's defaults.
  * @example let { config, files } = await load('/site');
@@ -277,6 +295,13 @@ export async function load(root: string): Promise<Loaded> {
 			countwords(text: string): number {
 				let words = (text || '').trim();
 				return words ? words.split(/\s+/g).length : 0;
+			},
+			excerpt(html: string, length: number): string {
+				let text = plain(html);
+				if (text.length <= length) return text;
+				let space = text.lastIndexOf(' ', length);
+				let cut = space > 0 ? text.substring(0, space) : text.substring(0, length);
+				return cut.replace(/[\s.,;:!?…-]+$/, '') + '…';
 			},
 			slug(text: string): string {
 				// full case folding, as md4x does: ß is ss, ς is σ

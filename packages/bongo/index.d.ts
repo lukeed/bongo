@@ -222,6 +222,7 @@ export interface Config {
 		truncate?(text: string, length: number): string;
 		countwords?(text: string): number;
 		slug?(text: string): string;
+		excerpt?(html: string, length: number): string;
 		url?: Helpers & {
 			abs?(to: string, fro?: string): string;
 			path?(to: string, fro?: string): string;

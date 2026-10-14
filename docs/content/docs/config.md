@@ -101,6 +101,7 @@ bongo gives `$utils` these helpers:
 | Helper | Returns |
 | --- | --- |
 | `truncate(text, length)` | The first `length` characters of `text`, with no ellipsis. An empty `text` gives `''`. |
+| `excerpt(html, length)` | The plain text of `html`, cut to at most `length` characters at the end of a word, with `…` when it cuts. It removes tags, comments, scripts, and styles, decodes entities such as `&amp;`, and collapses whitespace. A block tag, such as `<p>` or `<br>`, counts as a space. A first word longer than `length` is cut. `excerpt('<p>Hello <b>big</b> world</p>', 12)` is `Hello big…`. |
 | `countwords(text)` | The number of words in `text`, split on whitespace. An empty `text` gives `0`. |
 | `slug(text)` | A URL or anchor slug: `text` in lower case, with punctuation, symbols, and emoji removed, and each space as `-`. Letters and digits of every language stay. It is the id that `@bongo/markdown` gives a heading with `headingIds: true`, so `slug(heading.text)` equals `heading.id`, except that `slug` does not add `-1` to a repeated slug. `slug('Hello, world!')` is `hello-world`. |
 | `url.abs(to, from?)` | The full URL of `to`, resolved against `from`, or against `$site.url` when there is no `from`. For `https://example.com/blog/`, `url.abs('post/')` is `https://example.com/blog/post/`, and `url.abs('/about/')` is `https://example.com/about/`. |
