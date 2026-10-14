@@ -33,6 +33,11 @@ describe('block arguments', () => {
 });
 
 describe('compile', () => {
+	test('a tag closes after its own braces, not at the first }}', async () => {
+		let render = tempura.compile(`{{#show m={ k: 1 }}}|{"a": {{ n }}}|{{ s === '}}' ? 'y' : 'n' }}|{{{ html }}}|{{! it's {a} note }}end`, { async: true, props: ['n', 's', 'html'], blocks: echo() });
+		expect(await render({ n: 2, s: '}}', html: '<b>' })).toBe('{"m":{"k":1}}|{"a": 2}|y|<b>|end');
+	});
+
 	test('a value named x prints like any other name', async () => {
 		let render = tempura.compile('<p>{{ x }}</p>{{#var y = x + 1}}<b>{{ y }}</b>', { props: ['x'] });
 		expect(await render({ x: 1 })).toBe('<p>1</p><b>2</b>');
