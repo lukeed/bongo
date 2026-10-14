@@ -303,14 +303,15 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			let file = rel.substring(0, rel.length - 4);
 			urlpath = '/' + file.replace(/\\/g, '/');
 			output = join(dest, file);
-		} else {
-			if (typeof params.url === 'string') {
-				urlpath = '/' + params.url.replace(/^.?\/+/, '');
-				if (/^(https?:)?\/\//.test(urlpath)) {
-					throw new Error('Custom `url` must be path only');
-				}
+		} else if (typeof params.url === 'string') {
+			urlpath = '/' + params.url.replace(/^.?\/+/, '');
+			if (/^(https?:)?\/\//.test(urlpath)) {
+				throw new Error('Custom `url` must be path only');
 			}
-
+			// `/404.html` writes that file; any other url is a folder
+			if (!/\.html?$/i.test(urlpath) && !urlpath.endsWith('/')) urlpath += '/';
+			output = urlpath.endsWith('/') ? join(dest, urlpath, 'index.html') : join(dest, urlpath);
+		} else {
 			if (basename === 'index') {
 				urlpath = urlpath.substring(0, urlpath.length - 5);
 			} else if (!urlpath.endsWith('/')) {

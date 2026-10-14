@@ -352,6 +352,38 @@ describe('urls', () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test('a custom url sets the path of any page, index pages too', async () => {
+		let root = await site({
+			'layouts/html.hbs': '{{ $page.path }}',
+			'content/docs/index.html': '---\nurl: /hello/\n---\n',
+			'content/about.html': '---\nurl: team\n---\n',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'hello/index.html')).toBe('/hello/');
+			expect(await read(root, 'team/index.html')).toBe('/team/');
+			expect(existsSync(join(root, 'public/h'))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a custom url that ends in a file name writes that file', async () => {
+		let root = await site({
+			'layouts/html.hbs': '{{ $page.path }} {{ $page.url }}',
+			'content/404.html': '---\nurl: /404.html\n---\n',
+			'content/docs/index.html': '---\nurl: /docs/v1.0/\n---\n',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, '404.html')).toBe('/404.html https://example.com/404.html');
+			expect(await read(root, 'docs/v1.0/index.html')).toBe('/docs/v1.0/ https://example.com/docs/v1.0/');
+			expect(existsSync(join(root, 'public/404'))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });
 
 describe('$hooks.transform', () => {
