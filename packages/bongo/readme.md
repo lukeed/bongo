@@ -438,6 +438,8 @@ If `transition:animate` is present without `transition:name`, an automatic name 
 {{#partial src="card" title="Hello" }}
 ```
 
+Each attribute after `src` is an argument. A value is a quoted string, a bare value with no spaces, such as `count=3` or `post=$page`, a `{…}` map, a `[…]` list, or a `( … )` group, which holds any expression with spaces: `active=($page.section === 'docs')`. Other text fails the build with `Cannot read the arguments of "partial"` and quotes the text.
+
 ## Template Variables
 
 - `$site` — global site config.

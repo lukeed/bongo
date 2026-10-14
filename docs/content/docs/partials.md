@@ -16,6 +16,15 @@ Call a partial with `{{#partial}}` and its `src`. The other attributes become it
 {{#partial src="card" title="Hello" }}
 ```
 
+Each argument value is a JavaScript expression. It can be:
+
+- a quoted string, such as `title="Hello"`,
+- a bare value with no spaces, such as `count=3` or `post=$page`,
+- a `{…}` map or a `[…]` list, such as `tags=['js', 'css']`,
+- a `( … )` group, which holds any expression, spaces included, such as `active=($page.section === 'docs')`.
+
+Other text fails the build with `Cannot read the arguments of "partial"`, and the error quotes the text. For example, `active=$page.section === 'docs'` fails, because a bare value ends at the first space.
+
 The name of a partial is its path in `partials/`, without the extension. `partials/header.hbs` is `header`, and `partials/blog/card.hbs` is `blog/card`. A `src` with the extension, such as `src="card.hbs"`, also works.
 
 An unknown name fails the build with `Unknown "card" partial!`.
