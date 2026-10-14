@@ -57,15 +57,26 @@ export default {
 } satisfies Config;
 ```
 
+In a JavaScript config, use `define()` from `bongo`. It returns the config as it is, typed as `Config`:
+
+```js [bongo.config.js]
+import { define } from 'bongo';
+
+export default define({
+	$site: { title: 'My Site', url: 'https://example.com/', lang: 'en' },
+});
+```
+
 ## Fields
 
 | Field | Description |
 | --- | --- |
 | `$site` | Site metadata. Templates read it as `{{ $site.title }}`. The `url` field also drives [publicPath](#publicpath). |
 | `$assets` | A loader map, keyed by file extension. See [Loaders](/docs/loaders/). |
-| `$utils` | Helper functions that templates can call. |
+| `$utils` | Helper functions that templates can call. See [`$utils`](#utils). |
 | `$partials` | Programmatic partial functions. See [Config partials](/docs/partials/#config-partials). |
 | `$images` | Image defaults. See [Image config](/docs/images/#image-config). |
+| `$build` | Build options. See [Build targets](#build-targets). |
 | `$hooks` | Functions that change the build output. See [Hooks](/docs/hooks/). |
 | `plugins` | An array of partial config objects, merged in order. See [Plugins](#plugins). |
 
@@ -76,14 +87,54 @@ export default {
 - `title` — the site title.
 - `url` — the absolute URL of the site. It sets `$page.url` and publicPath.
 - `lang` — the site language.
+- `description` — optional. The site description.
+- `menu` — optional. Named links, as `{ name, href }` objects.
 
-The starter site also sets `description`.
+bongo itself reads only `url`. Templates get every field as it is. [@bongo/feed](/docs/feed/) also reads `title` and `lang`.
 
 ### `$utils`
 
-`$utils` holds helper functions. Templates call them as `{{ $utils.excerpt($page.summary, 80) }}`. Data modules also get `$utils`.
+`$utils` holds helper functions. Templates call them as `{{ $utils.excerpt($page.summary, 80) }}`. Layouts, partials, `.hbs` content, and [data modules](/docs/data-modules/) all get `$utils`.
+
+bongo gives `$utils` these helpers:
+
+| Helper | Returns |
+| --- | --- |
+| `truncate(text, length)` | The first `length` characters of `text`, with no ellipsis. An empty `text` gives `''`. |
+| `countwords(text)` | The number of parts of `text` between runs of whitespace. Each leading or trailing space adds one, and `''` gives `1`. |
+| `url.abs(to, from?)` | The path of `to`, resolved against `from`, or against `$site.url` when there is no `from`. For `https://example.com/blog/`, `url.abs('post/')` is `/blog/post/`. |
+| `date.format(value, format)` | `value` as an ISO 8601 string, such as `2024-05-01T00:00:00.000Z`. It ignores `format`. |
+
+A function in your `$utils` replaces the built-in one with the same name. The `url` and `date` groups merge with yours, so `$utils: { date: { year } }` keeps `date.format`:
+
+```ts [bongo.config.ts]
+export default {
+	$utils: {
+		truncate(text: string, length: number) {
+			return text.length > length ? text.slice(0, length) + '…' : text;
+		},
+		date: {
+			year: (value: string) => new Date(value).getUTCFullYear(),
+		},
+	},
+};
+```
 
 Helpers do not get `$data` automatically. Give them the value that they need. See [Data](/docs/data/#where-data-is-available).
+
+## Build targets
+
+`$build.target` is a [browserslist](https://browsersl.ist) query, such as `'defaults'` or `['chrome >= 110', 'safari >= 16']`. There is no default target.
+
+```ts [bongo.config.ts]
+export default {
+	$build: { target: 'defaults' },
+};
+```
+
+- LightningCSS uses it for each `<bongo:style>` and the CSS that it imports. It adds vendor prefixes and lowers newer syntax, such as nesting and `inset`, for the target browsers. Without a target, CSS keeps its syntax and gets no prefixes.
+- Rolldown uses it for each `<bongo:script>` and for `<bongo:client>`. It lowers newer JavaScript syntax, such as `?.` and `??`. Rolldown targets Chrome, Edge, Firefox, Internet Explorer, Opera, Safari, and iOS Safari, so bongo drops the Android and Samsung entries of the query.
+- `<bongo:script target="...">` replaces the target for that one script. See [Scripts](/docs/templates/#bongoscript).
 
 ## Plugins
 

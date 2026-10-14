@@ -7,6 +7,8 @@ order: 7
 
 All CSS is handled by [LightningCSS](https://lightningcss.dev): `@import` bundling, autoprefixing, nesting, and optional minification. Add a stylesheet to a layout with `<bongo:style>`.
 
+Prefixes and lowered syntax need a [build target](/docs/config/#build-targets). Without one, LightningCSS keeps your syntax, nesting included, and adds no prefixes.
+
 ## Add a stylesheet
 
 ```hbs

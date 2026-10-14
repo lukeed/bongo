@@ -157,7 +157,7 @@ Bundles a script with Rolldown.
 - `async` — add the `async` attribute to an external script.
 - `defer` — add the `defer` attribute for CJS output. The browser defers ESM modules.
 - `format="esm"|"cjs"` — the output module format. Defaults to `esm`.
-- `target="..."` — a browserslist target string.
+- `target="..."` — a browserslist target string. It replaces [`$build.target`](/docs/config/#build-targets) for this script.
 
 ### `<bongo:asset>`
 

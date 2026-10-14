@@ -92,11 +92,79 @@ Config fields:
 
 - `$site` — site metadata; available in templates as `{{$site.title}}`. The `url` field also drives `publicPath`.
 - `$assets` — loader map keyed by file extension.
-- `$utils` — helper functions available in templates.
+- `$utils` — helper functions available in templates; see [Utils](#utils).
 - `$partials` — programmatic partial functions.
 - `$images` — image defaults; see [Images](#images).
+- `$build` — build options; see [Build targets](#build-targets).
 - `$hooks` — functions that change the build output; see [Hooks](#hooks).
 - `plugins` — array of partial config objects, merged in order.
+
+`$site` fields are `url`, `title`, `lang`, and the optional `description` and `menu`. `menu` maps names to `{ name, href }` links. bongo itself reads only `url`; templates get every field as it is, and `@bongo/feed` reads `title` and `lang` too.
+
+To type-check a config, write `export default {…} satisfies Config`. `define(config)` from `bongo` does the same in a JavaScript config: it returns the config as it is, typed as `Config`.
+
+```js
+// bongo.config.js
+import { define } from 'bongo';
+
+export default define({
+	$site: { title: 'My Site', url: 'https://example.com/', lang: 'en' },
+});
+```
+
+### Utils
+
+bongo gives `$utils` these helpers. Layouts, partials, `.hbs` content, and [data modules](#data-modules) can call them:
+
+| Helper | Returns |
+| --- | --- |
+| `truncate(text, length)` | The first `length` characters of `text`, with no ellipsis. An empty `text` gives `''`. |
+| `countwords(text)` | The number of parts of `text` between runs of whitespace. Each leading or trailing space adds one, and `''` gives `1`. |
+| `url.abs(to, from?)` | The path of `to`, resolved against `from`, or against `$site.url` when there is no `from`. For `https://example.com/blog/`, `url.abs('post/')` is `/blog/post/`. |
+| `date.format(value, format)` | `value` as an ISO 8601 string, such as `2024-05-01T00:00:00.000Z`. It ignores `format`. |
+
+A function in your `$utils` replaces the built-in one with the same name. The `url` and `date` groups merge with yours, so `$utils: { date: { year } }` keeps `date.format`:
+
+```ts
+export default {
+	$utils: {
+		truncate(text: string, length: number) {
+			return text.length > length ? text.slice(0, length) + '…' : text;
+		},
+		date: {
+			year: (value: string) => new Date(value).getUTCFullYear(),
+		},
+	},
+};
+```
+
+### Build targets
+
+`$build.target` is a [browserslist](https://browsersl.ist) query, such as `'defaults'` or `['chrome >= 110', 'safari >= 16']`. There is no default target.
+
+- LightningCSS uses it for each `<bongo:style>` and the CSS that it imports. It adds vendor prefixes and lowers newer syntax, such as nesting and `inset`, for the target browsers. Without a target, CSS keeps its syntax and gets no prefixes.
+- Rolldown uses it for each `<bongo:script>` and for `<bongo:client>`. It lowers newer JavaScript syntax, such as `?.` and `??`. Rolldown targets Chrome, Edge, Firefox, Internet Explorer, Opera, Safari, and iOS Safari; bongo drops the Android and Samsung entries of the query.
+- `<bongo:script target="...">` replaces the target for that one script.
+
+```ts
+export default {
+	$build: { target: 'defaults' },
+};
+```
+
+### JavaScript API
+
+`build(options)` from `bongo` runs one build, as `bongo build` does, and resolves when the site is written:
+
+```ts
+import { build } from 'bongo';
+
+await build({ cwd: 'site', minify: true });
+```
+
+- `cwd` — the project folder. Required.
+- `minify` — the same as `--minify`.
+- `debug` — the same as `--debug`.
 
 ## Frontmatter
 
@@ -285,7 +353,7 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax. Asset entrypo
 - `async` — add the `async` attribute to an external script.
 - `defer` — add the `defer` attribute for CJS output. ESM modules are deferred by the browser.
 - `format="esm"|"cjs"` — output module format. Defaults to `esm`.
-- `target="..."` — browserslist target string.
+- `target="..."` — browserslist target string. It replaces [`$build.target`](#build-targets) for this script.
 
 `<bongo:client>` bundles bongo's browser runtime and emits a module script that calls `client(...)`. It emits only that script, so you can put it anywhere in `<head>` or `<body>`:
 
@@ -572,7 +640,7 @@ These are the defaults.
 
 ## CSS
 
-All CSS is handled by [LightningCSS](https://lightningcss.dev): `@import` bundling, autoprefixing, nesting, and optional minification.
+All CSS is handled by [LightningCSS](https://lightningcss.dev): `@import` bundling, autoprefixing, nesting, and optional minification. Prefixes and lowered syntax need a [build target](#build-targets).
 
 `.module.css` files automatically enable CSS modules.
 

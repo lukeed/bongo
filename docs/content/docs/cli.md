@@ -84,3 +84,17 @@ The error starts with `Refusing to empty the output folder`, and gives the reaso
 If the `minify` CLI is missing, the build still succeeds. It prints one notice and leaves the HTML as it is. Without `--minify`, bongo minifies nothing.
 
 bongo never minifies [output files](/docs/output-files/) or [data modules](/docs/data-modules/). A data module always writes compact JSON.
+
+## JavaScript API
+
+`build(options)` from `bongo` runs one build, as `bongo build` does, and resolves when the site is written:
+
+```ts
+import { build } from 'bongo';
+
+await build({ cwd: 'site', minify: true });
+```
+
+- `cwd` — the project folder. Required.
+- `minify` — the same as `--minify`.
+- `debug` — the same as `--debug`.
