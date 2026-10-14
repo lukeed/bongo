@@ -1,7 +1,7 @@
 {{#expect page, pages, version}}
 {{#var groups = $utils.nav(pages, page.path)}}
 {{#var near = $utils.pager(pages, page.path)}}
-{{#var heads = $utils.toc(page.content)}}
+{{#var heads = page.headings.filter(heading => heading.level === 2)}}
 <div class="shell">
 	<aside class="side" id="side" aria-label="Docs">
 		{{#each groups as group}}

@@ -12,11 +12,6 @@ export type Group = {
 	pages: Link[];
 };
 
-export type Heading = {
-	id: string;
-	html: string;
-};
-
 const GROUPS = [
 	['Start', 'sun'],
 	['Guides', 'tomato'],
@@ -51,14 +46,6 @@ export function pager(pages: Template.PageInfo[], current: string): { prev?: Lin
 	let index = links.findIndex(link => link.current);
 	if (index === -1) return {};
 	return { prev: links[index - 1], next: links[index + 1] };
-}
-
-/**
- * The `<h2>` headings of rendered content, for "On this page".
- * @example $utils.toc('<h2 id="styles">Styles</h2>') //=> [{ id: 'styles', html: 'Styles' }]
- */
-export function toc(html: string): Heading[] {
-	return Array.from(html.matchAll(/<h2 id="([^"]+)">([\s\S]*?)<\/h2>/g), ([, id, inner]) => ({ id, html: inner }));
 }
 
 /**
