@@ -124,12 +124,6 @@ export namespace Template {
 	interface Params {
 		[name: string]: unknown;
 	}
-
-	interface Utils {
-		absurl(target: string): string;
-		relurl(target: string): string;
-		truncate(input: string, length: number): string;
-	}
 }
 
 interface Helpers {
@@ -223,5 +217,20 @@ export interface Config {
 	plugins?: Partial<Config>[];
 }
 
+/**
+ * Run one build, as `bongo build` does. Resolves when the site is written.
+ * @example await build({ cwd: 'site', minify: true });
+ */
 export function build(argv: Argv): Promise<void>;
+
+/**
+ * Start the dev server, as `bongo dev` does. Resolves after the first build; the server keeps running.
+ * @example await dev({ cwd: 'site', port: 3000 });
+ */
+export function dev(argv: Argv): Promise<void>;
+
+/**
+ * Return the config as it is, typed as `Config`, for a JavaScript config file.
+ * @example export default define({ $site: { title: 'My Site', url: 'https://example.com/', lang: 'en' } });
+ */
 export function define(config: Config): Config;

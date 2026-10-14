@@ -98,3 +98,11 @@ await build({ cwd: 'site', minify: true });
 - `cwd` — the project folder. Required.
 - `minify` — the same as `--minify`.
 - `debug` — the same as `--debug`.
+
+`dev(options)` starts the dev server, as `bongo dev` does. It resolves after the first build, and the server keeps running. It takes `cwd`, `debug`, `port`, and `host`, the same as the `bongo dev` options:
+
+```ts
+import { dev } from 'bongo';
+
+await dev({ cwd: 'site', port: 3000 });
+```
