@@ -128,7 +128,7 @@ export default {
 };
 ```
 
-`languages` maps a fence name to a highlighter, or to the name of another entry, such as `js: 'typescript'`. Common aliases resolve to the languages you register: `typescript` also covers `ts`, `mts`, and `cts` fences, and `bash` covers `sh`, `shell`, and `zsh`. Your own entries take priority.
+`languages` maps a fence name to a highlighter, or to the name of another entry, such as `js: 'typescript'`. Common aliases resolve to the languages you register: `typescript` also covers `ts`, `mts`, and `cts` fences, `bash` covers `sh`, `shell`, and `zsh`, and `handlebars` covers `hbs`. Your own entries take priority.
 
 A fence in a language that is not in `languages` renders as escaped plain text. Set `on_unknown_language: 'throw'` to fail the build instead. A fence with no language keeps the md4x `<pre><code>` output, unless you set `default_language`.
 

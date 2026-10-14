@@ -16,6 +16,7 @@ const ALIASES = [
 	['cpp', 'c++', 'cc'],
 	['dockerfile', 'docker'],
 	['graphql', 'gql'],
+	['handlebars', 'hbs'],
 	['javascript', 'js', 'mjs', 'cjs'],
 	['markdown', 'md'],
 	['powershell', 'ps', 'ps1'],

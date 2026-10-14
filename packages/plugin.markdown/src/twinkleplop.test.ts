@@ -41,6 +41,12 @@ describe('twinkleplop', () => {
 		}
 	});
 
+	test('resolves hbs fences to a registered handlebars language', async () => {
+		let options: Options = { languages: { handlebars: code => `<pre>${code}</pre>` } };
+		expect(await render(fence('hbs', '{{ x }}'), options)).toBe('<pre>{{ x }}</pre>');
+		expect(await render(fence('handlebars', '{{ x }}'), options)).toBe('<pre>{{ x }}</pre>');
+	});
+
 	test('follows aliases you register', async () => {
 		let options: Options = { languages: { ts: typescript(), js: 'ts' } };
 		for (let lang of ['js', 'javascript', 'mjs']) {
