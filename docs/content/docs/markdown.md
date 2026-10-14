@@ -78,6 +78,20 @@ Images next to a post need no element. bongo gives `![alt](hero.jpg)` and `<img 
 </figure>
 ```
 
+## Headings
+
+The plugin gives each page its headings, in document order, as `$page.headings`. Each heading has a `level`, an `id`, its plain `text`, and its inner `html`, which keeps inline code and links. The headings are also in each entry of `$pages`, and in the `$pages` of [data modules](/docs/data-modules/). A table of contents in a layout:
+
+```hbs
+<ol>
+{{#each $page.headings.filter(h => h.level === 2) as h}}
+	<li><a href="#{{ h.id }}">{{{ h.html }}}</a></li>
+{{/each}}
+</ol>
+```
+
+The `id` is the anchor that `headingIds: true` gives the heading. Without that option, the page HTML has no anchors, so set `headingIds: true` when you link to headings. A line in a code block is not a heading. A partial in a heading is in `html`, but not in `text` or `id`.
+
 ## Options
 
 `markdown()` accepts md4x HTML options. For example, `headingIds: true` gives each heading an `id` that links can target. Syntax highlighting is optional:

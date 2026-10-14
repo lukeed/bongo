@@ -260,6 +260,7 @@ export const $assets = {
 			filename: filename + '.html',
 			content: renderedHtml,
 			metadata: { title: '...' },
+			headings: [{ level: 2, id: 'install', text: 'Install' }],
 		};
 	},
 };
@@ -268,6 +269,13 @@ export const $assets = {
 > **Note:** You can use `@bongo/markdown` for a ready-made solution.
 
 Loaders are chained by extension. A `.md` file produces `.md.html`, the `.html` extension stops the chain and enters the template pipeline.
+
+A loader result has:
+
+- `filename` — the new file name. Its extension picks the next loader.
+- `content` — the new content.
+- `metadata` — values that become `$page.params`, as frontmatter does.
+- `headings` — the headings of the HTML, in document order, as `{ level, id, text, html? }`. They become `$page.headings`. Without `html`, bongo uses the escaped `text`. When more than one loader in a chain gives headings, the last one wins.
 
 Loader utilities:
 
@@ -430,7 +438,7 @@ If `transition:animate` is present without `transition:name`, an automatic name 
 ## Template Variables
 
 - `$site` — global site config.
-- `$page` — current page. Includes `path`, `url`, `title`, `summary`, `params`, `section`, `tags`, and `content`.
+- `$page` — current page. Includes `path`, `url`, `title`, `summary`, `params`, `section`, `tags`, `headings`, and `content`. `headings` lists `{ level, id, text, html }` from the page's loader; `.html` and `.hbs` content has none.
 - `$pages` — every page in the build, sorted by path.
 - `$section` — pages scoped to the current page's section directory.
 - `$tags` — array of `{ tag, pages }` entries.
@@ -510,7 +518,7 @@ A `.json.ts` or `.json.js` file in `content/` is a data module. bongo runs it an
 | `content/search.json.ts` | `/search.json` |
 | `content/blog/posts.json.js` | `/blog/posts.json` |
 
-The default export is a value, or a function that returns one. The function receives `$site`, `$pages`, `$section`, `$tags`, `$data`, and `$utils`, as `.hbs` content does, and it may be async. Type it with `Build.Data`:
+The default export is a value, or a function that returns one. The function receives `$site`, `$pages`, `$section`, `$tags`, `$data`, and `$utils`, as `.hbs` content does, and it may be async. Each page in `$pages` has its `headings`, so a search index needs no second read of the sources. Type it with `Build.Data`:
 
 ```ts
 // content/search.json.ts

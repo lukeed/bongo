@@ -26,6 +26,18 @@ export default ({ $pages }: Build.Data) => $pages
 	.map(page => ({ title: page.title, path: page.path }));
 ```
 
+Each page in `$pages` has its [`headings`](/docs/templates/#variables). A search index can list the sections of each page without a second read of the sources:
+
+```ts [content/search.json.ts]
+import type { Build } from 'bongo';
+
+export default ({ $pages }: Build.Data) => $pages.map(page => ({
+	title: page.title,
+	path: page.path,
+	sections: page.headings.filter(h => h.level === 2).map(h => ({ id: h.id, text: h.text })),
+}));
+```
+
 bongo runs data modules once every page is known. See [How a build works](/docs/project-layout/#how-a-build-works).
 
 ## How it differs from a page

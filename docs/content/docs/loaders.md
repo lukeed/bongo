@@ -9,7 +9,7 @@ Loaders transform content files by file extension. Register them with the `$asse
 
 ## Register a loader
 
-A loader gets the file name, its content, and a set of [utilities](#loader-utilities). It returns the new file name, the new content, and optional metadata:
+A loader gets the file name, its content, and a set of [utilities](#loader-utilities). It returns the new file name, the new content, and optional metadata and headings:
 
 ```ts [bongo.config.ts]
 export const $assets = {
@@ -18,12 +18,15 @@ export const $assets = {
 			filename: filename + '.html',
 			content: renderedHtml,
 			metadata: { title: '...' },
+			headings: [{ level: 2, id: 'install', text: 'Install' }],
 		};
 	},
 };
 ```
 
 bongo passes the content of the file as a `Uint8Array`. Use `utils.decode` to read it as text. The `metadata` becomes the frontmatter of the page, in `$page.params`.
+
+`headings` lists the headings of the HTML, in document order, as `{ level, id, text, html }`. `html` is optional: without it, bongo uses the escaped `text`. The list becomes `$page.headings`, and the page's entry in `$pages`. When more than one loader in a [chain](#loader-chains) gives headings, the last one wins.
 
 <bongo:note>
 You can use [@bongo/markdown](/docs/markdown/) for a ready-made Markdown loader.

@@ -97,7 +97,7 @@ When bongo finds no `html.hbs` for a page, the build fails with `Missing "html.h
 Layouts get these values:
 
 - `$site` — the global site config. See [Config](/docs/config/).
-- `$page` — the current page. It includes `path`, `url`, `title`, `summary`, `params`, `section`, `tags`, and `content`.
+- `$page` — the current page. It includes `path`, `url`, `title`, `summary`, `params`, `section`, `tags`, `headings`, and `content`.
 - `$pages` — every page in the build, sorted by path.
 - `$section` — the pages in the current page's section folder. See [Sections](/docs/content/#sections).
 - `$tags` — an array of `{ tag, pages }` entries. See [Tags](/docs/content/#tags).
@@ -105,7 +105,17 @@ Layouts get these values:
 - `$utils` — the helper functions from the config.
 - `$data` — the files in `data/`. See [Data](/docs/data/).
 
-Each page in `$pages`, `$section`, and `$tags` has `path`, `url`, `title`, `summary`, `section`, `tags`, and `params`.
+Each page in `$pages`, `$section`, and `$tags` has `path`, `url`, `title`, `summary`, `section`, `tags`, `headings`, and `params`.
+
+`headings` lists the headings that the page's [loader](/docs/loaders/) reports, such as the Markdown headings from [@bongo/markdown](/docs/markdown/#headings). Each one has a `level`, an `id`, its plain `text`, and its inner `html`. `.html` and `.hbs` content has none. A table of contents:
+
+```hbs
+<ol>
+{{#each $page.headings.filter(h => h.level === 2) as h}}
+	<li><a href="#{{ h.id }}">{{{ h.html }}}</a></li>
+{{/each}}
+</ol>
+```
 
 [`.hbs` content](/docs/content/#hbs-content) gets the same values, plus `params` as an alias for `$page.params`. [Output files](/docs/output-files/) get them too. [Partials](/docs/partials/#values) get no `$page`, so pass them the values they need.
 
