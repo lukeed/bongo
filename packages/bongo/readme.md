@@ -456,7 +456,7 @@ A `.hbs` partial declares the arguments that it reads with `{{#expect title, dat
 - `$pages` — every page in the build, sorted by path.
 - `$section` — pages scoped to the current page's section directory.
 - `$tags` — array of `{ tag, pages }` entries.
-- `$assets` — `load(filename, encoding?)` reads a file from `assets/` and returns a promise.
+- `$assets` — `load(filename, encoding?)` reads a file from `assets/` and returns a promise. `render(template, output?, options?)` draws a partial as an image and returns a promise of its URL path. See [Rendered Images](#rendered-images).
 - `$utils` — configured helper functions.
 - `$data` — the files in `data/`. See [Data](#data).
 
@@ -666,7 +666,28 @@ These are the defaults.
 - `quality` — from 1 to 100, for AVIF, WebP, and JPEG. Give one number for all of them, or one number for each format. PNG is always lossless.
 - `sizes` — the `sizes` of images that do not have one.
 - `content` — process `<img>` elements in content.
-- `prune` — delete cached images that no build has used for this many days, or `false` to keep them all.
+- `prune` — delete cached images and [rendered images](#rendered-images) that no build has used for this many days, or `false` to keep them all.
+
+## Rendered Images
+
+`$assets.render(template, output?, options?)` draws a partial as an image, and returns the URL path of that image. Use it for a social card for each page:
+
+```hbs
+{{#var card = await $assets.render('og/card')}}
+<meta property="og:image" content="{{ $utils.url.abs(card) }}"/>
+```
+
+bongo draws with [Satori](https://github.com/vercel/satori) and converts the drawing with [resvg](https://github.com/thx/resvg-js). They are optional peer dependencies: `bun add -d satori @resvg/resvg-js`. SVG output needs only `satori`.
+
+- `template` — a partial name, such as `og/card` for `partials/og/card.hbs`. The partial gets the `$page`, `$pages`, `$section`, and `$tags` of the page that calls `$assets.render`.
+- `output` — optional. The path of the image in `public/`, such as `og/home.png`. The extension sets the format. Without it, the image is a PNG with a name from its partial and its content, such as `card.3f9a1c2e.png`.
+- `options` — `width` and `height` in pixels, 1200 and 630 by default, and `args`, values for the partial.
+
+`.svg` and `.png` work in Bun, Deno, and Node. `.jpg`, `.jpeg`, and `.webp` use `Bun.Image`, so they need the Bun runtime, and fail the build elsewhere. Their quality comes from `$images.quality`.
+
+The partial must have one root element. Set styles with the `style` attribute. Declare fonts with `@font-face` rules in a `<style>` element, with a `src` in `assets/`: TTF, OTF, or WOFF, but not WOFF2. bongo reads the rules and removes the element. An `<img src>` or a CSS `url()` with a path reads that file from `assets/` into the drawing.
+
+`bongo build` draws every image. `bongo dev` draws an image at its first request. bongo keeps each drawing in `node_modules/.cache/bongo/render`, by a hash of its input and the versions of Satori, resvg, and Bun. Two pages that draw different images to the same `output` fail the build.
 
 ## CSS
 

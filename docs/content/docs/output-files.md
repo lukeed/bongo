@@ -2,7 +2,7 @@
 title: Output files
 summary: How a .hbs file in content/ with a second extension becomes an output file, such as a sitemap, a robots.txt, or a feed.
 group: Guides
-order: 8
+order: 9
 ---
 
 A `.hbs` file in `content/` is an output file, not a page, when its second extension is a file type with a known content type, other than `.html`. Examples are `.xml`, `.txt`, `.json`, `.svg`, and `.webmanifest`. Use output files for sitemaps, `robots.txt` files, and feeds.

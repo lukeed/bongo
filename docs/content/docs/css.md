@@ -2,7 +2,7 @@
 title: CSS
 summary: How bongo builds CSS with LightningCSS, including CSS modules, packages in @import, and files in url().
 group: Guides
-order: 7
+order: 8
 ---
 
 All CSS is handled by [LightningCSS](https://lightningcss.dev): `@import` bundling, autoprefixing, nesting, and optional minification. Add a stylesheet to a layout with `<bongo:style>`.

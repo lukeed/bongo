@@ -2,7 +2,7 @@
 title: Data modules
 summary: How a .json.ts or .json.js file in content/ runs at build time and writes its default export as a JSON file.
 group: Guides
-order: 9
+order: 10
 ---
 
 A `.json.ts` or `.json.js` file in `content/` is a data module. bongo runs it and writes its default export as JSON, without the script extension. Use data modules for search indexes and other JSON files.

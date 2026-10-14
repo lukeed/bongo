@@ -178,11 +178,22 @@ The helper functions, such as `{{ $utils.date.format($page.params.date, { dateSt
 
 ## `$assets`
 
-An object with one method, `load(filename, encoding?)`. It reads a file from `assets/` and returns a promise of its text, or of a `Buffer` when you give no `encoding`. A missing file fails the build. Inline an icon:
+An object with two methods for the files of `assets/`.
+
+`load(filename, encoding?)` reads a file from `assets/` and returns a promise of its text, or of a `Buffer` when you give no `encoding`. A missing file fails the build. Inline an icon:
 
 ```hbs
 {{{ await $assets.load('icons/star.svg', 'utf8') }}}
 ```
+
+`render(template, output?, options?)` draws a partial as an image, with the values of the current page, and returns a promise of the URL path of the image. Make a social card for each page:
+
+```hbs
+{{#var card = await $assets.render('og/card')}}
+<meta property="og:image" content="{{ $utils.url.abs(card) }}"/>
+```
+
+See [Rendered images](/docs/rendered-images/).
 
 ## `params`
 
