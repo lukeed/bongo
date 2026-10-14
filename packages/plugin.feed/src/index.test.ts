@@ -15,7 +15,7 @@ function config(url = 'https://example.com'): Required<Config> {
 	return {
 		$site: { url, lang: 'en', title: 'Test Site', description: '', menu: {} },
 		$utils: {},
-		$assets: {},
+		$loaders: {},
 		$partials: {},
 		$build: {},
 		$images: {},

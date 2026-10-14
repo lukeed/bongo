@@ -20,7 +20,7 @@ function setup() {
 			return `<i data-partial="${name}"></i>`;
 		},
 	};
-	let loader = markdown().$assets!.md!;
+	let loader = markdown().$loaders!.md!;
 	let run = async (src: string) => String((await loader('x.md', src, utils)).content);
 	return { calls, run, utils };
 }
@@ -122,7 +122,7 @@ describe('partials', () => {
 			attrs: attrs.parse,
 			render: () => '<p class="meta">\n\t<time>x</time>\n\n\t<span class="tags">*a*</span>\n</p>',
 		};
-		let loader = markdown().$assets!.md!;
+		let loader = markdown().$loaders!.md!;
 		let html = String((await loader('x.md', 'Intro *here*.\n\n<bongo:meta />\n\nInline <bongo:meta /> too.\n', utils)).content);
 		expect(html).toContain('<p>Intro <em>here</em>.</p>\n<p class="meta">\n\t<time>x</time>\n\n\t<span class="tags">*a*</span>\n</p>');
 		expect(html).toContain('<p>Inline <p class="meta">');
@@ -137,7 +137,7 @@ describe('partials', () => {
 			attrs: attrs.parse,
 			render: () => '<bongo:script src="widget.ts"></bongo:script>',
 		};
-		let loader = markdown().$assets!.md!;
+		let loader = markdown().$loaders!.md!;
 		let html = String((await loader('x.md', '<bongo:widget />\n', utils)).content);
 		expect(html).toBe('<bongo:script src="widget.ts"></bongo:script>');
 	});
@@ -192,7 +192,7 @@ describe('partials', () => {
 describe('headings', () => {
 	async function load(src: string, options: Parameters<typeof markdown>[0] = { headingIds: true }) {
 		let { utils } = setup();
-		let result = await markdown(options).$assets!.md!('x.md', src, utils);
+		let result = await markdown(options).$loaders!.md!('x.md', src, utils);
 		return { html: String(result.content), headings: result.headings ?? [] };
 	}
 

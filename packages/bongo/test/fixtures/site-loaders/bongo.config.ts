@@ -29,7 +29,7 @@ export default {
 		title: 'Loaders Fixture',
 		lang: 'en',
 	},
-	$assets: {
+	$loaders: {
 		scss,
 		jsx,
 	},

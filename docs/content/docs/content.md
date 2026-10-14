@@ -16,7 +16,7 @@ Each file in `content/` becomes a page, an output file, a data module, or a copi
 | `.hbs` | A page that tempura compiles. See [.hbs content](#hbs-content). |
 | `.hbs` with a second extension that has a known content type, other than `.html`, such as `sitemap.xml.hbs` | An [output file](/docs/output-files/). |
 | `.json.ts`, `.json.js` | A [data module](/docs/data-modules/). |
-| An extension with a loader in `$assets` | The loader chain transforms it. See [Loaders](/docs/loaders/). |
+| An extension with a loader in `$loaders` | The loader chain transforms it. See [Loaders](/docs/loaders/). |
 | Any other file, such as an image | bongo copies it to the same path in `public/`. |
 
 Each content file can start with a frontmatter block. See [Frontmatter](/docs/frontmatter/).

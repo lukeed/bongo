@@ -221,11 +221,14 @@ export async function find(root: string, start: string): Promise<string|void> {
  * @NOTE Mutates `base` object!
  */
 export function merge(base: Required<Config>, custom: Partial<Config>) {
+	if ('$assets' in custom) {
+		throw new Error('`$assets` is now `$loaders`: rename it in your config or plugin');
+	}
 	if (custom.plugins) {
 		custom.plugins.forEach(o => merge(base, o));
 	}
 	Object.assign(base.$site, custom.$site);
-	Object.assign(base.$assets, custom.$assets);
+	Object.assign(base.$loaders, custom.$loaders);
 	Object.assign(base.$partials, custom.$partials);
 	if (custom.$build) {
 		Object.assign(base.$build, custom.$build);
@@ -287,7 +290,7 @@ export async function load(root: string): Promise<Loaded> {
 				}
 			}
 		},
-		$assets: {
+		$loaders: {
 			// loaders
 		},
 		$partials: {

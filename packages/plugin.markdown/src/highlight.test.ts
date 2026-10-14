@@ -68,7 +68,7 @@ describe('sugarhigh', () => {
 			attrs: attrs.parse,
 			render: () => '',
 		};
-		let loader = markdown({ highlighter: sugarhigh() }).$assets!.md!;
+		let loader = markdown({ highlighter: sugarhigh() }).$loaders!.md!;
 		let html = String((await loader('x.md', 'Hi\n\n```ts\nlet a = 1;\n```\n\n```\nplain\n```\n\nafter\n', utils)).content);
 		expect(html).toStartWith('<p>Hi</p>\n<pre><code class="language-typescript"><span class="sh__line"><span class="sh__token--keyword" style="color:var(--sh-keyword)">let</span>');
 		expect(html).toEndWith('</span></code></pre>\n<pre><code>plain\n</code></pre>\n<p>after</p>\n');

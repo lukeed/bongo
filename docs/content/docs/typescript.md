@@ -41,7 +41,7 @@ Import types from `bongo`:
 | Type | Use |
 | --- | --- |
 | `Config` | The config. Write `export default {…} satisfies Config`. See [Config](/docs/config/#the-config-file). |
-| `Loader` | A loader in `$assets`. See [Loaders](/docs/loaders/). |
+| `Loader` | A loader in `$loaders`. See [Loaders](/docs/loaders/). |
 | `Build.Transform` | A `$hooks.transform` function. See [Hooks](/docs/hooks/). |
 | `Build.Context` | The `ctx` of a hook. |
 | `Build.Data` | What the default export of a data module gets when it is a function. See [Data modules](/docs/data-modules/). |

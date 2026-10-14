@@ -41,7 +41,7 @@ export default {
 
 bongo looks for the config in the project folder: `bongo.config.ts`, `bongo.config.mjs`, `bongo.config.cjs`, or `bongo.config.js`, in that order. Rolldown bundles it with its local imports, so it can be TypeScript and import local files. See [How a build works](/docs/project-layout/#how-a-build-works).
 
-Export the config as the default export. Named exports for each field, such as `export const $assets = {…}`, also work.
+Export the config as the default export. Named exports for each field, such as `export const $loaders = {…}`, also work.
 
 To type-check the config, use the `Config` type:
 
@@ -72,7 +72,7 @@ export default define({
 | Field | Description |
 | --- | --- |
 | `$site` | Site metadata. Templates read it as `{{ $site.title }}`. The `url` field also drives [publicPath](#publicpath). |
-| `$assets` | A loader map, keyed by file extension. See [Loaders](/docs/loaders/). |
+| `$loaders` | A loader map, keyed by file extension. See [Loaders](/docs/loaders/). |
 | `$utils` | Helper functions that templates can call. See [`$utils`](#utils). |
 | `$partials` | Programmatic partial functions. See [Config partials](/docs/partials/#config-partials). |
 | `$images` | Image defaults. See [Image config](/docs/images/#image-config). |

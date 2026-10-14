@@ -191,7 +191,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	}
 
 	const { config, $data } = opts.inputs ?? await prepare(argv);
-	const { $site, $assets: ASSETS } = config;
+	const { $site, $loaders: LOADERS } = config;
 	// a page path resolves under `$site.url`, so a site in a subfolder keeps it
 	let site = $site.url.endsWith('/') ? $site.url : $site.url + '/';
 	const debug = argv.debug ? log.debug : () => {};
@@ -279,7 +279,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 			// `.hbs` content is compiled in walk 2, once Pages/Sections/Tags
 			// registries exist. `ext` stays 'hbs' through walk 1.
-		} else if (ASSETS[ext]) {
+		} else if (LOADERS[ext]) {
 			let initial = new Uint8Array(await fs.read(input)) as Uint8Array | string;
 
 			// Capture raw file text before loaders transform it, so the
@@ -288,7 +288,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 			debug('[content.loader]', ext, '~> found');
 
-			let result = await loaders.run(input, initial, ASSETS, loader_utils, {
+			let result = await loaders.run(input, initial, LOADERS, loader_utils, {
 				isTerminal: (e) => isPage.test(e),
 			});
 
@@ -613,7 +613,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	let flushResult = await bundler.flush({
 		outDir: dest,
 		publicPath,
-		assets: ASSETS,
+		assets: LOADERS,
 		utils: loader_utils,
 		cache,
 		dev: argv.dev,

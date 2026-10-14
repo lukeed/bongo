@@ -91,7 +91,7 @@ export default {
 Config fields:
 
 - `$site` — site metadata; available in templates as `{{$site.title}}`. The `url` field also drives `publicPath`.
-- `$assets` — loader map keyed by file extension.
+- `$loaders` — loader map keyed by file extension; see [Loaders](#loaders).
 - `$utils` — helper functions available in templates; see [Utils](#utils).
 - `$partials` — programmatic partial functions.
 - `$images` — image defaults; see [Images](#images).
@@ -251,10 +251,10 @@ Put JSON, YAML, or module files in `data/` to use them in every template as `$da
 
 ## Loaders
 
-Loaders transform content files by file extension. Register them with `$assets`:
+Loaders transform content files by file extension. Register them with `$loaders`:
 
 ```ts
-export const $assets = {
+export const $loaders = {
 	md(filename, content, utils) {
 		return {
 			filename: filename + '.html',

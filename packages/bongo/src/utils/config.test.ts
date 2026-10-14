@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 
 import * as config from './config';
 
-import type { Build } from 'bongo';
+import type { Build, Config } from 'bongo';
 
 function makeBase() {
 	return {
@@ -17,7 +17,7 @@ function makeBase() {
 			url: { abs: (to: string) => to },
 			date: { format: (v: any) => String(v) },
 		},
-		$assets: {},
+		$loaders: {},
 		$partials: {},
 		$hooks: {},
 		plugins: [],
@@ -34,12 +34,18 @@ describe('merge', () => {
 		expect(base.$site.lang).toBe('');
 	});
 
-	test('merges $assets loaders', () => {
+	test('merges $loaders', () => {
 		let base = makeBase();
-		let loader = () => ({});
-		config.merge(base, { $assets: { md: loader } } as any);
+		let loader = () => ({ filename: '', content: '' });
+		config.merge(base, { $loaders: { md: loader } });
 
-		expect(base.$assets.md).toBe(loader);
+		expect(base.$loaders.md).toBe(loader);
+	});
+
+	test('a config or plugin that still sets $assets fails with the new name', () => {
+		let base = makeBase();
+		expect(() => config.merge(base, { $assets: {} } as Partial<Config>)).toThrow('`$assets` is now `$loaders`');
+		expect(() => config.merge(base, { plugins: [{ $assets: {} } as Partial<Config>] })).toThrow('`$assets` is now `$loaders`');
 	});
 
 	test('merges $utils with nested objects', () => {

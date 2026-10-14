@@ -226,7 +226,7 @@ export interface Config {
 			format?(value: string|number|Date, format: string): string;
 		};
 	};
-	$assets?: {
+	$loaders?: {
 		[extension: string]: Loader;
 	};
 	$partials?: Template.Partials;

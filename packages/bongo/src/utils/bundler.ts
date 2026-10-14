@@ -196,7 +196,7 @@ function emitter(outDir: string, files: Set<string>): (file: string) => Promise<
 // load() would return null for every module — so we skip installing it.
 const NATIVE_JS_EXTS = new Set(['ts', 'js', 'cjs', 'mjs', 'css', 'json']);
 
-// Rolldown plugin that routes entries/imports through the `$assets` loader
+// Rolldown plugin that routes entries/imports through the `$loaders`
 // chain. Fires only for extensions the user has registered a loader for —
 // native extensions (.ts/.js/.css/.json) fall through to rolldown's builtins.
 function loaderPlugin(assets: loaders.LoaderMap, utils: Loader.Utilities): Plugin {

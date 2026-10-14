@@ -532,7 +532,7 @@ describe('headings', () => {
 			'bongo.config.ts': [
 				`export default {`,
 				`	$site: { url: 'https://example.com/', title: 'T', lang: 'en' },`,
-				`	$assets: {`,
+				`	$loaders: {`,
 				`		txt: (file, content) => ({`,
 				`			filename: file + '.html',`,
 				`			content: '<h2 id="a">A</h2>',`,

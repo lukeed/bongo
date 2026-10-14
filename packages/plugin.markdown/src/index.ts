@@ -180,7 +180,7 @@ export function markdown(options: Options = {}): Partial<Config> {
 	let ready: Promise<HtmlOptions> = Promise.resolve(highlighter).then(fn => ({ ...rest, highlighter: fn }));
 
 	return {
-		$assets: {
+		$loaders: {
 			async md(input, content, utils) {
 				let opts = await ready;
 

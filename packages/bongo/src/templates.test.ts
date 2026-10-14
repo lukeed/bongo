@@ -178,7 +178,7 @@ describe('collect', () => {
 		try {
 			templates.Partials.clear();
 			let argv = { layouts: join(dir, 'layouts'), partials } as Parameters<typeof templates.collect>[0];
-			let base = { $site: {}, $utils: {}, $assets: {}, $partials: {}, $build: {}, plugins: [] } as unknown as Parameters<typeof templates.collect>[1];
+			let base = { $site: {}, $utils: {}, $loaders: {}, $partials: {}, $build: {}, plugins: [] } as unknown as Parameters<typeof templates.collect>[1];
 			await templates.collect(argv, base);
 			let render = templates.Partials.get('badge') as (args: { name: string }) => string;
 			expect(await render({ name: 'hi' })).toBe('<b>hi</b>');

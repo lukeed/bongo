@@ -15,7 +15,7 @@ import type { OutputInfo, Placeholder } from './bundler';
 type Cache = Map<string, Template.Compiler>;
 
 /** What layouts, partials, and `.hbs` content see, on top of `$page`, `$pages`, `$section`, and `$tags`. */
-export type Context = Omit<Required<Config>, '$assets'> & {
+export type Context = Required<Config> & {
 	$assets: { load(filename: string, encoding?: BufferEncoding): Promise<string | Buffer> };
 	$data: Record<string, unknown>;
 };

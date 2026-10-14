@@ -129,7 +129,7 @@ describe('flush() — JS', () => {
 		}
 	});
 
-	test('runs $assets loaders for non-native JS extensions', async () => {
+	test('runs $loaders for non-native JS extensions', async () => {
 		let { dir, outDir } = await tmp({
 			'app.jsx': 'let tag = <Hello/>; export { tag };',
 		});

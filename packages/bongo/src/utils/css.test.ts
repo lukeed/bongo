@@ -136,7 +136,7 @@ describe('bundle', () => {
 		}
 	});
 
-	test('runs $assets loaders via resolver.read', async () => {
+	test('runs $loaders via resolver.read', async () => {
 		let dir = await makeFixtureDir({
 			'root.scss': '.src { color: red; }',
 		});

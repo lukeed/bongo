@@ -10,5 +10,5 @@ type Loaders = {
 };
 
 export function markdown(options?: Options): {
-	$assets: Loaders;
+	$loaders: Loaders;
 }

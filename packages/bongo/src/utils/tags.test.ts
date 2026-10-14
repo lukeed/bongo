@@ -52,7 +52,7 @@ function makeConfig(): Required<Config> {
 			url: { abs: (to: string) => to },
 			date: { format: (v: string | number | Date) => String(v) },
 		},
-		$assets: {},
+		$loaders: {},
 		$partials: {},
 		$build: {},
 		$images: {},

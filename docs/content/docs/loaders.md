@@ -1,18 +1,18 @@
 ---
 title: Loaders
-summary: How loaders in $assets transform content files by extension, how bongo chains them, and the utilities that each loader gets.
+summary: How loaders in $loaders transform content files by extension, how bongo chains them, and the utilities that each loader gets.
 group: Reference
 order: 3
 ---
 
-Loaders transform content files by file extension. Register them with the `$assets` config field.
+Loaders transform content files by file extension. Register them with the `$loaders` config field.
 
 ## Register a loader
 
 A loader gets the file name, its content, and a set of [utilities](#loader-utilities). It returns the new file name, the new content, and optional metadata and headings:
 
 ```ts [bongo.config.ts]
-export const $assets = {
+export const $loaders = {
 	md(filename, content, utils) {
 		return {
 			filename: filename + '.html',
