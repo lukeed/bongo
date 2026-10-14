@@ -1,30 +1,41 @@
 #!/usr/bin/env node
-const argv = require('mri')(process.argv.slice(2), {
-	default: {
-		'C': '.',
-		'm': false,
-		'd': false,
-		'w': false,
-	},
-	alias: {
-		'C': 'cwd',
-		'd': 'debug',
-		'w': 'write',
-		'm': 'minify',
-		'v': 'version',
-		'h': 'help',
-		'H': 'host',
-		'p': 'port',
-	}
-});
+const { parseArgs } = require('node:util');
 
-if (argv.v) {
+let args = process.argv.slice(2);
+// A bare `--host` exposes the server on every interface, as sirv-cli's does.
+args = args.map((arg, i) => (arg === '--host' || arg === '-H') && !/^[^-]/.test(args[i + 1] || '') ? '--host=0.0.0.0' : arg);
+
+try {
+	var { values, positionals } = parseArgs({
+		args,
+		allowPositionals: true,
+		options: {
+			cwd: { type: 'string', short: 'C', default: '.' },
+			host: { type: 'string', short: 'H' },
+			port: { type: 'string', short: 'p' },
+			minify: { type: 'boolean', short: 'm', default: false },
+			debug: { type: 'boolean', short: 'd', default: false },
+			write: { type: 'boolean', short: 'w', default: false },
+			version: { type: 'boolean', short: 'v' },
+			help: { type: 'boolean', short: 'h' },
+		},
+	});
+	var port = values.port === undefined ? undefined : Number(values.port);
+	if (port !== undefined && !(Number.isInteger(port) && port > 0 && port < 65536)) {
+		throw new Error(`Invalid --port "${values.port}"; use a port number`);
+	}
+} catch (err) {
+	console.error('ERROR', err.message);
+	process.exit(1);
+}
+
+if (values.version) {
 	const pkg = require('./package.json');
 	console.log(`${pkg.name}, v${pkg.version}`);
 	process.exit(0);
 }
 
-if (argv.h) {
+if (values.help) {
 	let output = '';
 	output += '\n  Usage';
 	output += '\n    bongo <command> [options]';
@@ -50,14 +61,14 @@ if (argv.h) {
 
 (async function () {
 	try {
-		let name = (argv._[0] || '').trim().toLowerCase();
+		let name = (positionals[0] || '').trim().toLowerCase();
 		if (!name) throw new Error('Missing <command> argument');
 
 		let command = require('.')[name];
 		if (!command) throw new Error(`Unknown "${name}" command`);
 
-		argv._ = argv._.slice(1);
-		await command(argv);
+		let { cwd, host, minify, debug, write } = values;
+		await command({ cwd, host, port, minify, debug, write });
 	} catch (err) {
 		console.error('ERROR', err.stack);
 		process.exit(1);

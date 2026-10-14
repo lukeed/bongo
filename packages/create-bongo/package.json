@@ -1,24 +1,21 @@
 {
-  "version": "0.0.13",
   "name": "create-bongo",
-  "repository": "lukeed/bongo",
-  "description": "WIP",
-  "license": "MIT",
-  "bin": "bin.js",
-  "files": [
-    "bin.js",
-    "index.js",
-    "template"
-  ],
+  "version": "0.0.13",
   "author": {
     "name": "Luke Edwards",
     "email": "luke.edwards05@gmail.com",
     "url": "https://lukeed.com"
   },
+  "repository": "lukeed/bongo",
+  "bin": "bin.js",
+  "description": "WIP",
   "engines": {
     "node": ">=22"
   },
-  "dependencies": {
-    "mri": "^1.2.0"
-  }
+  "files": [
+    "bin.js",
+    "index.js",
+    "template"
+  ],
+  "license": "MIT"
 }

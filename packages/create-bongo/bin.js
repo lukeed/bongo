@@ -1,16 +1,5 @@
 #!/usr/bin/env node
-const argv = require('mri')(process.argv.slice(2), {
-	default: {
-		'C': '.',
-		'f': false,
-	},
-	alias: {
-		'C': 'cwd',
-		'f': 'force',
-		'v': 'version',
-		'h': 'help',
-	}
-});
+const { parseArgs } = require('node:util');
 
 function exit(msg, code = 1) {
 	if (code) process.stderr.write(msg + '\n');
@@ -18,12 +7,31 @@ function exit(msg, code = 1) {
 	process.exit(code);
 }
 
-if (argv.v) {
+function fail(err) {
+	exit('\n  \x1b[31m\x1b[1m✗\x1b[22m ' + (err.message || err) + '\x1b[39m\n');
+}
+
+try {
+	var { values, positionals } = parseArgs({
+		args: process.argv.slice(2),
+		allowPositionals: true,
+		options: {
+			cwd: { type: 'string', short: 'C', default: '.' },
+			force: { type: 'boolean', short: 'f', default: false },
+			version: { type: 'boolean', short: 'v' },
+			help: { type: 'boolean', short: 'h' },
+		},
+	});
+} catch (err) {
+	fail(err);
+}
+
+if (values.version) {
 	let pkg = require('./package.json');
 	exit(`${pkg.name}, v${pkg.version}`, 0);
 }
 
-if (argv.h) {
+if (values.help) {
 	let output = '';
 
 	output += '\n  Usage';
@@ -45,13 +53,13 @@ if (argv.h) {
 
 (async function () {
 	try {
-		let dir = argv._.join('-').trim().replace(/[\s_]+/g, '-');
+		let dir = positionals.join('-').trim().replace(/[\s_]+/g, '-');
 		if (!dir) throw new Error('Missing <name> argument');
 
 		let rel = dir;
-		if (argv.C !== '.') rel = require('path').join(argv.C, dir);
+		if (values.cwd !== '.') rel = require('path').join(values.cwd, dir);
 
-		await require('.').setup(dir, argv);
+		await require('.').setup(dir, { cwd: values.cwd, force: values.force });
 
 		let msg = '\n';
 		msg += '  \x1b[32m\x1b[1m✓\x1b[22m Created \x1b[1m' + rel + '\x1b[22m\x1b[39m\n';
@@ -63,8 +71,6 @@ if (argv.h) {
 		msg += '\n';
 		process.stdout.write(msg);
 	} catch (err) {
-		let msg = '\n  \x1b[31m\x1b[1m✗\x1b[22m ' + (err.message || err) + '\x1b[39m\n\n';
-		process.stderr.write(msg);
-		process.exit(1);
+		fail(err);
 	}
 })();

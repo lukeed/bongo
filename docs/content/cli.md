@@ -39,7 +39,9 @@ bongo build --debug
 | `-v`, `--version` | | Show the version. |
 | `-h`, `--help` | | Show the help. |
 
-When you do not give `--port` or `--host`, `bongo dev` uses the `PORT` and `HOST` environment variables, if they are set.
+When you do not give `--port` or `--host`, `bongo dev` uses the `PORT` and `HOST` environment variables, if they are set. If the port is in use, `bongo dev` takes the next free port, up to 10 ports higher.
+
+An unknown option, or a `--port` that is not a port number, stops the command with an error.
 
 ## Run with Bun
 
