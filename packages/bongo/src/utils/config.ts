@@ -85,11 +85,7 @@ async function locate(context: PluginContext, id: string, importer: string, kind
 	return realpathSync(file);
 }
 
-/**
- * Packages stay external, except a package linked from outside node_modules, such as a workspace package:
- * that is local code, so it is bundled, watched, and loaded fresh each time.
- * The packages that linked code imports resolve from its own folder, not from the temporary module.
- */
+// Packages stay external, except a linked one (like a workspace package), which is local code: bundled, watched, and run fresh.
 function packages(): Plugin {
 	let roots: string[] = [];
 	return {
