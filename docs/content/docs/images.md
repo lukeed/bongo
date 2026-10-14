@@ -20,7 +20,7 @@ Under Node, bongo copies each image as it is, under a hashed name, and prints on
 
 JPEG, PNG, and WebP files are encoded with the same codecs on every platform. Thus a build makes the same bytes on macOS, Linux, and Windows.
 
-[`$assets.render`](/docs/rendered-images/) also uses `Bun.Image`, to write JPEG and WebP images. Its SVG and PNG images work in every runtime.
+[`$assets.render`](/docs/dynamic-images/) also uses `Bun.Image`, to write JPEG and WebP images. Its SVG and PNG images work in every runtime.
 
 ## Width and height
 
@@ -139,4 +139,4 @@ export default {
 - `quality` — from 1 to 100, for AVIF, WebP, and JPEG. Give one number for all of them, or one number for each format. PNG is always lossless.
 - `sizes` — the `sizes` of images that do not have one.
 - `content` — process `<img>` elements in content.
-- `prune` — delete cached images and [rendered images](/docs/rendered-images/#dev-and-cache) that no build has used for this many days, or `false` to keep them all.
+- `prune` — delete cached images and [dynamic images](/docs/dynamic-images/#dev-and-cache) that no build has used for this many days, or `false` to keep them all.

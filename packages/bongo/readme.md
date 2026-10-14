@@ -456,9 +456,16 @@ A `.hbs` partial declares the arguments that it reads with `{{#expect title, dat
 - `$pages` — every page in the build, sorted by path.
 - `$section` — pages scoped to the current page's section directory.
 - `$tags` — array of `{ tag, pages }` entries.
-- `$assets` — `load(filename, encoding?)` reads a file from `assets/` and returns a promise. `render(template, output?, options?)` draws a partial as an image and returns a promise of its URL path. See [Rendered Images](#rendered-images).
+- `$assets` — `load(filename, encoding?)` reads a file from `assets/` and returns a promise. `render(template, output?, options?)` draws a partial as an image and returns a promise of its URL path. See [Dynamic Images](#dynamic-images).
 - `$utils` — configured helper functions.
 - `$data` — the files in `data/`. See [Data](#data).
+
+Declare your own variables with `{{#var name = value}}`. The value is a JavaScript expression, and the variable holds it to the end of the file. Declare it again to change it. `{{#each list as (item, i)}}` declares `item` and its index `i` for each item. A partial does not see the variables of its caller: pass them as arguments, and declare them in the partial with `{{#expect name}}`.
+
+```hbs
+{{#var related = $section.filter(post => post.path !== $page.path).slice(0, 3)}}
+{{#each related as (post, i)}}<a href="{{ post.path }}">{{ i + 1 }}. {{ post.title }}</a>{{/each}}
+```
 
 Content files ending in `.hbs` are tempura-compiled with the same context as layouts: `$site`, `$page`, `$pages`, `$section`, `$tags`, `$assets`, `$utils`, `$data`, plus `params` as an alias for `$page.params`.
 
@@ -666,9 +673,9 @@ These are the defaults.
 - `quality` — from 1 to 100, for AVIF, WebP, and JPEG. Give one number for all of them, or one number for each format. PNG is always lossless.
 - `sizes` — the `sizes` of images that do not have one.
 - `content` — process `<img>` elements in content.
-- `prune` — delete cached images and [rendered images](#rendered-images) that no build has used for this many days, or `false` to keep them all.
+- `prune` — delete cached images and [dynamic images](#dynamic-images) that no build has used for this many days, or `false` to keep them all.
 
-## Rendered Images
+## Dynamic Images
 
 `$assets.render(template, output?, options?)` draws a partial as an image, and returns the URL path of that image. Use it for a social card for each page:
 

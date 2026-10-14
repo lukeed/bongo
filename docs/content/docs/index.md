@@ -19,9 +19,9 @@ You write one config file, `bongo.config.ts`, and put your files in a small set 
 - **Frontmatter**: a typed YAML subset at the top of each file. See [Frontmatter](/docs/frontmatter/).
 - **Templates**: layouts and partials with `$site`, `$page`, `$pages`, `$section`, `$tags`, and `$data`. See [Templates](/docs/templates/) and [Partials](/docs/partials/).
 - **Data**: JSON, YAML, and module files in `data/` are available in every template. See [Data](/docs/data/).
-- **Assets**: `<bongo:script>`, `<bongo:style>`, and `<bongo:asset>` elements bundle and publish files under content-hashed names. See [Asset elements](/docs/templates/#asset-elements).
+- **Assets**: `<bongo:script>`, `<bongo:style>`, and `<bongo:asset>` elements bundle and publish files under content-hashed names. See [Special elements](/docs/templates/#special-elements).
 - **Images**: bongo resizes and converts images, and gives them a `srcset`, a `width`, and a `height`. See [Images](/docs/images/).
-- **Rendered images**: draw a partial as an image, such as a social card for each page. See [Rendered images](/docs/rendered-images/).
+- **Dynamic images**: draw a partial as an image, such as a social card for each page. See [Render dynamic images](/docs/dynamic-images/) and [Open Graph images](/docs/open-graph-images/).
 - **CSS**: bundling, autoprefixing, nesting, CSS modules, and packages in `@import`. See [CSS](/docs/css/).
 - **Output files**: a sitemap, a `robots.txt`, or a feed from one `.hbs` file. See [Output files](/docs/output-files/).
 - **Data modules**: JSON files from a TypeScript or JavaScript module, such as a search index. See [Data modules](/docs/data-modules/).
@@ -48,7 +48,7 @@ All examples in these docs use the name `bongo`.
 
 ## Runtimes
 
-bongo runs in Bun, Deno, and Node 24 or later. Image processing uses `Bun.Image`, so it needs the Bun runtime. Without Bun, bongo copies each image as it is. See [Images](/docs/images/#bun-runtime). [Rendered images](/docs/rendered-images/) work in every runtime as SVG and PNG, and need Bun for JPEG and WebP.
+bongo runs in Bun, Deno, and Node 24 or later. Image processing uses `Bun.Image`, so it needs the Bun runtime. Without Bun, bongo copies each image as it is. See [Images](/docs/images/#bun-runtime). [Dynamic images](/docs/dynamic-images/) work in every runtime as SVG and PNG, and need Bun for JPEG and WebP.
 
 ## Work on bongo
 

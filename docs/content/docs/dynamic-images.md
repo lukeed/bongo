@@ -1,16 +1,17 @@
 ---
-title: Rendered images
-summary: How $assets.render draws a partial as an SVG, PNG, JPEG, or WebP image, such as a social card for each page, and which runtimes each format needs.
+title: Render dynamic images
+summary: How $assets.render draws a partial as an SVG, PNG, JPEG, or WebP image from your page data, and which runtimes each format needs.
 group: Guides
 order: 7
 ---
 
-`$assets.render` draws a partial as an image, and returns the URL path of that image. Use it to make a social card for each page, a banner for each tag, or any other image that comes from your page data.
+`$assets.render` draws a partial as an image, and returns the URL path of that image. Use it for any image that comes from your page data: a banner for each post, a badge for each tag, or a social card for each page.
 
-```hbs
-{{#var card = await $assets.render('og/card')}}
-<meta property="og:image" content="{{ $utils.url.abs(card) }}"/>
+```hbs [layouts/blog/single.hbs]
+<img src="{{ await $assets.render('banner', 'banners/' + $utils.slug($page.title) + '.png', { width: 1600, height: 400 }) }}" alt=""/>
 ```
+
+For a social card on each page, see [Open Graph images](/docs/open-graph-images/). It builds on this guide.
 
 ## Install
 
@@ -53,14 +54,14 @@ JPEG and WebP use [`Bun.Image`](https://bun.com/docs/runtime/image), as [image p
 
 A render template is a partial with one root element. Satori draws a subset of HTML and CSS, with flexbox layout. See the [Satori documentation](https://github.com/vercel/satori#css) for the CSS that it supports.
 
-```hbs
+```hbs [partials/banner.hbs]
 <style>
 	@font-face { font-family: Inter; src: url(fonts/inter-700.woff); font-weight: 700 }
 </style>
-<div style="display: flex; flex-direction: column; justify-content: flex-end; width: 100%; height: 100%; padding: 80px; box-sizing: border-box; background: #ffd23f; font-family: Inter">
+<div style="display: flex; flex-direction: column; justify-content: flex-end; width: 100%; height: 100%; padding: 64px; box-sizing: border-box; background: #ffd23f; font-family: Inter">
 	<img src="img/logo.svg" width="120" height="40">
-	<div style="margin-top: 24px; font-size: 96px">{{ $page.title }}</div>
-	<div style="margin-top: 16px; font-size: 32px">{{ $utils.excerpt($page.summary, 120) }}</div>
+	<div style="margin-top: 16px; font-size: 80px">{{ $page.title }}</div>
+	<div style="margin-top: 12px; font-size: 28px">{{ $utils.excerpt($page.summary, 100) }}</div>
 </div>
 ```
 

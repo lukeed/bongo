@@ -72,7 +72,7 @@ A `.hbs` partial prints it with `{{{ $slot }}}`. It does not need to declare `$s
 
 ### Built-in elements
 
-bongo's own elements, `<bongo:asset>`, `<bongo:image>`, `<bongo:style>`, `<bongo:script>`, and `<bongo:client>`, pass through untouched, for bongo to replace. See [Asset elements](/docs/templates/#asset-elements).
+bongo's own elements, `<bongo:asset>`, `<bongo:image>`, `<bongo:style>`, `<bongo:script>`, and `<bongo:client>`, pass through untouched, for bongo to replace. See [Special elements](/docs/special-elements/#reserved-names).
 
 ## Images
 

@@ -120,7 +120,7 @@ export default {
 
 - LightningCSS uses it for each `<bongo:style>` and the CSS that it imports. It adds vendor prefixes and lowers newer syntax, such as nesting and `inset`, for the target browsers. Without a target, CSS keeps its syntax and gets no prefixes.
 - Rolldown uses it for each `<bongo:script>` and for `<bongo:client>`. It lowers newer JavaScript syntax, such as `?.` and `??`. Rolldown targets Chrome, Edge, Firefox, Internet Explorer, Opera, Safari, and iOS Safari, so bongo drops the Android and Samsung entries of the query.
-- `<bongo:script target="...">` replaces the target for that one script. See [Scripts](/docs/templates/#bongoscript).
+- `<bongo:script target="...">` replaces the target for that one script. See [`<bongo:script>`](/docs/special-elements/#bongoscript).
 
 ## Plugins
 

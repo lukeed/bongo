@@ -1,6 +1,6 @@
 ---
 title: Templates
-summary: Template syntax, how bongo finds the layouts of a page, the values that templates get, and the elements that add scripts, styles, and assets.
+summary: Template syntax, how bongo finds the layouts of a page, the variables that templates read and declare, and the special elements that add scripts, styles, and assets.
 group: Guides
 order: 3
 ---
@@ -16,9 +16,9 @@ These are the tempura forms that these docs use:
 | `{{ value }}` | Print a value, escaped for HTML. |
 | `{{{ value }}}` | Print a value as it is. Use it for HTML, such as `$page.content`. |
 | `{{! comment }}` | A comment. It prints nothing. |
-| `{{#if test}} … {{/if}}` | Print the block when the test is true. |
-| `{{#each list as item}} … {{/each}}` | Print the block once for each item. |
-| `{{#var name = value}}` | Declare a variable. |
+| `{{#if test}} … {{#elif other}} … {{#else}} … {{/if}}` | Print the first block whose test is true. |
+| `{{#each list as item}} … {{/each}}` | Print the block once for each item. `as (item, i)` also names the index. |
+| `{{#var name = value}}` | Declare a variable. See [Your own variables](#your-own-variables). |
 | `{{#expect a, b}}` | Declare the arguments that a partial reads. |
 | `{{#partial src="name"}}` | Call a partial. See [Partials](/docs/partials/). |
 
@@ -94,114 +94,70 @@ When bongo finds no `html.hbs` for a page, the build fails with `Missing "html.h
 
 ## Variables
 
-Templates read the build through variables, such as `$site`, `$page`, `$pages`, `$section`, `$tags`, `$data`, `$utils`, and `$assets`. `{{ $page.title }}` prints the title of the current page, and `{{#each $section as post}}` loops over the pages of its folder. See [Variables](/docs/variables/) for what each one holds, with examples.
+Templates read the build through reserved variables: `$site`, `$page`, `$pages`, `$section`, `$tags`, `$data`, `$utils`, and `$assets`. `{{ $page.title }}` prints the title of the current page, and `{{#each $section as post}}` loops over the pages of its folder. See [Variables](/docs/variables/) for what each one holds, with examples.
 
-## Asset elements
+### Your own variables
 
-You declare asset entry points with custom elements: `<bongo:style>`, `<bongo:script>`, `<bongo:client>`, `<bongo:asset>`, and `<bongo:image>`. bongo replaces them after the layouts render, and gives each built file a content-hashed name.
+`{{#var name = value}}` declares a variable. The value is a JavaScript expression. The variable holds the value from that tag to the end of the file. Use a variable to calculate a value once and use it more than once, or to give a long expression a short name:
+
+```hbs [layouts/blog/single.hbs]
+{{#var date = $page.params.date}}
+{{#var related = $section.filter(post => post.path !== $page.path).slice(0, 3)}}
+<article>
+	<h1>{{ $page.title }}</h1>
+	{{#if date}}
+	<time datetime="{{ date }}">{{ $utils.date.format(date, { dateStyle: 'long' }) }}</time>
+	{{/if}}
+	{{{ $page.content }}}
+	{{#if related.length}}
+	<h2>More posts</h2>
+	<ul>
+		{{#each related as (post, i)}}
+		<li>{{ i + 1 }}. <a href="{{ post.path }}">{{ post.title }}</a></li>
+		{{/each}}
+	</ul>
+	{{/if}}
+</article>
+```
+
+- To change a variable, declare it again: `{{#var count = count + 1}}`.
+- `{{#each list as post}}` declares `post` for each item. `{{#each list as (post, i)}}` also declares the index, `i`, which starts at 0.
+- Each template has its own variables. A partial does not see the variables of the layout that calls it. Give them to the partial as arguments, such as `{{#partial src="byline" date=date}}`, and declare them in the partial with `{{#expect date}}`. See [Partials](/docs/partials/#values).
+
+Your own values can also come from:
+
+- the frontmatter of a page, as `$page.params`. See [Frontmatter](/docs/frontmatter/).
+- the files in `data/`, as `$data`. See [Data](/docs/data/).
+- your own helper functions, as `$utils`. See [Utilities](/docs/utilities/#your-own-helpers).
+
+## Special elements
+
+bongo has its own elements for the scripts, styles, and other files of `assets/`. Put them in a layout or a partial. After the layouts render, bongo builds each file, gives it a content-hashed name, and replaces the element with the HTML that loads the file:
 
 ```hbs [layouts/html.hbs]
 <!doctype html>
-<html lang="{{$site.lang}}">
+<html lang="{{ $site.lang }}">
 <head>
-  <meta charset="utf-8"/>
-  <title>{{ $page.title }}</title>
-
-  {{! External CSS: emits <link rel="stylesheet" href="/style.hash.css"/> }}
-  <bongo:style src="app.css"></bongo:style>
-
-  {{! Inline CSS: splices built file contents into a <style> block }}
-  <bongo:style src="print.css" inline></bongo:style>
+	<meta charset="utf-8"/>
+	<title>{{ $page.title }}</title>
+	<bongo:asset preload src="fonts/inter.woff2" />
+	<link rel="icon" href="<bongo:asset src='img/favicon.svg' />"/>
+	<bongo:style src="app.css" />
 </head>
 <body>
-  {{{ $page.content }}}
-
-  {{! External JS: emits <script type="module" src="/main.hash.js"></script> }}
-  <bongo:script src="main.ts"></bongo:script>
-
-  {{! Async external JS }}
-  <bongo:script src="analytics.ts" async></bongo:script>
-
-  {{! Inline JS: file contents spliced into the <script> element }}
-  <bongo:script src="boot.ts" inline></bongo:script>
+	{{{ $page.content }}}
+	<bongo:client transitions />
+	<bongo:script src="main.ts" />
 </body>
 </html>
 ```
 
-A `src` that does not exist fails the build. The error shows the element, and the content file and layouts that rendered it.
+| Element | Use it to |
+| --- | --- |
+| `<bongo:style>` | build a stylesheet with LightningCSS, as a `<link>` or an inline `<style>`. See [CSS](/docs/css/). |
+| `<bongo:script>` | bundle a script with Rolldown, as a module `<script>` or an inline script. |
+| `<bongo:asset>` | publish any file, such as a font or an icon, as a URL or a `<link rel="preload">`. |
+| `<bongo:client>` | add the [client runtime](/docs/client-runtime/), for client-side navigation and view transitions. |
+| `<bongo:image>` | resize and convert an image, as a `<picture>` with a `srcset`. See [Images](/docs/images/). |
 
-For type checks of these elements in TypeScript, see [TypeScript](/docs/typescript/).
-
-### `<bongo:style>`
-
-Builds a stylesheet with LightningCSS. See [CSS](/docs/css/).
-
-- `src="..."` — the path, relative to `assets/`.
-- `inline` — splice the built CSS directly into a `<style>` block. Omit it for an external stylesheet link.
-- `global` — turn off the CSS modules auto-detection on `*.module.css` sources.
-
-### `<bongo:script>`
-
-Bundles a script with Rolldown.
-
-- `src="..."` — the path, relative to `assets/`.
-- `inline` — splice the built JavaScript directly into a `<script>` block.
-- `async` — add the `async` attribute to an external script.
-- `defer` — add the `defer` attribute for CJS output. The browser defers ESM modules.
-- `format="esm"|"cjs"` — the output module format. Defaults to `esm`.
-- `target="..."` — a browserslist target string. It replaces [`$build.target`](/docs/config/#build-targets) for this script.
-
-### `<bongo:asset>`
-
-Publishes any file from `assets/`, such as a font, an image, or an icon, under a content-hashed name. It goes through the same pipeline as the files that CSS references with `url()`: a file that both use gets one copy and one URL. Thus it is the way to preload a font that your CSS loads.
-
-```hbs
-{{! Preload: emits <link rel="preload" href="/inter.3f9a1c2e.woff2" as="font" type="font/woff2" crossorigin/> }}
-<bongo:asset preload src="fonts/inter.woff2" />
-
-{{! Plain: becomes the bare URL, so it works inside attributes }}
-<link rel="icon" href="<bongo:asset src='img/favicon.png' />"/>
-<img src="<bongo:asset src=img/hero.webp />" alt="…"/>
-```
-
-Without `preload`, bongo replaces the element with the file's public URL and nothing else. Inside an attribute, give `<bongo:asset>` its own attributes in single quotes or without quotes, so that they do not end the outer attribute. The URL is percent-encoded, so it is safe in any attribute.
-
-With `preload`, bongo emits a `<link rel="preload">` and infers its attributes from the file extension:
-
-| Files | `as` | `type` | `crossorigin` |
-| --- | --- | --- | --- |
-| `.woff2`, `.woff`, `.ttf`, `.otf` | `font` | `font/woff2`, … | yes, as preload requires for fonts |
-| images, such as `.png`, `.jpg`, `.svg`, `.webp`, `.avif` | `image` | `image/png`, … | no |
-| `.css` | `style` | `text/css` | no |
-| `.js`, `.mjs` | `script` | `text/javascript` | no |
-| anything else, such as `.json` or `.wasm` | `fetch` | when known | yes |
-
-Attributes:
-
-- `src="..."` — the path, relative to `assets/`.
-- `preload` — emit a `<link rel="preload">` in place of the bare URL.
-- `as="..."`, `type="..."` — override the inferred values. `type=false` leaves `type` out.
-- `crossorigin` or `crossorigin="use-credentials"` — override the inferred value. `crossorigin=false` leaves it out.
-- `media="..."`, `fetchpriority="high|low|auto"` — copied onto the `<link>`.
-
-### `<bongo:client>`
-
-Bundles bongo's browser runtime and emits a module script that calls `client(...)`. It emits only that script, so you can put it anywhere in `<head>` or `<body>`:
-
-```hbs
-<bongo:client />
-<bongo:client transitions />
-<bongo:client transitions="slide" />
-```
-
-Multiple `<bongo:client>` tags on a page share one bundled runtime. See [Client runtime](/docs/client-runtime/).
-
-### `<bongo:image>`
-
-Resizes and converts an image, and emits a `<picture>` with a `srcset` for each format:
-
-```hbs
-<bongo:image src="img/hero.jpg" alt="A hero" sizes="(min-width: 800px) 720px, 100vw" />
-```
-
-See [The image element](/docs/images/#the-image-element).
+bongo publishes only the files that these elements and your CSS use. A `src` that does not exist fails the build. See [Special elements](/docs/special-elements/) for each attribute and the HTML that each element becomes, and [TypeScript](/docs/typescript/) for type checks of these elements.

@@ -2,7 +2,7 @@
 title: Loaders
 summary: How loaders in $loaders transform content files by extension, how bongo chains them, and the utilities that each loader gets.
 group: Reference
-order: 5
+order: 6
 ---
 
 Loaders transform content files by file extension. Register them with the `$loaders` config field.

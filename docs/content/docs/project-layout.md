@@ -32,7 +32,7 @@ my-site/
 
 ### `assets/`
 
-bongo does not copy `assets/` as a whole. It builds and publishes only the files that your templates and your CSS reference, each under a content-hashed name. See [Asset elements](/docs/templates/#asset-elements) and [CSS](/docs/css/).
+bongo does not copy `assets/` as a whole. It builds and publishes only the files that your templates and your CSS reference, each under a content-hashed name. See [Special elements](/docs/templates/#special-elements) and [CSS](/docs/css/).
 
 ### `content/`
 
