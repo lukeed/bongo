@@ -33,6 +33,11 @@ describe('block arguments', () => {
 });
 
 describe('compile', () => {
+	test('a value named x prints like any other name', async () => {
+		let render = tempura.compile('<p>{{ x }}</p>{{#var y = x + 1}}<b>{{ y }}</b>', { props: ['x'] });
+		expect(await render({ x: 1 })).toBe('<p>1</p><b>2</b>');
+	});
+
 	test('blocks given at call time replace the compile-time blocks', async () => {
 		let render = tempura.compile('{{#show a=1}}', { async: true, blocks: echo() });
 		expect(await render({})).toBe('{"a":1}');
