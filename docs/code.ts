@@ -10,6 +10,7 @@ import { language as yaml } from '@twinkleplop/yaml';
 import { language as handlebars } from './twinkleplop/handlebars';
 
 import type { Build } from 'bongo';
+import type { Fence } from '@bongo/markdown';
 
 const NAMES: Record<string, string> = {
 	bash: 'Shell',
@@ -30,7 +31,9 @@ const NAMES: Record<string, string> = {
 	yml: 'YAML',
 };
 
-const BLOCK = /<figure class="twinkleplop-block"[^>]*>\s*<figcaption class="twinkleplop-title">([\s\S]*?)<\/figcaption>\s*(<pre[^>]*data-language="([^"]*)"[\s\S]*?<\/pre>)\s*(?:<figcaption class="twinkleplop-caption">[\s\S]*?<\/figcaption>\s*)?<\/figure>|(<pre class="twinkleplop language-[^"]*" data-language="([^"]*)"[\s\S]*?<\/pre>)/g;
+const ESCAPE: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
+
+const escape = (text: string) => text.replace(/[&<>"]/g, char => ESCAPE[char]);
 
 const HIGHLIGHTERS: Record<string, (code: string) => string> = {
 	bash: bash(),
@@ -63,16 +66,17 @@ export function highlight(code: string, lang: string): string {
 }
 
 /**
- * Give each code block a title bar with its file name or language and a copy button, frame plain blocks, and let wide tables scroll.
+ * Give each code block a title bar with its file name or language, and a copy button. A block with no language gets a plain frame.
+ * @example markdown({ highlighter, fence })
+ */
+export const fence: Fence = (html, block) => {
+	if (!block.lang) return `<figure class="code"><pre class="twinkleplop"><code>${escape(block.code)}</code></pre></figure>`;
+	let label = block.filename ? `<span>${escape(block.filename)}</span><span class="lang">${escape(block.lang)}</span>` : `<span>${NAMES[block.lang] ?? escape(block.lang)}</span>`;
+	return `<figure class="code"><div class="bar">${label}<button class="copy" type="button" data-copy-code>Copy</button></div>${html}</figure>`;
+};
+
+/**
+ * Let wide tables scroll.
  * @example $hooks: { transform }
  */
-export const transform: Build.Transform = (text, ctx) => {
-	if (ctx.kind !== 'page') return text;
-	return text
-		.replace(BLOCK, (_, title: string | undefined, titled: string, lang: string, bare: string, bareLang: string) => {
-			let label = title ? `<span>${title}</span><span class="lang">${lang}</span>` : `<span>${NAMES[bareLang] ?? bareLang}</span>`;
-			return `<figure class="code"><div class="bar">${label}<button class="copy" type="button" data-copy-code>Copy</button></div>${title ? titled : bare}</figure>`;
-		})
-		.replace(/<pre><code>([\s\S]*?)<\/code><\/pre>/g, (_, body: string) => `<figure class="code"><pre class="twinkleplop"><code>${body}</code></pre></figure>`)
-		.replace(/<table>[\s\S]*?<\/table>/g, table => `<div class="tbl">${table}</div>`);
-};
+export const transform: Build.Transform = (text, ctx) => ctx.kind === 'page' ? text.replace(/<table>[\s\S]*?<\/table>/g, table => `<div class="tbl">${table}</div>`) : text;

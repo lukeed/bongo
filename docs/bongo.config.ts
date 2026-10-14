@@ -21,6 +21,7 @@ export default {
 		markdown({
 			headingIds: true,
 			highlighter: twinkleplop({ languages: code.languages }),
+			fence: code.fence,
 		}),
 	],
 } satisfies Config;
