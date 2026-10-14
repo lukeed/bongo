@@ -1,0 +1,36 @@
+{{#var docs = $page.section === 'docs'}}
+{{#var home = $page.path === '/'}}
+{{#var title = home ? 'bongo · Static sites with a good beat' : $page.title + ' · bongo'}}
+{{#var summary = $page.summary || $site.description}}
+<!doctype html>
+<html lang="{{ $site.lang }}">
+<head>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1"/>
+	<script>document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")</script>
+	<title>{{ title }}</title>
+	<meta name="description" content="{{ summary }}"/>
+	<link rel="canonical" href="{{ $page.url }}"/>
+	<meta property="og:type" content="website"/>
+	<meta property="og:site_name" content="bongo"/>
+	<meta property="og:title" content="{{ title }}"/>
+	<meta property="og:description" content="{{ summary }}"/>
+	<meta property="og:url" content="{{ $page.url }}"/>
+	<meta property="og:image" content="{{ $site.url.replace(/\/$/, '') }}<bongo:asset src='img/og.png' />"/>
+	<meta name="twitter:card" content="summary_large_image"/>
+	<meta name="theme-color" media="(prefers-color-scheme: light)" content="#FFFDF7"/>
+	<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121212"/>
+	<link rel="icon" type="image/svg+xml" href="<bongo:asset src='img/favicon.svg' />"/>
+	<link rel="apple-touch-icon" href="<bongo:asset src='img/touch.png' />"/>
+	<bongo:asset preload src="fonts/space-grotesk.woff2" />
+	<bongo:asset preload src="fonts/unbounded.woff2" />
+	<bongo:style src="style.css"></bongo:style>
+</head>
+<body{{#if home}} class="home"{{/if}}>
+{{#partial src="header" docs=docs version=$data.release.version}}
+{{{ $page.content }}}
+{{#partial src="search"}}
+<bongo:client transitions prefetch />
+<bongo:script src="main.ts"></bongo:script>
+</body>
+</html>

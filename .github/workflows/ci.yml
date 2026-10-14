@@ -5,12 +5,10 @@ on:
     branches: [main]
     paths-ignore:
       - 'archive/**'
-      - 'docs/**'
       - '*.md'
   pull_request:
     paths-ignore:
       - 'archive/**'
-      - 'docs/**'
       - '*.md'
 
 concurrency:
@@ -55,3 +53,16 @@ jobs:
           fi
           pages=$(find example/public -name '*.html' | wc -l | tr -d ' ')
           echo "Example built cleanly: $pages HTML pages emitted."
+
+      - name: (docs) build
+        run: bun docs build
+
+      - name: (docs) smoke test
+        run: |
+          if grep -rq "__BONGO_BUNDLE" docs/public/; then
+            echo "::error::unresolved placeholder tokens in docs/public/"
+            grep -rn "__BONGO_BUNDLE" docs/public/
+            exit 1
+          fi
+          pages=$(find docs/public -name '*.html' | wc -l | tr -d ' ')
+          echo "Docs built cleanly: $pages HTML pages emitted."

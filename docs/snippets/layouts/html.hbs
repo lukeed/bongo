@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="{{ $site.lang }}">
+<head>
+	<title>{{ $page.title }} — {{ $site.title }}</title>
+	<bongo:style src="style.css"></bongo:style>
+</head>
+<body>
+	{{{ $page.content }}}
+	<bongo:client transitions prefetch />
+</body>
+</html>

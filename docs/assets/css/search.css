@@ -1,0 +1,118 @@
+.find {
+	width: min(640px, calc(100vw - 32px));
+	max-height: min(560px, calc(100vh - 120px));
+	margin: 12vh auto auto;
+	padding: 0;
+	overflow: hidden;
+	color: var(--text);
+	background: var(--panel);
+	border: var(--bw) solid var(--line);
+	border-radius: 18px;
+	box-shadow: 8px 8px 0 var(--s5);
+}
+
+:root:not([data-theme=dark]) .find {
+	box-shadow: 8px 8px 0 #141414;
+}
+
+.find[open] {
+	display: flex;
+	flex-direction: column;
+}
+
+.find::backdrop {
+	background: #14141473;
+}
+
+.find label {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 0 14px 0 18px;
+	background: var(--sun);
+	border-bottom: var(--bw) solid var(--line);
+	color: #141414;
+}
+
+:root[data-theme=dark] .find label {
+	border-bottom-color: #141414;
+}
+
+.find label svg {
+	width: 20px;
+	height: 20px;
+	flex: none;
+}
+
+.find input {
+	flex: 1;
+	min-width: 0;
+	height: 60px;
+	border: 0;
+	outline: 0;
+	background: none;
+	color: #141414;
+	font: 600 18px/1 var(--sans);
+}
+
+.find input::placeholder {
+	color: #14141499;
+}
+
+.find kbd {
+	background: #FFFFFFA8;
+	color: #141414;
+	border-color: #141414;
+}
+
+.find ol {
+	list-style: none;
+	margin: 0;
+	padding: 10px;
+	overflow-y: auto;
+}
+
+.find li a {
+	display: block;
+	padding: 10px 14px 11px;
+	border: 2px solid transparent;
+	border-radius: 12px;
+	text-decoration: none;
+}
+
+.find li a b {
+	display: block;
+	font: 700 16px/1.3 var(--display);
+	letter-spacing: -.02em;
+	color: var(--ink);
+}
+
+.find li a small {
+	display: block;
+	margin-top: 3px;
+	font-size: 14px;
+	line-height: 1.4;
+	color: var(--muted);
+}
+
+.find li a[aria-selected=true] {
+	background: var(--soft);
+	border-color: var(--line);
+}
+
+.find li a mark {
+	background: var(--sun);
+	color: #141414;
+	border-radius: 3px;
+}
+
+.find p {
+	margin: 0;
+	padding: 28px 18px 30px;
+	text-align: center;
+	color: var(--muted);
+}
+
+.find input::-webkit-search-cancel-button {
+	appearance: none;
+}

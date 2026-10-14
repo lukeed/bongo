@@ -1,0 +1,124 @@
+---
+title: bongo
+summary: bongo is a static site generator. Rolldown bundles your scripts, LightningCSS bundles your styles, and tempura renders your templates.
+---
+{{#var arrow = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>'}}
+{{#var copy = '<svg class="dup" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/></svg><svg class="ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>'}}
+<main>
+	<div class="hero">
+		<div class="wrap">
+			<div>
+				<a class="news" href="/docs/data-modules/"><b>New</b>Data modules in v0.0.13 →</a>
+				<h1>Static sites<br/>with a <span class="stk">good beat.</span></h1>
+				<p class="lead"><b>bongo</b> turns Markdown, templates, and assets into fast static HTML. Rolldown bundles your scripts. LightningCSS bundles your styles.</p>
+				<div class="actions">
+					<a class="btn" href="/docs/quick-start/">Get started{{{ arrow }}}</a>
+					<div class="cmd"><span><i>$</i> bun create bongo my-site</span><button class="cp" type="button" aria-label="Copy command" data-copy="bun create bongo my-site">{{{ copy }}}</button></div>
+				</div>
+				<div class="runs"><em>Config loads the same in</em><span>Bun</span><span>Deno</span><span>Node 24+</span></div>
+			</div>
+			<div class="collage">
+				<div class="mark">{{#partial src="mark"}}</div>
+				<span class="sticker rd" style="--c:var(--lilac)">Rolldown</span>
+				<span class="sticker lc" style="--c:var(--sky)">LightningCSS</span>
+				<figure class="code">
+					<div class="bar" style="--c:var(--sky)"><span>content/hello.md</span><span class="lang">md</span></div>
+					{{#partial src="code" file="content/hello.md"}}
+				</figure>
+				<div class="out">{{{ arrow }}}<div><small>Writes</small>public/hello/index.html</div></div>
+			</div>
+		</div>
+	</div>
+
+	<section class="band">
+		<div class="wrap">
+			<div class="head">
+				<div class="eyebrow" style="--c:var(--tomato)"><i></i>How it works</div>
+				<h2>Plain files in. A static site out.</h2>
+				<p class="sub">Each folder has one job. bongo reads them in order and writes plain HTML, CSS, and JS to <code>public/</code>.</p>
+			</div>
+			<div class="flow">
+				<figure class="code">
+					<div class="bar" style="--c:var(--mint)"><span>my-site/</span><span class="lang">tree</span></div>
+<pre class="tree"><b>assets/</b>          <span>scripts, styles, fonts</span>
+<b>content/</b>         <span>pages: .md, .hbs, .html</span>
+<b>data/</b>            <span>JSON, YAML, modules → $data</span>
+<b>layouts/</b>         <span>html.hbs wraps each page</span>
+<b>partials/</b>        <span>reusable template pieces</span>
+<b>public/</b>          <span>the build output</span>
+bongo.config.ts  <span>site, helpers, plugins</span></pre>
+				</figure>
+				<ol class="steps">
+					<li style="--s:var(--s1)"><span class="num" style="--c:var(--sun)">1</span><div><h3>Load</h3><p>bongo loads <code>bongo.config.ts</code> and every file in <code>data/</code>.</p></div></li>
+					<li style="--s:var(--s2)"><span class="num" style="--c:var(--tomato)">2</span><div><h3>Render</h3><p>Loaders turn content into HTML. Layouts and partials wrap each page.</p></div></li>
+					<li style="--s:var(--s3)"><span class="num" style="--c:var(--lilac)">3</span><div><h3>Bundle</h3><p>Rolldown builds scripts. LightningCSS builds styles. <code>Bun.Image</code> resizes images.</p></div></li>
+					<li style="--s:var(--s4)"><span class="num" style="--c:var(--mint)">4</span><div><h3>Write</h3><p>Pages go to <code>public/</code>, with content hashes in every asset URL.</p></div></li>
+				</ol>
+			</div>
+		</div>
+	</section>
+
+	<section class="band">
+		<div class="wrap">
+			<div class="head">
+				<div class="eyebrow" style="--c:var(--sky)"><i></i>Features</div>
+				<h2>Built for content sites.</h2>
+			</div>
+			<div class="grid">
+				<a class="feat" href="/docs/templates/" style="--s:var(--s1)"><div class="glyph" style="--c:var(--tomato)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 15V9l2.5 3L12 9v6M16 9v6M14 13l2 2 2-2"/></svg></div><h3>Markdown and templates</h3><p>Write Markdown with <code>@bongo/markdown</code>. Wrap it in tempura layouts and partials.</p></a>
+				<a class="feat" href="/docs/css/" style="--s:var(--s5)"><div class="glyph" style="--c:var(--sky)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3 5 13.5h6L10 21l8-10.5h-6L13 3Z"/></svg></div><h3>Scripts and styles</h3><p>Rolldown bundles scripts. LightningCSS bundles, nests, prefixes, and minifies CSS.</p></a>
+				<a class="feat" href="/docs/images/" style="--s:var(--s4)"><div class="glyph" style="--c:var(--mint)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="9.5" r="1.8"/><path d="m4 18 5.5-5.5 4 4L16 14l4 4"/></svg></div><h3>Images, sized for you</h3><p><code>Bun.Image</code> resizes images, converts them to WebP, and adds <code>srcset</code>, width, and height.</p></a>
+				<a class="feat" href="/docs/data-modules/" style="--s:var(--s3)"><div class="glyph" style="--c:var(--lilac)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4H7a2 2 0 0 0-2 2v4l-2 2 2 2v4a2 2 0 0 0 2 2h1M16 4h1a2 2 0 0 1 2 2v4l2 2-2 2v4a2 2 0 0 1-2 2h-1"/></svg></div><h3>Data in, JSON out</h3><p>Files in <code>data/</code> become <code>$data</code>. Data modules write JSON, such as <code>/search.json</code>.</p></a>
+				<a class="feat" href="/docs/output-files/" style="--s:var(--s2)"><div class="glyph" style="--c:var(--sun)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a14 14 0 0 1 14 14M5 11a8 8 0 0 1 8 8"/><circle cx="6" cy="18" r="1.6" fill="currentColor"/></svg></div><h3>Feeds and sitemaps</h3><p>Write <code>sitemap.xml.hbs</code> as an output file. Add RSS or Atom with <code>@bongo/feed</code>.</p></a>
+				<a class="feat" href="/docs/client-runtime/" style="--s:var(--s5)"><div class="glyph" style="--c:var(--tomato)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="11" height="13" rx="2.5"/><path d="M10 20h9a2 2 0 0 0 2-2V9M17 7l3-3M20 4v3.5M20 4h-3.5"/></svg></div><h3>Smooth navigation</h3><p><code>bongo/client</code> adds client-side navigation, view transitions, and prefetch.</p></a>
+			</div>
+		</div>
+	</section>
+
+	<section class="band">
+		<div class="wrap split">
+			<div>
+				<div class="eyebrow" style="--c:var(--lilac)"><i></i>Config</div>
+				<h2>One typed config.</h2>
+				<p class="sub">Set your site, helpers, and plugins in <code>bongo.config.ts</code>. Templates read them as <code>$site</code> and <code>$utils</code>.</p>
+				<ul class="checks">
+					<li>Loads the same in Bun, Deno, and Node 24+.</li>
+					<li>Change it while <code>bongo dev</code> runs, and every page rebuilds. No restart.</li>
+					<li>A failed build shows an error overlay. The last good build keeps serving.</li>
+				</ul>
+			</div>
+			<figure class="code tabbed" data-tabs>
+				<div class="tabs" role="tablist" aria-label="Example files">
+					<button type="button" role="tab" id="tab-config" aria-controls="panel-config" aria-selected="true">bongo.config.ts</button>
+					<button type="button" role="tab" id="tab-layout" aria-controls="panel-layout" aria-selected="false" tabindex="-1">layouts/html.hbs</button>
+					<button type="button" role="tab" id="tab-data" aria-controls="panel-data" aria-selected="false" tabindex="-1">content/search.json.ts</button>
+				</div>
+				<div role="tabpanel" id="panel-config" aria-labelledby="tab-config">{{#partial src="code" file="bongo.config.ts"}}</div>
+				<div role="tabpanel" id="panel-layout" aria-labelledby="tab-layout" hidden>{{#partial src="code" file="layouts/html.hbs"}}</div>
+				<div role="tabpanel" id="panel-data" aria-labelledby="tab-data" hidden>{{#partial src="code" file="content/search.json.ts"}}</div>
+			</figure>
+		</div>
+	</section>
+
+	<div class="cta">
+		<div class="wrap">
+			<h2>Start a site in one command.</h2>
+			<div class="actions">
+				<div class="cmd"><span><i>$</i> bun create bongo my-site</span><button class="cp" type="button" aria-label="Copy command" data-copy="bun create bongo my-site">{{{ copy }}}</button></div>
+				<a class="btn" href="/docs/">Read the docs{{{ arrow }}}</a>
+			</div>
+		</div>
+	</div>
+</main>
+
+<footer class="foot">
+	<div class="wrap">
+		<div class="fgrid">
+			<div><a class="brand" href="/" aria-label="bongo home">{{#partial src="wordmark"}}</a><p>A static site generator built on Rolldown and LightningCSS.</p></div>
+			<div><h4>Packages</h4><a href="https://www.npmjs.com/package/@lukeed/bongo"><code>bongo</code></a><a href="https://www.npmjs.com/package/@bongo/markdown"><code>@bongo/markdown</code></a><a href="https://www.npmjs.com/package/@bongo/feed"><code>@bongo/feed</code></a><a href="https://www.npmjs.com/package/create-bongo"><code>create-bongo</code></a></div>
+			<div><h4>Docs</h4><a href="/docs/quick-start/">Quick start</a><a href="/docs/templates/">Templates</a><a href="/docs/config/">Config</a><a href="/docs/client-runtime/">Client runtime</a></div>
+			<div><h4>Project</h4><a href="https://github.com/lukeed/bongo">GitHub</a><a href="https://github.com/lukeed/bongo/issues">Issues</a><a href="https://github.com/lukeed/bongo/releases">Releases</a></div>
+		</div>
+		<div class="legal"><span>MIT license</span><span>bongo v{{ $data.release.version }}</span></div>
+	</div>
+</footer>

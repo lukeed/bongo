@@ -1,0 +1,91 @@
+---
+title: Partials
+summary: How to write partials as Handlebars files, modules, or config functions, and how to call them from templates, Markdown, and loaders.
+group: Guides
+order: 4
+---
+
+A partial is a template that you call by name. Put it in `partials/` as a `.hbs`, JavaScript, or TypeScript file, or define it in the `$partials` config field.
+
+## Call a partial
+
+Call a partial with `{{#partial}}` and its `src`. The other attributes become its arguments:
+
+```hbs
+{{#partial src="header" }}
+{{#partial src="card" title="Hello" }}
+```
+
+The name of a partial is its path in `partials/`, without the extension. `partials/header.hbs` is `header`, and `partials/blog/card.hbs` is `blog/card`. A `src` with the extension, such as `src="card.hbs"`, also works.
+
+An unknown name fails the build with `Unknown "card" partial!`.
+
+## Values
+
+A partial in `partials/` gets its arguments, plus the values that come from the config: `$site`, `$utils`, `$data`, and `$assets`. A [config partial](#config-partials) gets only its arguments. No partial gets `$page`, `$pages`, `$section`, or `$tags`. Pass it the values that it needs:
+
+```hbs
+{{#partial src="postmeta" date=$page.params.date tags=$page.tags}}
+```
+
+## Handlebars partials
+
+A `.hbs` partial is a tempura template. Declare the arguments that it reads with `{{#expect}}`:
+
+```hbs [partials/postmeta.hbs]
+{{#expect date, tags }}
+<p class="meta">
+	<time datetime="{{ date }}">{{ $utils.humanDate(date) }}</time>
+	{{#if tags.length}}
+	<span class="tags">{{#each tags as (t)}}<span class="tag">{{ t }}</span>{{/each}}</span>
+	{{/if}}
+</p>
+```
+
+See [Templates](/docs/templates/#syntax) for the syntax.
+
+## Module partials
+
+A `.js`, `.mjs`, `.cjs`, or `.ts` file in `partials/` is a module partial. bongo loads it as it loads the config: Rolldown bundles it with its local imports. See [How a build works](/docs/project-layout/#how-a-build-works).
+
+Its default export must be a render function. The function gets the arguments, and returns the HTML as a string or a promise of a string:
+
+```ts [partials/badge.ts]
+type Args = { label: string };
+
+export default function (args: Args): string {
+	return `<span class="badge">${args.label}</span>`;
+}
+```
+
+A module that exports no function fails the build with `Partial "badge.ts" must export a render function`.
+
+## Config partials
+
+The `$partials` config field holds programmatic partial functions, keyed by name:
+
+```ts [bongo.config.ts]
+export default {
+	$partials: {
+		greeting(args) {
+			return `<p>Hello, ${args.name}</p>`;
+		},
+	},
+};
+```
+
+Call it as any other partial: `{{#partial src="greeting" name="Luke"}}`. A `$partials` entry replaces a file partial with the same name.
+
+## Partials in Markdown
+
+With `@bongo/markdown`, a `<bongo:name>` element in Markdown prose calls the partial with that name. Its attributes become the arguments:
+
+```md
+<bongo:card title="Hello" count=3 />
+```
+
+See [Elements](/docs/markdown/#elements).
+
+## Partials in loaders
+
+A loader can call a partial with `utils.render(partialName, args)`. See [Loader utilities](/docs/loaders/#loader-utilities).

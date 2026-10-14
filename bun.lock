@@ -18,6 +18,24 @@
         "rolldown": "^1.0.0",
       },
     },
+    "docs": {
+      "name": "docs",
+      "devDependencies": {
+        "@bongo/markdown": "workspace:*",
+        "@twinkleplop/bash": "^0.1.7",
+        "@twinkleplop/core": "^0.3.1",
+        "@twinkleplop/css": "^0.1.7",
+        "@twinkleplop/html": "^0.1.7",
+        "@twinkleplop/javascript": "^0.1.7",
+        "@twinkleplop/json": "^0.1.7",
+        "@twinkleplop/markdown": "^0.2.1",
+        "@twinkleplop/markdown-core": "^0.2.1",
+        "@twinkleplop/typescript": "^0.1.7",
+        "@twinkleplop/yaml": "^0.1.7",
+        "bongo": "workspace:@lukeed/bongo@*",
+        "md4x": "^0.0.30",
+      },
+    },
     "example": {
       "name": "example",
       "devDependencies": {
@@ -28,7 +46,7 @@
     },
     "packages/bongo": {
       "name": "@lukeed/bongo",
-      "version": "0.0.12",
+      "version": "0.0.13",
       "bin": "bin.js",
       "dependencies": {
         "browserslist": "^4.28.2",
@@ -44,7 +62,7 @@
     },
     "packages/create-bongo": {
       "name": "create-bongo",
-      "version": "0.0.12",
+      "version": "0.0.13",
       "bin": "bin.js",
       "dependencies": {
         "mri": "^1.1.0",
@@ -52,11 +70,11 @@
     },
     "packages/plugin.feed": {
       "name": "@bongo/feed",
-      "version": "0.0.0",
+      "version": "0.0.13",
     },
     "packages/plugin.markdown": {
       "name": "@bongo/markdown",
-      "version": "0.0.12",
+      "version": "0.0.13",
       "dependencies": {
         "md4x": "^0.0.30",
       },
@@ -160,11 +178,17 @@
 
     "@twinkleplop/javascript": ["@twinkleplop/javascript@0.1.7", "", { "dependencies": { "@twinkleplop/core": "0.3.1", "@twinkleplop/css": "0.1.7", "@twinkleplop/html": "0.1.7" } }, "sha512-qZDFx0bTM8YdKBTCxIS+6dZ1itaTnn1Udf2wFW5Uo+S6liGm40Lq2rlCk3PYa+Hm4lmX6HSzFeO4ZaDqk6Cn9Q=="],
 
+    "@twinkleplop/json": ["@twinkleplop/json@0.1.7", "", { "dependencies": { "@twinkleplop/core": "0.3.1" } }, "sha512-3V2BmcvHCF7MTmDxNSk0sliZqwW1BDB29ZQY2W07auiOGyPQJVhYPiyeoIIN51Q02YnvSg+hxfXSRY9FptMJKg=="],
+
+    "@twinkleplop/markdown": ["@twinkleplop/markdown@0.2.1", "", { "dependencies": { "@twinkleplop/core": "0.3.1" } }, "sha512-uff5OXuSnlSWuPCYJWCQ+yMsOAvGCzljP8mIDQ4oj2ezkMAdhwh/McNXZ1odg4xpSp7hlwbu+UHbRl5FvG4kSQ=="],
+
     "@twinkleplop/markdown-core": ["@twinkleplop/markdown-core@0.2.1", "", { "dependencies": { "@twinkleplop/core": "0.3.1" } }, "sha512-B8SBW5kKCwmVKTtm2r1hK0PyJk4qQYem33v7aIHQv0f2jNsuvnkhboM1p/oCNyt/Q8lau2yjygP4soSvTi+ALA=="],
 
     "@twinkleplop/theme-github": ["@twinkleplop/theme-github@0.2.4", "", { "dependencies": { "@twinkleplop/core": "0.3.1" } }, "sha512-gCo1G/dGspjNSUoLPLE49MZx97LoEdGYQQHqh985Vfg0jsdupCPHRRvRkgXm8RsP7TvZ2ib/nORpCPNiauflSA=="],
 
     "@twinkleplop/typescript": ["@twinkleplop/typescript@0.1.7", "", { "dependencies": { "@twinkleplop/core": "0.3.1", "@twinkleplop/javascript": "0.1.7" } }, "sha512-3lVdFUnOc40QQUJPnmTsiyTf7+RSEoXhDnmMwkUQ5Kzgemkk6eeXQGietPjxro8k+QuTAY/aQuWOtR/nUgfENw=="],
+
+    "@twinkleplop/yaml": ["@twinkleplop/yaml@0.1.7", "", { "dependencies": { "@twinkleplop/core": "0.3.1" } }, "sha512-GzsP3RuMYAnMx82pFUxICplG5s2GXxGst8dyxM7p1ONGp1f6NsFdc7OChtoIcT3PzXWQN/ctPJdv5rpr7tXs3w=="],
 
     "@tybys/wasm-util": ["@tybys/wasm-util@0.10.1", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg=="],
 
@@ -215,6 +239,8 @@
     "detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
 
     "devlop": ["devlop@1.1.0", "", { "dependencies": { "dequal": "^2.0.0" } }, "sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA=="],
+
+    "docs": ["docs@workspace:docs"],
 
     "electron-to-chromium": ["electron-to-chromium@1.5.340", "", {}, "sha512-908qahOGocRMinT2nM3ajCEM99H4iPdv84eagPP3FfZy/1ZGeOy2CZYzjhms81ckOPCXPlW7LkY4XpxD8r1DrA=="],
 
