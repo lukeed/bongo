@@ -296,6 +296,10 @@ export async function load(root: string): Promise<Loaded> {
 				let words = (text || '').trim();
 				return words ? words.split(/\s+/g).length : 0;
 			},
+			minutes(text: string, wpm = 200): number {
+				let words = plain(text);
+				return words ? Math.ceil(words.split(' ').length / wpm) : 0;
+			},
 			excerpt(html: string, length: number): string {
 				let text = plain(html);
 				if (text.length <= length) return text;

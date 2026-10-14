@@ -355,6 +355,17 @@ describe('built-in utils', () => {
 		expect(excerpt?.('&#99999999; &bogus; &AMP;', 99)).toBe('&#99999999; &bogus; &');
 	});
 
+	test('minutes gives the reading time in whole minutes, from the words of the text without its tags', async () => {
+		let { minutes } = await builtins(`{ url: 'https://example.com/', lang: 'en', title: 'T' }`);
+		expect(minutes?.('')).toBe(0);
+		expect(minutes?.('<p> </p>')).toBe(0);
+		expect(minutes?.('<p>one</p>')).toBe(1);
+		expect(minutes?.('<p>' + 'word '.repeat(200) + '</p>')).toBe(1);
+		expect(minutes?.('word '.repeat(201))).toBe(2);
+		expect(minutes?.('word '.repeat(250), 100)).toBe(3);
+		expect(minutes?.('<b>a</b><i>b</i> <script>let x = 1 2 3 4</script>c', 1)).toBe(2);
+	});
+
 	test('date.format gives ISO 8601, or a date in $site.lang from Intl options, in UTC', async () => {
 		let { date } = await builtins(`{ url: 'https://example.com/', lang: 'fr', title: 'T' }`);
 		expect(date?.format?.('2024-05-01')).toBe('2024-05-01T00:00:00.000Z');

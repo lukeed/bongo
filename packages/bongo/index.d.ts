@@ -223,6 +223,7 @@ export interface Config {
 		countwords?(text: string): number;
 		slug?(text: string): string;
 		excerpt?(html: string, length: number): string;
+		minutes?(text: string, wpm?: number): number;
 		url?: Helpers & {
 			abs?(to: string, fro?: string): string;
 			path?(to: string, fro?: string): string;
