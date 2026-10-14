@@ -452,6 +452,65 @@ describe('$assets.load', () => {
 	});
 });
 
+describe('scripts and styles', () => {
+	test('an inline script builds alone, so it imports nothing, even when it shares code with another script', async () => {
+		let root = await site({
+			'assets/shared.ts': 'export function greet(name: string) { return document.title + " greets " + name; }',
+			'assets/a.ts': 'import { greet } from "./shared";\nconsole.log(greet("a"));',
+			'assets/b.ts': 'import { greet } from "./shared";\ndocument.body.dataset.b = greet("b");',
+			'layouts/html.hbs': '{{{ $page.content }}}<bongo:script src="a.ts" /><bongo:script src="b.ts" inline />',
+			'content/blog/post.html': '<p>post</p>',
+		});
+		try {
+			await build({ cwd: root });
+			let html = await read(root, 'blog/post/index.html');
+			let inline = /<script type="module">([\s\S]*?)<\/script>/.exec(html)?.[1] ?? '';
+			expect(inline).toContain('greets');
+			expect(inline).not.toContain('import');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('iife scripts build one at a time, with dynamic imports inlined', async () => {
+		let root = await site({
+			'assets/shared.ts': 'export function greet(name: string) { return document.title + " greets " + name; }',
+			'assets/a.ts': 'import { greet } from "./shared";\nconsole.log(greet("a"));',
+			'assets/b.ts': 'import("./shared").then(m => console.log(m.greet("b")));',
+			'layouts/html.hbs': '{{{ $page.content }}}<bongo:script src="a.ts" format="iife" /><bongo:script src="b.ts" format="iife" />',
+			'content/index.html': '<p>home</p>',
+		});
+		try {
+			await build({ cwd: root });
+			let html = await read(root, 'index.html');
+			let files = [...html.matchAll(/<script src="\/([^"]+)"><\/script>/g)].map(m => m[1]);
+			expect(files).toHaveLength(2);
+			for (let file of files) {
+				let code = await read(root, file);
+				expect(code).toStartWith('(function() {');
+				expect(code).toContain('greets');
+				expect(code).not.toMatch(/\bimport\b/);
+			}
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('an inline style keeps its other attributes', async () => {
+		let root = await site({
+			'assets/print.css': '.a { color: red }',
+			'layouts/html.hbs': '{{{ $page.content }}}<bongo:style src="print.css" media="print" nonce="r4nd" inline />',
+			'content/index.html': '<p>home</p>',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toMatch(/<style media="print" nonce="r4nd">\.a \{\s*color: red;?\s*\}\s*<\/style>/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('layouts', () => {
 	test('a page uses the layouts of its nearest folder first', async () => {
 		let root = await site({

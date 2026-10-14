@@ -12,6 +12,7 @@ type BongoPrefetchMode = boolean | 'hover' | 'tap';
 type BongoClientAttrs = {
 	transitions?: BongoTransitions;
 	prefetch?: BongoPrefetchMode;
+	nonce?: string;
 };
 
 type BongoScriptAttrs = {
@@ -19,14 +20,17 @@ type BongoScriptAttrs = {
 	inline?: boolean;
 	async?: boolean;
 	defer?: boolean;
-	format?: 'esm' | 'cjs';
+	format?: 'esm' | 'cjs' | 'iife';
 	target?: string;
+	nonce?: string;
 };
 
 type BongoStyleAttrs = {
 	src: string;
 	inline?: boolean;
 	global?: boolean;
+	media?: string;
+	nonce?: string;
 };
 
 type BongoAssetAttrs = {

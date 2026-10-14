@@ -219,20 +219,22 @@ export type SubstituteOptions = {
 };
 
 const PLACEHOLDER_RE = /__BONGO_BUNDLE:[a-f0-9]{16}__/g;
-const INLINE_STYLE_RE = /<style data-bongo-inline="(__BONGO_BUNDLE:[a-f0-9]{16}__)"><\/style>/g;
-const INLINE_SCRIPT_RE = /<script([^>]*)data-bongo-inline="(__BONGO_BUNDLE:[a-f0-9]{16}__)"([^>]*)><\/script>/g;
+const INLINE_STYLE_RE = /<style((?:"[^"]*"|[^>"])*?)data-bongo-inline="(__BONGO_BUNDLE:[a-f0-9]{16}__)"((?:"[^"]*"|[^>"])*)><\/style>/g;
+const INLINE_SCRIPT_RE = /<script((?:"[^"]*"|[^>"])*?)data-bongo-inline="(__BONGO_BUNDLE:[a-f0-9]{16}__)"((?:"[^"]*"|[^>"])*)><\/script>/g;
 const IMAGE_RE = /<img data-bongo-image="(__BONGO_BUNDLE:[a-f0-9]{16}__)"((?:"[^"]*"|'[^']*'|[^>"'])*?)\s*\/?>/g;
 
 export async function substitute(html: string, opts: SubstituteOptions): Promise<string> {
 	let { outputs, publicPath, readFile } = opts;
 
-	// Pass 2a: inline <style> — replace element entirely.
+	// Pass 2a: inline <style> — replace element entirely, preserving other attrs.
 	let inlineStyleTasks: Promise<[string, string]>[] = [];
-	html.replace(INLINE_STYLE_RE, (_match, token) => {
+	html.replace(INLINE_STYLE_RE, (_match, attrsBefore, token, attrsAfter) => {
 		let p = token as Placeholder;
 		let info = outputs.get(p);
 		if (!info) throw new Error(`Unresolved inline style placeholder: ${token}`);
-		inlineStyleTasks.push(readFile(info.filename).then(contents => [_match, `<style>${contents}</style>`]));
+		let otherAttrs = (attrsBefore + ' ' + attrsAfter).replace(/\s+/g, ' ').trim();
+		let attrPart = otherAttrs ? ' ' + otherAttrs : '';
+		inlineStyleTasks.push(readFile(info.filename).then(contents => [_match, `<style${attrPart}>${contents}</style>`]));
 		return _match;
 	});
 

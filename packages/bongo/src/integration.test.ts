@@ -79,8 +79,8 @@ describe('integration: site-basic', () => {
 			expect(scriptSrc).toMatch(/^\/main\.[\w-]+\.js$/);
 			expect(existsSync(join(out, scriptSrc.slice(1)))).toBe(true);
 
-			// Inline script: element contains bundled boot content, no src attr.
-			let inlineScript = indexHtml.match(/<script>[^<]*boot[^<]*<\/script>/s);
+			// Inline script: a module element that contains bundled boot content, no src attr.
+			let inlineScript = indexHtml.match(/<script type="module">[^<]*boot[^<]*<\/script>/s);
 			expect(inlineScript).not.toBeNull();
 
 			// Partial expanded.

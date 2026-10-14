@@ -152,7 +152,56 @@ describe('scanBongoTags', () => {
 		try {
 			let html = '<bongo:script src="boot.ts" inline></bongo:script>';
 			let result = scanBongoTags(html, makeArgv(dir), makeConfig());
-			expect(result).toMatch(/^<script data-bongo-inline="__BONGO_BUNDLE:[a-f0-9]{16}__"><\/script>$/);
+			expect(result).toMatch(/^<script type="module" data-bongo-inline="__BONGO_BUNDLE:[a-f0-9]{16}__"><\/script>$/);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('an inline script and a linked script of the same file build apart', async () => {
+		let dir = await tmpAssets({ 'a.ts': 'export {}' });
+		try {
+			let result = scanBongoTags('<bongo:script src="a.ts" /><bongo:script src="a.ts" inline />', makeArgv(dir), makeConfig());
+			let [linked, inline] = result.match(/__BONGO_BUNDLE:[a-f0-9]{16}__/g) ?? [];
+			expect(linked).not.toBe(inline);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('format="cjs" and format="iife" write classic scripts, with defer when asked', async () => {
+		let dir = await tmpAssets({ 'a.ts': 'export {}' });
+		try {
+			let token = '__BONGO_BUNDLE:[a-f0-9]{16}__';
+			for (let format of ['cjs', 'iife']) {
+				let html = `<bongo:script src="a.ts" format="${format}" /><bongo:script src="a.ts" format="${format}" defer /><bongo:script src="a.ts" format="${format}" inline />`;
+				let result = scanBongoTags(html, makeArgv(dir), makeConfig());
+				expect(result).toMatch(new RegExp(`^<script src="${token}"></script><script src="${token}" defer></script><script data-bongo-inline="${token}"></script>$`));
+			}
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('an unknown format fails and names the tag', async () => {
+		let dir = await tmpAssets({ 'a.ts': 'export {}' });
+		try {
+			expect(() => scanBongoTags('<bongo:script src="a.ts" format="umd" />', makeArgv(dir), makeConfig(), 'layouts/html.hbs'))
+				.toThrow('Unknown format "umd" for <bongo:script src="a.ts" format="umd" />, rendering layouts/html.hbs; use esm, cjs, or iife');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('other attributes, such as nonce and media, go on the element, escaped', async () => {
+		let dir = await tmpAssets({ 'a.ts': 'export {}', 'a.css': '.a {}' });
+		try {
+			let token = '__BONGO_BUNDLE:[a-f0-9]{16}__';
+			let check = (html: string, expected: string) => expect(scanBongoTags(html, makeArgv(dir), makeConfig())).toMatch(new RegExp(`^${expected}$`));
+			check('<bongo:script src="a.ts" nonce="r4nd" id=app data-x=\'a"b\' hidden=false async />', `<script type="module" src="${token}" nonce="r4nd" id="app" data-x="a&quot;b" async></script>`);
+			check('<bongo:script src="a.ts" nonce="r4nd" inline />', `<script type="module" nonce="r4nd" data-bongo-inline="${token}"></script>`);
+			check('<bongo:style src="a.css" media="print" nonce="r4nd" />', `<link rel="stylesheet" href="${token}" media="print" nonce="r4nd"/>`);
+			check('<bongo:style src="a.css" media="(width >= 600px)" nonce="r4nd" inline />', `<style media="\\(width >= 600px\\)" nonce="r4nd" data-bongo-inline="${token}"></style>`);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
@@ -212,6 +261,16 @@ describe('scanBongoTags', () => {
 			expect(result).toMatch(
 				/^<script type="module">import { client } from "__BONGO_BUNDLE:[a-f0-9]{16}__"; client\({}\);<\/script>$/,
 			);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('<bongo:client nonce> puts the nonce on the script, not in the options', async () => {
+		let dir = await tmpAssets({});
+		try {
+			let result = scanBongoTags('<bongo:client nonce="r4nd" transitions />', makeArgv(dir), makeConfig());
+			expect(result).toMatch(/^<script type="module" nonce="r4nd">import { client } from "__BONGO_BUNDLE:[a-f0-9]{16}__"; client\({ transitions: true }\);<\/script>$/);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}

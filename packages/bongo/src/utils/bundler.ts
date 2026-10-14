@@ -33,7 +33,8 @@ export type Placeholder = string & { readonly [PlaceholderBrand]: true };
 
 export type BundleConfig = {
 	kind: 'js' | 'css' | 'file' | 'image';  // file: copied as-is under a hashed name
-	format?: 'esm' | 'cjs';                 // js only
+	format?: 'esm' | 'cjs' | 'iife';        // js only
+	split?: boolean;                         // js only; false builds the entry alone, with dynamic imports inlined
 	target?: string | string[];              // js only (rolldown target)
 	targets?: import('./css').Targets;       // css only (lightningcss targets)
 	minify?: boolean;                        // default false
@@ -105,8 +106,9 @@ function toPlaceholder(entry: string, cfg: BundleConfig): Placeholder {
 	return `__BONGO_BUNDLE:${hash}__` as Placeholder;
 }
 
-function toGroupKey(cfg: BundleConfig): string {
-	return createHash('sha256').update(JSON.stringify(cfgKey(cfg))).digest('hex').slice(0, 16);
+function toGroupKey(entry: string, cfg: BundleConfig): string {
+	let key = JSON.stringify(cfgKey(cfg)) + (cfg.split === false ? '\0' + entry : '');
+	return createHash('sha256').update(key).digest('hex').slice(0, 16);
 }
 
 const PLACEHOLDER = /__BONGO_BUNDLE:[a-f0-9]{16}__/g;
@@ -140,7 +142,7 @@ export function register(entry: string, cfg: BundleConfig): Placeholder {
 	let reg: Registration = { entry, placeholder, cfg };
 	REGISTRATIONS.set(placeholder, reg);
 
-	let groupKey = toGroupKey(cfg);
+	let groupKey = toGroupKey(entry, cfg);
 	let group = GROUPS.get(groupKey);
 	if (!group) {
 		group = [];
@@ -305,7 +307,8 @@ async function flushJsGroup(
 
 	try {
 		let result = await bundle.generate({
-			format: cfg.format === 'cjs' ? 'cjs' : 'esm',
+			format: cfg.format ?? 'esm',
+			codeSplitting: cfg.split !== false,
 			minify: cfg.minify ?? false,
 			sourcemap: cfg.sourceMap === 'inline' ? 'inline' : false,
 			entryFileNames: '[name].[hash].js',

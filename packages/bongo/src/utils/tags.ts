@@ -32,6 +32,7 @@ const JS_IDENT = /^[a-zA-Z_$][\w$]*$/;
 function clientOptions(props: attrs.Attrs): string {
 	let pairs: string[] = [];
 	for (let key in props) {
+		if (key === 'nonce') continue;
 		let v = props[key];
 		let k = JS_IDENT.test(key) ? key : JSON.stringify(key);
 		pairs.push(`${k}: ${v === true ? 'true' : JSON.stringify(v)}`);
@@ -89,6 +90,27 @@ function off(v: unknown): boolean {
 const MODULE_FILE = /\.module\.css$/;
 
 const ATTR_ESCAPE: Record<string, string> = { '&': '&amp;', '"': '&quot;' };
+
+// The attributes that bongo reads itself; any other attribute goes on the element that bongo writes.
+const OWN = {
+	script: new Set(['src', 'inline', 'async', 'defer', 'format', 'target', 'type']),
+	style: new Set(['src', 'inline', 'global', 'rel', 'href']),
+};
+
+type Format = NonNullable<bundler.BundleConfig['format']>;
+
+function isFormat(value: string): value is Format {
+	return value === 'esm' || value === 'cjs' || value === 'iife';
+}
+
+function rest(props: attrs.Attrs, own: Set<string>): string {
+	let out = '';
+	for (let [name, value] of Object.entries(forward(props))) {
+		if (own.has(name)) continue;
+		out += value === true ? ` ${name}` : ` ${name}="${value.replace(/[&"]/g, c => ATTR_ESCAPE[c])}"`;
+	}
+	return out;
+}
 
 // `as` for a preload, by mime type; fonts and fetches must be requested in cors mode.
 function destination(type: string | undefined): string {
@@ -189,7 +211,9 @@ export function scanBongoTags(
 				minify: argv.minify || undefined,
 			});
 			// The runtime adds its aria-live announcer to <body>; a <div> here would end <head> early.
-			return `<script type="module">import { client } from "${placeholder}"; client(${clientOptions(props)});</script>`;
+			let nonce = str(props.nonce);
+			let attr = nonce === undefined ? '' : ` nonce="${nonce.replace(/[&"]/g, c => ATTR_ESCAPE[c])}"`;
+			return `<script type="module"${attr}>import { client } from "${placeholder}"; client(${clientOptions(props)});</script>`;
 		}
 
 		let src = str(props.src);
@@ -239,27 +263,28 @@ export function scanBongoTags(
 				minify: argv.minify || undefined,
 			});
 
+			let extra = rest(props, OWN.style);
 			if (bool(props.inline)) {
-				return `<style data-bongo-inline="${placeholder}"></style>`;
+				return `<style${extra} data-bongo-inline="${placeholder}"></style>`;
 			}
-			return `<link rel="stylesheet" href="${placeholder}"/>`;
+			return `<link rel="stylesheet" href="${placeholder}"${extra}/>`;
 		}
 
 		// kind === 'script'
-		let format: 'esm' | 'cjs' = str(props.format) === 'cjs' ? 'cjs' : 'esm';
+		let format = str(props.format) ?? 'esm';
+		if (!isFormat(format)) throw new Error(`Unknown format "${format}" for ${match.trim()}${where}; use esm, cjs, or iife`);
 		let target = str(props.target) ?? config.$build.target;
+		let inline = bool(props.inline);
 
-		let placeholder = bundler.register(entry, { kind: 'js', format, target, minify: argv.minify || undefined });
+		// an inline script cannot load chunks by relative path, and cjs and iife cannot load chunks at all
+		let split = format === 'esm' && !inline ? undefined : false;
+		let placeholder = bundler.register(entry, { kind: 'js', format, target, split, minify: argv.minify || undefined });
 
-		if (bool(props.inline)) {
-			return `<script data-bongo-inline="${placeholder}"></script>`;
-		}
-
-		let extras = '';
-		if (bool(props.async)) extras += ' async';
-		if (format !== 'cjs') extras += ' type="module"';
-		else if (bool(props.defer)) extras += ' defer';
-		return `<script${extras} src="${placeholder}"></script>`;
+		let type = format === 'esm' ? ' type="module"' : '';
+		let flags = (bool(props.async) ? ' async' : '') + (format !== 'esm' && bool(props.defer) ? ' defer' : '');
+		let extra = rest(props, OWN.script);
+		if (inline) return `<script${type}${extra} data-bongo-inline="${placeholder}"${flags}></script>`;
+		return `<script${type} src="${placeholder}"${extra}${flags}></script>`;
 	});
 }
 
