@@ -7,7 +7,7 @@ import { language as markdown } from '@twinkleplop/markdown';
 import { language as typescript } from '@twinkleplop/typescript';
 import { language as yaml } from '@twinkleplop/yaml';
 
-import { language as handlebars } from '@twinkleplop/html';
+import { language as handlebars } from './twinkleplop/handlebars';
 
 import type { Build } from 'bongo';
 
