@@ -3,7 +3,9 @@
   "private": true,
   "scripts": {
     "dev": "bongo dev",
-    "build": "bongo build"
+    "build": "bongo build",
+    "preview": "wrangler dev",
+    "deploy": "wrangler deploy"
   },
   "devDependencies": {
     "@bongo/markdown": "workspace:*",
@@ -18,6 +20,7 @@
     "@twinkleplop/typescript": "^0.1.7",
     "@twinkleplop/yaml": "^0.1.7",
     "bongo": "workspace:@lukeed/bongo@*",
-    "md4x": "^0.0.30"
+    "md4x": "^0.0.30",
+    "wrangler": "^4.151.0"
   }
 }

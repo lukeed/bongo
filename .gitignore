@@ -16,3 +16,4 @@ node_modules
 !bun.lock
 
 /docs/public
+/docs/.wrangler
