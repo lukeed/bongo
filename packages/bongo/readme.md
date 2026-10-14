@@ -358,7 +358,7 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax. Asset entrypo
   {{! Async external JS }}
   <bongo:script src="analytics.ts" async></bongo:script>
 
-  {{! Inline JS: file contents spliced into the <script> element }}
+  {{! Inline JS: the built code in a <script type="module"> element }}
   <bongo:script src="boot.ts" inline></bongo:script>
 </body>
 </html>
@@ -369,15 +369,17 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax. Asset entrypo
 - `src="..."` — path relative to `assets/`.
 - `inline` — splice built CSS directly into a `<style>` block. Omit for an external stylesheet link.
 - `global` — disable CSS modules auto-detection on `*.module.css` sources.
+- Any other attribute, such as `media` or `nonce`, goes on the `<link>` or the `<style>`.
 
 `<bongo:script>` attributes:
 
 - `src="..."` — path relative to `assets/`.
-- `inline` — splice built JavaScript directly into a `<script>` block.
-- `async` — add the `async` attribute to an external script.
-- `defer` — add the `defer` attribute for CJS output. ESM modules are deferred by the browser.
-- `format="esm"|"cjs"` — output module format. Defaults to `esm`.
+- `inline` — splice built JavaScript directly into the `<script>` element. An inline script is built alone, with no shared chunks, so it imports nothing.
+- `async` — add the `async` attribute.
+- `defer` — add the `defer` attribute to a `cjs` or `iife` script. The browser defers module scripts already.
+- `format="esm"|"iife"|"cjs"` — output format. Defaults to `esm`, a `<script type="module">`. `iife` and `cjs` write a classic script, which runs at once, and each is built alone, with dynamic imports inlined. A browser has no `require` or `exports`, so prefer `iife` to `cjs`. Any other value fails the build.
 - `target="..."` — browserslist target string. It replaces [`$build.target`](#build-targets) for this script.
+- Any other attribute, such as `nonce` or `id`, goes on the `<script>`. `format` sets its `type`.
 
 `<bongo:client>` bundles bongo's browser runtime and emits a module script that calls `client(...)`. It emits only that script, so you can put it anywhere in `<head>` or `<body>`:
 
@@ -387,7 +389,7 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax. Asset entrypo
 <bongo:client transitions="slide" />
 ```
 
-Multiple `<bongo:client>` tags on a page share one bundled runtime.
+Multiple `<bongo:client>` tags on a page share one bundled runtime. A `nonce` goes on the script; every other attribute becomes a client option.
 
 `<bongo:asset>` publishes any file from `assets/`, such as a font, image, or icon, under a content-hashed name. It goes through the same pipeline as files referenced from CSS `url()`: a file used by both gets one copy and one URL. That makes it the way to preload a font that your CSS loads.
 

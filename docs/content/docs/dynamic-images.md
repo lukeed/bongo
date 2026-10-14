@@ -8,7 +8,9 @@ order: 7
 `$assets.render` draws a partial as an image, and returns the URL path of that image. Use it for any image that comes from your page data: a banner for each post, a badge for each tag, or a social card for each page.
 
 ```hbs [layouts/blog/single.hbs]
-<img src="{{ await $assets.render('banner', 'banners/' + $utils.slug($page.title) + '.png', { width: 1600, height: 400 }) }}" alt=""/>
+{{#var file = 'banners/' + $utils.slug($page.title) + '.png'}}
+{{#var banner = await $assets.render('banner', file, { width: 1600, height: 400 })}}
+<img src="{{ banner }}" width="1600" height="400" alt=""/>
 ```
 
 For a social card on each page, see [Open Graph images](/docs/open-graph-images/). It builds on this guide.

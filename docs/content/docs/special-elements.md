@@ -38,7 +38,19 @@ becomes:
 - `inline` — write the built CSS in a `<style>` element, in place of the `<link>`.
 - `global` — turn off [CSS modules](/docs/css/#css-modules) for a `*.module.css` file.
 
-bongo drops all other attributes.
+All other attributes, such as `media`, `nonce`, and `title`, go on the `<link>` or the `<style>`:
+
+```hbs
+<bongo:style src="print.css" media="print" nonce="__CSP_NONCE__" />
+```
+
+becomes:
+
+```html
+<link rel="stylesheet" href="/print.3f9a1c2e.css" media="print" nonce="__CSP_NONCE__"/>
+```
+
+A built page is the same for each request, but a CSP nonce must change for each response. Thus give a placeholder, such as `__CSP_NONCE__`, and let your host put a new nonce in its place for each response.
 
 ## `<bongo:script>`
 
@@ -55,13 +67,31 @@ becomes:
 ```
 
 - `src` — the entry file. Required.
-- `inline` — write the built JavaScript in the `<script>` element. The element has no `type="module"`, so the browser runs it at once, as a classic script.
+- `inline` — write the built JavaScript in the `<script>` element. bongo builds an inline script alone, with no shared chunks, so it imports nothing.
+- `format` — `esm`, `iife`, or `cjs`. See [Formats](#formats).
 - `async` — add `async`.
-- `format="cjs"` — write a classic script, with no `type="module"`. The default is `esm`.
-- `defer` — add `defer` to a `format="cjs"` script. A module script is deferred already.
+- `defer` — add `defer` to an `iife` or `cjs` script. A module script is deferred already.
 - `target` — a browserslist query for this script. It replaces [`$build.target`](/docs/config/#build-targets).
 
-bongo drops all other attributes.
+All other attributes, such as `nonce` and `id`, go on the `<script>`. `format` sets its `type`.
+
+### Formats
+
+| `format` | Element | Runs |
+| --- | --- | --- |
+| `esm`, the default | `<script type="module">` | after the page is parsed |
+| `iife` | `<script>`, with the code in a function | at once, and blocks parsing |
+| `cjs` | `<script>`, with CommonJS code | at once, and blocks parsing |
+
+A module script can share chunks with the other module scripts of the site. bongo builds each `iife` and `cjs` script alone, with its dynamic imports inlined, since a classic script cannot load chunks. A browser has no `require` or `exports`, so prefer `iife` to `cjs`. Any other `format` fails the build.
+
+Use an inline `iife` script for code that must run before the page paints, such as code that sets a color theme:
+
+```hbs
+<head>
+	<bongo:script src="theme.ts" format="iife" inline />
+</head>
+```
 
 ## `<bongo:asset>`
 
@@ -123,7 +153,7 @@ becomes:
 <script type="module">import { client } from "/client.Cl9e57TG.js"; client({ transitions: true, prefetch: "hover" });</script>
 ```
 
-It writes only that script, so you can put it anywhere in `<head>` or `<body>`. More than one `<bongo:client>` on a page share one bundled runtime.
+It writes only that script, so you can put it anywhere in `<head>` or `<body>`. More than one `<bongo:client>` on a page share one bundled runtime. A `nonce` goes on the `<script>`, not into the options.
 
 ## `<bongo:image>`
 

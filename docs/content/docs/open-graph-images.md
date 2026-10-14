@@ -46,7 +46,8 @@ In dev, open the URL that `$assets.render` returns to see the card. bongo draws 
 Put the tags in the `<head>` of your layout. `og:image` must be a full URL, so give the path to `$utils.url.abs()`. It resolves against `$site.url`, so set `$site.url` to the address of the live site.
 
 ```hbs [layouts/html.hbs]
-{{#var card = $utils.url.abs(await $assets.render('og/card'))}}
+{{#var path = await $assets.render('og/card')}}
+{{#var card = $utils.url.abs(path)}}
 <meta property="og:type" content="website"/>
 <meta property="og:title" content="{{ $page.title }}"/>
 <meta property="og:description" content="{{ $page.summary }}"/>
@@ -72,8 +73,10 @@ With a fixed path, such as `og/home.png`, the URL stays the same when the card c
 Give the partial values with `args`, such as a color for each section:
 
 ```hbs [layouts/html.hbs]
-{{#var tone = ({ blog: '#ff5a36', docs: '#7cc4ff' })[$page.section] || '#ffd23f'}}
-{{#var card = $utils.url.abs(await $assets.render('og/card', undefined, { args: { tone } }))}}
+{{#var tones = { blog: '#ff5a36', docs: '#7cc4ff' } }}
+{{#var tone = tones[$page.section] || '#ffd23f'}}
+{{#var path = await $assets.render('og/card', undefined, { args: { tone } })}}
+{{#var card = $utils.url.abs(path)}}
 ```
 
 The partial declares the value with `{{#expect tone}}`, and uses it in a style, such as `background: {{ tone }}`.
@@ -94,10 +97,13 @@ image: img/launch.jpg
 `<bongo:asset>` publishes that file from `assets/`. It writes a URL path, so put the origin of the site in front of it:
 
 ```hbs [layouts/html.hbs]
-{{#if $page.params.image}}
-<meta property="og:image" content="{{ new URL($site.url).origin }}<bongo:asset src='{{ $page.params.image }}' />"/>
+{{#var image = $page.params.image}}
+{{#var origin = new URL($site.url).origin}}
+{{#if image}}
+<meta property="og:image" content="{{ origin }}<bongo:asset src='{{ image }}' />"/>
 {{#else}}
-<meta property="og:image" content="{{ $utils.url.abs(await $assets.render('og/card')) }}"/>
+{{#var path = await $assets.render('og/card')}}
+<meta property="og:image" content="{{ $utils.url.abs(path) }}"/>
 {{/if}}
 ```
 
