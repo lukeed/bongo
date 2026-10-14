@@ -31,3 +31,11 @@ describe('block arguments', () => {
 		expect(compile(`{{#show "x"}}`)).toThrow(`Cannot read the arguments of "show": "\\"x\\""`);
 	});
 });
+
+describe('compile', () => {
+	test('blocks given at call time replace the compile-time blocks', async () => {
+		let render = tempura.compile('{{#show a=1}}', { async: true, blocks: echo() });
+		expect(await render({})).toBe('{"a":1}');
+		expect(await render({}, { show: () => 'other' })).toBe('other');
+	});
+});

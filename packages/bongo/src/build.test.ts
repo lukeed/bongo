@@ -453,6 +453,26 @@ describe('partials', () => {
 		}
 	});
 
+	test('file partials get the page values of the page that renders them, and arguments win', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $partials: { keys: args => Object.keys(args).join(',') } };`,
+			'partials/where.hbs': '{{ $page.path }}:{{ $pages.length }}:{{ $section.length }}:{{ $tags.length }}{{#partial src="inner"}}',
+			'partials/inner.hbs': '[{{ $page.title }}]',
+			'partials/mod.ts': 'export default (args: { $page: { path: string } }) => `<${args.$page.path}>`;',
+			'partials/named.hbs': '{{ $page.title }}',
+			'layouts/html.hbs': '{{#partial src="where"}} {{#partial src="mod"}} {{#partial src="named" $page=({ title: \'given\' })}} {{#partial src="keys" a=1}} {{{ $page.content }}}',
+			'content/blog/a.html': '---\ntitle: A\ntags: x\n---\n',
+			'content/blog/b.hbs': '---\ntitle: B\n---\n{{#partial src="inner"}}',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'blog/a/index.html')).toBe('/blog/a/:2:2:1[A] </blog/a/> given a \n');
+			expect(await read(root, 'blog/b/index.html')).toBe('/blog/b/:2:2:1[B] </blog/b/> given a [B]');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('a .hbs partial that reads a name it does not declare fails with the fix', async () => {
 		let root = await site({
 			'partials/blog/meta.hbs': '<time>{{ date }}</time>',

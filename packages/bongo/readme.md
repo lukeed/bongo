@@ -440,6 +440,8 @@ If `transition:animate` is present without `transition:name`, an automatic name 
 
 Each attribute after `src` is an argument. A value is a quoted string, a bare value with no spaces, such as `count=3` or `post=$page`, a `{…}` map, a `[…]` list, or a `( … )` group, which holds any expression with spaces: `active=($page.section === 'docs')`. Other text fails the build with `Cannot read the arguments of "partial"` and quotes the text.
 
+A partial in `partials/` gets its arguments, the config values (`$site`, `$utils`, `$data`, `$assets`), and the `$page`, `$pages`, `$section`, and `$tags` of the page that renders it. An argument with the same name wins: `{{#partial src="postmeta" $page=post}}`. A `$partials` function gets only its arguments. A partial that a Markdown element or a loader calls runs when the content file loads, before any page renders, so it gets no page values.
+
 A `.hbs` partial declares the arguments that it reads with `{{#expect title, date}}`. `$slot`, the inner HTML of a Markdown element, is always declared. A partial that reads a name it does not declare fails the build with `partials/card.hbs reads "title", but does not declare it. Add {{#expect title}} at the top of the partial.`
 
 ## Template Variables

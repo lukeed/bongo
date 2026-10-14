@@ -117,7 +117,7 @@ Each page in `$pages`, `$section`, and `$tags` has `path`, `url`, `title`, `summ
 </ol>
 ```
 
-[`.hbs` content](/docs/content/#hbs-content) gets the same values, plus `params` as an alias for `$page.params`. [Output files](/docs/output-files/) get them too. [Partials](/docs/partials/#values) get no `$page`, so pass them the values they need.
+[`.hbs` content](/docs/content/#hbs-content) gets the same values, plus `params` as an alias for `$page.params`. [Output files](/docs/output-files/) get them too. [Partials](/docs/partials/#values) get the `$page`, `$pages`, `$section`, and `$tags` of the page that renders them.
 
 ## Asset elements
 

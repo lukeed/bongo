@@ -465,13 +465,15 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		};
 
 		let $section = Sections.get(item.section) || [];
+		let scope = templates.scope({ $page, $pages: Pages, $section, $tags });
 
 		// `.hbs` content is compiled here, with full walk-2 context —
 		// `$page`, `$pages`, `$section`, `$tags` are all available to the
 		// body. Non-`.hbs` content bodies pass through raw.
 		let rendered_content = item.ext === 'hbs'
 			? await (await templates.compileContent(item.body))(
-				{ $page, $pages: Pages, $section, $tags, params: item.params, ...context }
+				{ $page, $pages: Pages, $section, $tags, params: item.params, ...context },
+				scope,
 			)
 			: item.body;
 
@@ -508,7 +510,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 			// Should always be defined as a fallback
 			if (!render) throw new Error('Missing "html.hbs" template');
-			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...context });
+			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...context }, scope);
 			chain.push(`layouts/${layout}`);
 		}
 
@@ -521,7 +523,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			}
 			// Should always be defined as a bare minimum
 			if (!render) throw new Error('Missing "html.hbs" template');
-			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...context });
+			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...context }, scope);
 			chain.push(`layouts/${layout}`);
 		}
 

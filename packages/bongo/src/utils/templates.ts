@@ -37,7 +37,7 @@ function toPartialName(file: string): string {
 // Module-level blocks object; collect() reassigns its contents via Object.assign
 // so that ESM re-exports see mutations (Bun ESM is quirky about let re-exports).
 export const blocks: {
-	partial(args: Record<string, unknown>): Promise<string> | string;
+	partial(args: Record<string, unknown>, page?: tempura.Blocks): Promise<string> | string;
 	[key: string]: unknown;
 } = {
 	// Placeholder replaced by collect() — calling before collect() throws.
@@ -46,20 +46,40 @@ export const blocks: {
 	},
 };
 
+/** The page values that a partial gets from the page that renders it. */
+export type Scope = {
+	$page: Template.Page;
+	$pages: Template.PageInfo[];
+	$section: Template.PageInfo[];
+	$tags: Template.TagEntry[];
+};
+
+const SCOPES = new WeakMap<object, Scope>();
+
+/**
+ * The blocks for one page render, so that the partials it calls get its page values.
+ * @example await layout({ $page, ...context }, templates.scope({ $page, $pages, $section, $tags }));
+ */
+export function scope(values: Scope): tempura.Blocks {
+	let page: tempura.Blocks = Object.create(blocks);
+	SCOPES.set(page, values);
+	return page;
+}
+
 function makeBlocks(_argv: Required<Argv>, _config: Context) {
 	return {
 		/**
 		 * Alternative partial format
-		 * @note Partials do not have `$page` info
+		 * @note Partials get the `$page`, `$pages`, `$section`, and `$tags` of the page that renders them
 		 * @example {{#partial src="minutes" text="hello world" }}
 		 * @example {{#partial src="minutes.hbs" text="hello world" }}
 		 */
-		partial(args: Record<string, unknown>): Promise<string> | string {
+		partial(args: Record<string, unknown>, page?: tempura.Blocks): Promise<string> | string {
 			let { src, ...rest } = args as { src?: string } & Record<string, unknown>;
 			if (!src) throw new Error('<partial src="..."> missing "src"');
 			let key = toPartialName(src);
 			let render = Partials.get(key);
-			if (render) return render(rest as Args);
+			if (render) return render(rest as Args, page);
 			throw new Error(`Unknown "${key}" partial!`);
 		},
 	};
@@ -149,8 +169,8 @@ export async function collect(argv: Required<Argv>, config: Context): Promise<vo
 				render = fn;
 			}
 
-			// NOTE: Partials do NOT have access to `$page` var
-			let compiler = (x: Args) => render({ ...x, ...config }, blocks as unknown as tempura.Blocks);
+			// NOTE: Partials get the page values of the page that renders them; arguments win
+			let compiler = (x: Args, page?: tempura.Blocks) => render({ ...(page && SCOPES.get(page)), ...x, ...config }, page ?? blocks as unknown as tempura.Blocks);
 			Partials.set(key, blocks[key] = compiler);
 		}
 	}

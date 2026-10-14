@@ -31,11 +31,23 @@ An unknown name fails the build with `Unknown "card" partial!`.
 
 ## Values
 
-A partial in `partials/` gets its arguments, plus the values that come from the config: `$site`, `$utils`, `$data`, and `$assets`. A [config partial](#config-partials) gets only its arguments. No partial gets `$page`, `$pages`, `$section`, or `$tags`. Pass it the values that it needs:
+A partial in `partials/` gets its arguments, the values that come from the config (`$site`, `$utils`, `$data`, and `$assets`), and the page values of the page that renders it: `$page`, `$pages`, `$section`, and `$tags`. An argument with the same name wins, so you can pass another page:
+
+```hbs [partials/postmeta.hbs]
+<p class="meta">{{ $page.params.date }}</p>
+```
 
 ```hbs
-{{#partial src="postmeta" date=$page.params.date tags=$page.tags}}
+{{#partial src="postmeta"}}
+{{#partial src="postmeta" $page=post}}
 ```
+
+A partial that a nested partial calls gets the same page values.
+
+Two kinds of partials get no page values:
+
+- A [config partial](#config-partials) gets only its arguments.
+- A partial that a [Markdown element](#partials-in-markdown) or a [loader](#partials-in-loaders) calls runs when the content file loads, before any page renders. It gets its arguments and the config values, and `$page` is `undefined`.
 
 ## Handlebars partials
 
