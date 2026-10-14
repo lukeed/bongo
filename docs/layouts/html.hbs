@@ -23,7 +23,7 @@
 	<meta property="og:title" content="{{ title }}"/>
 	<meta property="og:description" content="{{ summary }}"/>
 	<meta property="og:url" content="{{ $page.url }}"/>
-	<meta property="og:image" content="{{#if card}}{{ card }}{{#else}}{{ $site.url.replace(/\/$/, '') }}<bongo:asset src='img/og.png' />{{/if}}"/>
+	<meta property="og:image" content="{{#if card}}{{ card }}{{#else}}{{ new URL($site.url).origin }}<bongo:asset src='img/og.png' />{{/if}}"/>
 	<meta property="og:image:type" content="image/png"/>
 	<meta property="og:image:width" content="1200"/>
 	<meta property="og:image:height" content="630"/>
