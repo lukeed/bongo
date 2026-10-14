@@ -26,6 +26,8 @@ A change in `assets/`, `layouts/`, `partials/`, or `content/` triggers a rebuild
 
 A change to the config, to any local file that it imports, or to anything in `data/` loads the config and the data again. Then bongo rebuilds every page. You do not need to restart.
 
+A workspace package, or any package linked into `node_modules` from outside it, counts as a local file. When you rebuild or edit it, the config loads again with the new code.
+
 If the config or a data file fails to load, the error overlay shows the error, and the last good build keeps serving until you fix it. The same is true for a rebuild that fails.
 
 ## What each rebuild updates
@@ -33,7 +35,7 @@ If the config or a data file fails to load, the error overlay shows the error, a
 - Each rebuild deletes only the files that the new build no longer writes. See [Output folder](/docs/cli/#output-folder).
 - [Output files](/docs/output-files/) render again after every change to a page, because they can read every page.
 - [Data modules](/docs/data-modules/) run again after every change to a page, to the module, or to a local file that it imports.
-- `bongo dev` does not watch `node_modules`. After you update a package that your CSS imports, save the CSS file that imports it, or restart `bongo dev`. See [Packages in @import](/docs/css/#packages-in-import).
+- `bongo dev` does not watch the packages that your CSS imports from `node_modules`. After you update one, save the CSS file that imports it, or restart `bongo dev`. See [Packages in @import](/docs/css/#packages-in-import).
 
 ## Images in dev
 

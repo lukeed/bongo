@@ -51,7 +51,7 @@ Relative (`./`, `../`), absolute (`/`), and URL imports do not change. A `url()`
 
 If nothing resolves, the build fails with an error that names the `@import` and the CSS file that contains it.
 
-`bongo dev` does not watch `node_modules`. After you update a package, save the CSS file that imports it, or restart `bongo dev`.
+`bongo dev` does not watch these packages. After you update one, save the CSS file that imports it, or restart `bongo dev`.
 
 ## Files in `url()`
 

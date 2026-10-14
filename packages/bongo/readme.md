@@ -50,7 +50,7 @@ bongo deletes a symlink in `public/`, but never the file or folder that it point
 
 When you run `bongo build`:
 
-1. `public/` is emptied. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` in the project folder: `cwd`, or the folder that `-C` names. Rolldown bundles the config and the local files it imports into one temporary `.mjs` module, which bongo imports and then deletes. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual, and `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials, `data/` modules, and [data modules](#data-modules) load the same way.
+1. `public/` is emptied. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` in the project folder: `cwd`, or the folder that `-C` names. Rolldown bundles the config and the local files it imports into one temporary `.mjs` module, which bongo imports and then deletes. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual. A package linked into `node_modules` from outside it, such as a workspace package, is local code: it is bundled too, and the packages it imports resolve from its own folder. `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials, `data/` modules, and [data modules](#data-modules) load the same way.
 2. Files in `data/` are loaded as `$data`. Layouts and partials are collected from `layouts/` and `partials/`. Handlebars files (`.hbs`) are compiled with tempura. JavaScript and TypeScript partials are loaded as modules.
 3. Content files are passed through registered loaders, then rendered through their [layouts](#layouts). [Output files](#output-files), such as `sitemap.xml.hbs`, get no layout. [Data modules](#data-modules), such as `search.json.ts`, run once every page is known, and write JSON.
 4. Rendered HTML is scanned for `<bongo:*>` elements, and each page's content for `<img>` elements with a relative `src`. Assets are registered and replaced with placeholder tokens.
@@ -670,7 +670,7 @@ bongo first looks for the path next to the CSS file, so `@import "theme.css"` st
 
 Relative (`./`, `../`), absolute (`/`), and URL imports do not change. A `url()` in a package stylesheet resolves against that stylesheet, as described below, so the fonts and images that a theme package ships work. If nothing resolves, the build fails with an error that names the `@import` and the CSS file that contains it.
 
-`bongo dev` does not watch `node_modules`. After you update a package, save the CSS file that imports it, or restart `bongo dev`.
+`bongo dev` does not watch the packages that CSS imports from `node_modules`. After you update one, save the CSS file that imports it, or restart `bongo dev`.
 
 ### Files in `url()`
 
@@ -698,7 +698,7 @@ If a relative `url()` points at a file that does not exist, the build fails with
 
 `bongo dev` starts the HTTP server and runs the initial build behind it. File changes in `assets/`, `layouts/`, `partials/`, or `content/` trigger a rebuild.
 
-A change to the config, to any local file it imports, or to anything in `data/` loads the config and data again, then rebuilds every page. You do not need to restart. If the config or a data file fails to load, the error overlay shows the error, and the last good build keeps serving until you fix it. The same is true for a rebuild that fails.
+A change to the config, to any local file it imports, or to anything in `data/` loads the config and data again, then rebuilds every page. A workspace package, or any package linked into `node_modules` from outside it, counts as a local file. You do not need to restart. If the config or a data file fails to load, the error overlay shows the error, and the last good build keeps serving until you fix it. The same is true for a rebuild that fails.
 
 A path with no matching file gets a `404` status, the same as on a static host, so broken links show up during development. The response body is your own 404 page when the build has one: `404.html`, or `404/index.html` (which `content/404.md` produces). Most static hosts serve `404.html` for a missing path, so give that page `url: /404.html`.
 
