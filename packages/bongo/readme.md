@@ -26,6 +26,7 @@ CLI options:
 ```sh
 bongo build -C site --minify
 bongo dev -C site --host --port 3000
+bongo dev --write
 bongo build --debug
 ```
 
@@ -33,7 +34,9 @@ bongo build --debug
 
 ### Output folder
 
-`bongo build` and `bongo dev` empty `public/` when they start, before they load the config, so no file from an earlier run stays. `bongo dev` empties it before its server starts, and each rebuild then deletes only the files that the new build no longer writes.
+`bongo build` empties `public/` when it starts, before it loads the config, so no file from an earlier run stays.
+
+`bongo dev` does not use `public/`. It keeps its output in memory and serves it from there, so a `bongo build` that runs at the same time never changes what dev serves, and dev never changes what the build writes. With `--write`, `bongo dev` also writes its output to `public/`: it empties the folder before the first build, and each rebuild then deletes only the files that the new build no longer writes.
 
 bongo deletes a symlink in `public/`, but never the file or folder that it points to. It refuses to empty `public/`, and the build fails, when the folder resolves through symlinks to:
 
@@ -50,13 +53,13 @@ bongo deletes a symlink in `public/`, but never the file or folder that it point
 
 When you run `bongo build`:
 
-1. `public/` is emptied. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` in the project folder: `cwd`, or the folder that `-C` names. Rolldown bundles the config and the local files it imports into one temporary `.mjs` module, which bongo imports and then deletes. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual. A package linked into `node_modules` from outside it, such as a workspace package, is local code: it is bundled too, and the packages it imports resolve from its own folder. `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials, `data/` modules, and [data modules](#data-modules) load the same way.
+1. `bongo build` empties `public/`. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` in the project folder: `cwd`, or the folder that `-C` names. Rolldown bundles the config and the local files it imports into one temporary `.mjs` module, which bongo imports and then deletes. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual. A package linked into `node_modules` from outside it, such as a workspace package, is local code: it is bundled too, and the packages it imports resolve from its own folder. `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials, `data/` modules, and [data modules](#data-modules) load the same way.
 2. Files in `data/` are loaded as `$data`. Layouts and partials are collected from `layouts/` and `partials/`. Handlebars files (`.hbs`) are compiled with tempura. JavaScript and TypeScript partials are loaded as modules.
 3. Content files are passed through registered loaders, then rendered through their [layouts](#layouts). [Output files](#output-files), such as `sitemap.xml.hbs`, get no layout. [Data modules](#data-modules), such as `search.json.ts`, run once every page is known, and write JSON.
 4. Rendered HTML is scanned for `<bongo:*>` elements, and each page's content for `<img>` elements with a relative `src`. Assets are registered and replaced with placeholder tokens.
 5. Asset groups are flushed. JavaScript goes through Rolldown; CSS goes through LightningCSS; images go through `Bun.Image`. Output filenames include content hashes.
 6. Placeholders are substituted with external asset URLs or inline asset contents.
-7. Pages are written to `public/`. With `--minify`, they are then minified when the `minify` CLI is available.
+7. Pages are written to `public/`, or kept in memory by `bongo dev`. With `--minify`, they are then minified when the `minify` CLI is available.
 
 ## Config
 
@@ -166,7 +169,7 @@ await build({ cwd: 'site', minify: true });
 - `minify` — the same as `--minify`.
 - `debug` — the same as `--debug`.
 
-`dev(options)` starts the dev server, as `bongo dev` does. It resolves after the first build, and the server keeps running. It takes `cwd`, `debug`, `port`, and `host`, the same as the `bongo dev` options:
+`dev(options)` starts the dev server, as `bongo dev` does. It resolves after the first build, and the server keeps running. It takes `cwd`, `debug`, `port`, `host`, and `write`, the same as the `bongo dev` options:
 
 ```ts
 import { dev } from 'bongo';
@@ -705,6 +708,8 @@ If a relative `url()` points at a file that does not exist, the build fails with
 ## Dev Server
 
 `bongo dev` starts the HTTP server and runs the initial build behind it. File changes in `assets/`, `layouts/`, `partials/`, or `content/` trigger a rebuild.
+
+The dev server keeps each build in memory and serves it from there, as Vite does. It does not read or write `public/`, unless you pass `--write`; see [Output folder](#output-folder). It serves a file that bongo only copies from `content/`, such as a PDF, from its source, so an edit shows at once. It encodes each resized image the first time the browser asks for it, then reads it from `node_modules/.cache/bongo/images`.
 
 A change to the config, to any local file it imports, or to anything in `data/` loads the config and data again, then rebuilds every page. A workspace package, or any package linked into `node_modules` from outside it, counts as a local file. You do not need to restart. If the config or a data file fails to load, the error overlay shows the error, and the last good build keeps serving until you fix it. The same is true for a rebuild that fails.
 

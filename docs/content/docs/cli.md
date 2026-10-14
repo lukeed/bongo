@@ -24,6 +24,7 @@ bongo dev
 ```sh
 bongo build -C site --minify
 bongo dev -C site --host --port 3000
+bongo dev --write
 bongo build --debug
 ```
 
@@ -34,6 +35,7 @@ bongo build --debug
 | `-p`, `--port` | `3000` | The port that `bongo dev` binds. |
 | `-m`, `--minify` | off | Minify the output. See [Minify](#minify). |
 | `-d`, `--debug` | off | Log each build stage and its time. See [Debug](#debug). |
+| `-w`, `--write` | off | `bongo dev` only. Also write the output to `public/`. See [Output folder](#output-folder). |
 | `-v`, `--version` | | Show the version. |
 | `-h`, `--help` | | Show the help. |
 
@@ -66,7 +68,11 @@ Without `--debug`, a stage that is still running after 15 seconds prints `still 
 
 ## Output folder
 
-`bongo build` and `bongo dev` empty `public/` when they start, before they load the config. Thus no file from an earlier run stays. `bongo dev` empties it before its server starts. After that, each rebuild deletes only the files that the new build no longer writes.
+`bongo build` empties `public/` when it starts, before it loads the config. Thus no file from an earlier run stays.
+
+`bongo dev` does not use `public/`. It keeps its output in memory and serves it from there. Thus a `bongo build` that runs at the same time never changes what dev serves, and dev never changes what the build writes.
+
+With `--write`, `bongo dev` also writes its output to `public/`. It empties the folder before the first build. After that, each rebuild deletes only the files that the new build no longer writes.
 
 bongo deletes a symlink in `public/`, but never the file or folder that it points to. bongo refuses to empty `public/`, and the build fails, when the folder resolves through symlinks to:
 
@@ -99,7 +105,7 @@ await build({ cwd: 'site', minify: true });
 - `minify` — the same as `--minify`.
 - `debug` — the same as `--debug`.
 
-`dev(options)` starts the dev server, as `bongo dev` does. It resolves after the first build, and the server keeps running. It takes `cwd`, `debug`, `port`, and `host`, the same as the `bongo dev` options:
+`dev(options)` starts the dev server, as `bongo dev` does. It resolves after the first build, and the server keeps running. It takes `cwd`, `debug`, `port`, `host`, and `write`, the same as the `bongo dev` options:
 
 ```ts
 import { dev } from 'bongo';

@@ -30,9 +30,17 @@ A workspace package, or any package linked into `node_modules` from outside it, 
 
 If the config or a data file fails to load, the error overlay shows the error, and the last good build keeps serving until you fix it. The same is true for a rebuild that fails.
 
+## Output in memory
+
+The dev server keeps each build in memory and serves it from there, as Vite does. It does not read or write `public/`. Thus you can run `bongo build` while `bongo dev` runs: neither one changes the output of the other.
+
+To see the dev output as files, run `bongo dev --write`. Then dev also writes its output to `public/`. See [Output folder](/docs/cli/#output-folder).
+
+The dev server serves a file that bongo only copies from `content/`, such as a PDF, from its source. Thus an edit to it shows at once.
+
 ## What each rebuild updates
 
-- Each rebuild deletes only the files that the new build no longer writes. See [Output folder](/docs/cli/#output-folder).
+- Each rebuild drops only the files that the new build no longer writes.
 - [Output files](/docs/output-files/) render again after every change to a page, because they can read every page.
 - [Data modules](/docs/data-modules/) run again after every change to a page, to the module, or to a local file that it imports.
 - `bongo dev` does not watch the packages that your CSS imports from `node_modules`. After you update one, save the CSS file that imports it, or restart `bongo dev`. See [Packages in @import](/docs/css/#packages-in-import).
