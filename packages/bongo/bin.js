@@ -4,10 +4,12 @@ const argv = require('mri')(process.argv.slice(2), {
 		'C': '.',
 		'm': false,
 		'd': false,
+		'w': false,
 	},
 	alias: {
 		'C': 'cwd',
 		'd': 'debug',
+		'w': 'write',
 		'm': 'minify',
 		'v': 'version',
 		'h': 'help',
@@ -37,6 +39,7 @@ if (argv.h) {
 	output += '\n    -p, --port       Port to bind  (default 3000)';
 	output += '\n    -m, --minify     Compress built assets  (default false)';
 	output += '\n    -d, --debug      Log each build stage and its time  (default false)';
+	output += '\n    -w, --write      Dev only: also write the output to public/  (default false)';
 	output += '\n    -v, --version    Displays current version';
 	output += '\n    -h, --help       Displays this message';
 	output += '\n';

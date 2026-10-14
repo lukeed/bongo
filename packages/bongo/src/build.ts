@@ -9,7 +9,7 @@ import * as data from './utils/data';
 import * as fs from './utils/fs';
 import * as images from './utils/images';
 import * as log from './utils/log';
-import * as minify from './utils/minify';
+import * as output from './utils/output';
 import * as bundler from './utils/bundler';
 import { load, loadModule, LoadError } from './utils/config';
 import * as loaders from './utils/loaders';
@@ -28,9 +28,9 @@ import type { Argv, Build, Config, Loader, Template } from 'bongo';
 // to keep sibling output accurate. Body-only edits keep the narrow path.
 let FRONTMATTER_SIG: Map<string, string> = new Map();
 
-// Per output dir, the last good build's files and each page's assets, to keep or delete on the next build.
+// Per sink, the last good build's files and each page's assets, to keep or delete on the next build.
 type Output = { assets: Map<string, string[]>; files: Set<string>; dev: boolean };
-let OUTPUT: Map<string, Output> = new Map();
+let OUTPUT: Map<output.Sink, Output> = new Map();
 
 // Local files outside content/ that the last build's data modules read.
 let IMPORTS: string[] = [];
@@ -126,6 +126,8 @@ export type BuildOptions = {
 	only?: string;
 	// From `prepare()`; dev passes its cached copy, so a content edit does not re-run the config.
 	inputs?: Inputs;
+	// Where the files go; dev keeps them in memory. Defaults to `public/` on disk.
+	sink?: output.Sink;
 };
 
 export type Inputs = {
@@ -173,21 +175,14 @@ export function imports(): string[] {
 	return IMPORTS;
 }
 
-/**
- * Empty the output folder. It refuses a folder that resolves to the project root, a source folder, or outside the project.
- * @example await wipe(argv);
- */
-export async function wipe(argv: Required<Argv>): Promise<void> {
-	await fs.empty(argv.dest, argv.cwd, [argv.assets, argv.content, argv.data, argv.layouts, argv.partials]);
-}
-
 async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog): Promise<void> {
 	let t0 = Date.now();
 
 	// A dev rebuild writes over its last good build, so a failed one leaves that build serving.
-	if (!opts.only && !(argv.dev && OUTPUT.get(argv.dest)?.dev)) {
-		await wipe(argv);
-		OUTPUT.delete(argv.dest);
+	let sink = opts.sink ?? output.disk(argv);
+	if (!opts.only && !(argv.dev && OUTPUT.get(sink)?.dev)) {
+		await sink.clear();
+		OUTPUT.delete(sink);
 	}
 
 	const { config, $data } = opts.inputs ?? await prepare(argv);
@@ -218,7 +213,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	const isPage = /(hbs|html?)$/;
 	const { Layouts, Partials } = templates;
 	const { dest, content } = argv;
-	const last = OUTPUT.get(dest);
+	const last = OUTPUT.get(sink);
 	const written: Set<string> = new Set();
 
 	const loader_utils: Loader.Utilities = {
@@ -302,12 +297,12 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 					: new TextDecoder().decode(result.content);
 			} else {
 				written.add(output);
-				return fs.write(output, result.content);
+				return sink.write(output, result.content);
 			}
 		} else {
 			debug('[content.loader]', ext, '~> unknown');
 			written.add(output);
-			return fs.copy(input, output);
+			return sink.copy(input, output);
 		}
 
 		if (kind === 'output') {
@@ -612,6 +607,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	watch.step('bundling assets');
 	let flushResult = await bundler.flush({
 		outDir: dest,
+		sink,
 		publicPath,
 		assets: LOADERS,
 		utils: loader_utils,
@@ -639,7 +635,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	watch.step('writing pages');
 
 	// Pass 2: substitute placeholders and write pages.
-	let readOutput = (filename: string) => fs.read(join(dest, filename), 'utf8');
+	let readOutput = async (filename: string) => String(await sink.read(join(dest, filename)));
 	let { transform } = config.$hooks;
 
 	async function finish(file: CollectedPage, kind: Build.Context['kind'], text: string): Promise<[string, string]> {
@@ -666,16 +662,16 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		...outputs.map(file => finish(file, 'output', file.html)),
 		...json,
 	]);
-	await Promise.all(ready.map(([file, text]) => fs.write(file, text)));
+	await Promise.all(ready.map(([file, text]) => sink.write(file, text)));
 
 	if (argv.minify) watch.step('minifying html');
-	if (argv.minify && !await minify.html(pages.map(page => page.output))) {
+	if (argv.minify && !await sink.minify(pages.map(page => page.output))) {
 		log.info(`${dim('--minify:')} HTML left as-is; install tdewolff/minify to minify it`);
 	}
 
 	let files = new Set([...written, ...scanned.map(item => item.output), ...flushResult.files.map(file => join(dest, file))]);
-	await Promise.all([...last?.files ?? []].filter(file => !files.has(file)).map(file => fs.prune(file, dest)));
-	OUTPUT.set(dest, { assets, files, dev: argv.dev });
+	await Promise.all([...last?.files ?? []].filter(file => !files.has(file)).map(file => sink.remove(file)));
+	OUTPUT.set(sink, { assets, files, dev: argv.dev });
 
 	// Refresh the frontmatter-sig snapshot for the next narrow rebuild. Only
 	// pages actually scanned in this build are updated; narrow builds don't

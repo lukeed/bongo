@@ -1,7 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { copyFile, mkdir, readdir, readFile, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { availableParallelism } from 'node:os';
 import { basename, extname, join } from 'node:path';
+
+import * as output from './output';
 
 import type { Images } from 'bongo';
 import type { Attrs } from './tags';
@@ -45,6 +47,7 @@ type Job = {
 
 export type Context = {
 	outDir: string;
+	sink: output.Sink;
 	cache: string;
 	dev: boolean;
 	emit(file: string): Promise<string>;
@@ -301,8 +304,8 @@ export function settings(attrs: Attrs, options: Images.Options): Settings {
  * Shared state for the images of one flush: each source is read once, and each output written once.
  * @example let ctx = images.context({ outDir: 'public', cache: 'node_modules/.cache/bongo/images', dev: false, emit })
  */
-export function context(opts: Pick<Context, 'outDir' | 'cache' | 'dev' | 'emit'>): Context {
-	return { ...opts, jobs: new Map(), sources: new Map(), notices: new Set() };
+export function context(opts: Pick<Context, 'outDir' | 'cache' | 'dev' | 'emit'> & { sink?: output.Sink }): Context {
+	return { ...opts, sink: opts.sink ?? output.folder(opts.outDir), jobs: new Map(), sources: new Map(), notices: new Set() };
 }
 
 /**
@@ -350,8 +353,7 @@ export async function prepare(file: string, settings: Settings, ctx: Context): P
 	if (ctx.dev) {
 		for (let job of jobs) SERVED.set(job.filename, job);
 	} else {
-		await mkdir(ctx.outDir, { recursive: true });
-		await Promise.all(fresh.map(job => use(job, file => copyFile(file, join(ctx.outDir, job.filename)))));
+		await Promise.all(fresh.map(job => use(job, file => ctx.sink.copy(file, join(ctx.outDir, job.filename)))));
 	}
 
 	let variants = jobs.map(job => ({ format: job.format, width: job.width, filename: job.filename }));

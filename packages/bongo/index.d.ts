@@ -4,6 +4,8 @@ export interface Argv {
 	cwd: string;
 	dev?: boolean;
 	minify?: boolean;
+	/** `bongo dev` only: also write the output to `public/`. @default false */
+	write?: boolean;
 	// added via normalize
 	src?: string;
 	dest?: string;

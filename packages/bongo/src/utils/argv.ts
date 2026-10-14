@@ -5,6 +5,7 @@ export function normalize(argv: Argv): asserts argv is Required<Argv> {
 	argv.cwd = resolve(argv.cwd);
 	argv.debug = !!argv.debug;
 	argv.dev = !!argv.dev;
+	argv.write = !!argv.write;
 
 	// attach path directories
 	argv.src = resolve(argv.cwd, argv.src || '.');

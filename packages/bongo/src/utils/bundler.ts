@@ -9,6 +9,7 @@ import * as css from './css';
 import * as fs from './fs';
 import * as images from './images';
 import * as loaders from './loaders';
+import * as output from './output';
 
 import type { Loader } from 'bongo';
 import type { BundleError, Plugin, RolldownError } from 'rolldown';
@@ -151,6 +152,7 @@ export function register(entry: string, cfg: BundleConfig): Placeholder {
 }
 
 type FlushContext = {
+	sink: output.Sink;
 	assets?: loaders.LoaderMap;
 	utils?: Loader.Utilities;
 	publicPath: string;
@@ -170,7 +172,7 @@ export function href(publicPath: string, filename: string): string {
 }
 
 // Copies a file into outDir as `name.hash.ext` once per flush, shared by css url()s and file registrations.
-function emitter(outDir: string, files: Set<string>): (file: string) => Promise<string> {
+function emitter(sink: output.Sink, outDir: string, files: Set<string>): (file: string) => Promise<string> {
 	let done = new Map<string, Promise<string>>();
 	return file => {
 		let hit = done.get(file);
@@ -180,9 +182,7 @@ function emitter(outDir: string, files: Set<string>): (file: string) => Promise<
 			let hash = createHash('sha256').update(bytes).digest('hex').slice(0, 8);
 			let ext = path.extname(file);
 			let name = `${path.basename(file, ext)}.${hash}${ext}`;
-			let { mkdir, writeFile } = await import('node:fs/promises');
-			await mkdir(outDir, { recursive: true });
-			await writeFile(path.join(outDir, name), bytes);
+			await sink.write(path.join(outDir, name), bytes);
 			files.add(name);
 			return name;
 		})();
@@ -304,8 +304,7 @@ async function flushJsGroup(
 	});
 
 	try {
-		let result = await bundle.write({
-			dir: outDir,
+		let result = await bundle.generate({
 			format: cfg.format === 'cjs' ? 'cjs' : 'esm',
 			minify: cfg.minify ?? false,
 			sourcemap: cfg.sourceMap === 'inline' ? 'inline' : false,
@@ -314,6 +313,7 @@ async function flushJsGroup(
 			assetFileNames: '[name].[hash][extname]',
 		});
 
+		await Promise.all(result.output.map(item => ctx.sink.write(path.join(outDir, item.fileName), item.type === 'chunk' ? item.code : item.source)));
 		for (let chunk of result.output) {
 			ctx.files.add(chunk.fileName);
 			if (chunk.type !== 'chunk' || !chunk.isEntry) continue;
@@ -355,10 +355,7 @@ async function flushCssGroup(
 		let base = path.basename(reg.entry).replace(/\.[^.]+$/, '');
 		let filename = `${base}.${hash}.css`;
 
-		let fs = await import('node:fs/promises');
-		let full = path.join(outDir, filename);
-		await fs.mkdir(path.dirname(full), { recursive: true });
-		await fs.writeFile(full, code);
+		await ctx.sink.write(path.join(outDir, filename), code);
 		ctx.files.add(filename);
 
 		let info: OutputInfo = {
@@ -409,6 +406,8 @@ export function summary(error: BuildError, root: string): string {
 
 export async function flush(opts: {
 	outDir: string;
+	/** Where the files go. @default the folder `outDir` on disk */
+	sink?: output.Sink;
 	/** Prefix for the public urls of emitted files. @default '/' */
 	publicPath?: string;
 	assets?: loaders.LoaderMap;
@@ -422,8 +421,10 @@ export async function flush(opts: {
 	let outputs: Map<Placeholder, OutputInfo> = new Map();
 
 	let files: Set<string> = new Set();
-	let emit = emitter(opts.outDir, files);
+	let sink = opts.sink ?? output.folder(opts.outDir);
+	let emit = emitter(sink, opts.outDir, files);
 	let ctx: FlushContext = {
+		sink,
 		assets: opts.assets,
 		utils: opts.utils,
 		publicPath: opts.publicPath ?? '/',
@@ -431,6 +432,7 @@ export async function flush(opts: {
 		files,
 		images: images.context({
 			outDir: opts.outDir,
+			sink,
 			cache: opts.cache ?? path.join(tmpdir(), 'bongo', 'images'),
 			dev: opts.dev ?? false,
 			emit,

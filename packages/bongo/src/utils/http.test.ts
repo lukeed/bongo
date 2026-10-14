@@ -1,21 +1,23 @@
 import { describe, expect, test } from 'bun:test';
-import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 
 
 import * as http from './http';
 import * as images from './images';
+import * as output from './output';
 
 import type { Argv } from 'bongo';
 import type { HmrMessage } from './bundler';
 
-function argv(): Required<Argv> {
+function argv(): Required<Argv> & { sink: output.Memory } {
 	let dest = mkdtempSync(join(tmpdir(), 'bongo-http-'));
-	writeFileSync(join(dest, 'index.html'), '<h1>ok</h1>');
-	return { dest, host: '127.0.0.1', port: 4900 + Math.floor(Math.random() * 900) } as Required<Argv>;
+	let sink = output.memory(dest);
+	sink.write(join(dest, 'index.html'), '<h1>ok</h1>');
+	return { dest, host: '127.0.0.1', port: 4900 + Math.floor(Math.random() * 900), sink } as Required<Argv> & { sink: output.Memory };
 }
 
 function raw(port: number, payload: string, wait = 150): Promise<string> {
@@ -48,7 +50,7 @@ function next(ws: WebSocket): Promise<unknown> {
 describe('send', () => {
 	test('sends every message to every reload socket, whatever its size', async () => {
 		let opts = argv();
-		let server = await http.start(opts);
+		let server = await http.start(opts, opts.sink);
 		let a = await socket(opts.port);
 		let b = await socket(opts.port);
 		try {
@@ -67,7 +69,7 @@ describe('send', () => {
 
 	test('reloads a page that a previous server run rendered, and leaves a reconnect alone', async () => {
 		let opts = argv();
-		let server = await http.start(opts);
+		let server = await http.start(opts, opts.sink);
 		let stale = await socket(opts.port, 'earlier-run');
 		let reload = next(stale);
 		let fresh = await socket(opts.port);
@@ -86,7 +88,7 @@ describe('send', () => {
 
 	test('answers a closing client with a clean close', async () => {
 		let opts = argv();
-		let server = await http.start(opts);
+		let server = await http.start(opts, opts.sink);
 		try {
 			let ws = await socket(opts.port);
 			let closed = new Promise<number>(resolve => ws.onclose = e => resolve(e.code));
@@ -99,7 +101,7 @@ describe('send', () => {
 
 	test('refuses a plain request to the reload path', async () => {
 		let opts = argv();
-		let server = await http.start(opts);
+		let server = await http.start(opts, opts.sink);
 		try {
 			let res = await fetch(`http://127.0.0.1:${opts.port}${http.RELOAD}`);
 			expect(res.status).toBe(426);
@@ -112,11 +114,8 @@ describe('send', () => {
 describe('404', () => {
 	async function serve(files: Record<string, string>, run: (url: string) => Promise<void>): Promise<void> {
 		let opts = argv();
-		for (let [rel, text] of Object.entries(files)) {
-			mkdirSync(dirname(join(opts.dest, rel)), { recursive: true });
-			writeFileSync(join(opts.dest, rel), text);
-		}
-		let server = await http.start(opts);
+		for (let [rel, text] of Object.entries(files)) await opts.sink.write(join(opts.dest, rel), text);
+		let server = await http.start(opts, opts.sink);
 		try {
 			await run(`http://127.0.0.1:${opts.port}`);
 		} finally {
@@ -160,6 +159,74 @@ describe('404', () => {
 	});
 });
 
+describe('memory', () => {
+	test('serves files from the sink with their content type, an etag, HEAD, and ranges', async () => {
+		let opts = argv();
+		let server = await http.start(opts, opts.sink);
+		let url = `http://127.0.0.1:${opts.port}`;
+		try {
+			await opts.sink.write(join(opts.dest, 'app.css'), 'body{}');
+			let res = await fetch(url + '/app.css');
+			expect(res.status).toBe(200);
+			expect(res.headers.get('content-type')).toBe('text/css');
+			expect(res.headers.get('content-length')).toBe('6');
+			expect(res.headers.get('cache-control')).toBe('no-cache');
+			expect(await res.text()).toBe('body{}');
+
+			let etag = res.headers.get('etag') ?? '';
+			expect(etag).not.toBe('');
+			expect((await fetch(url + '/app.css', { headers: { 'if-none-match': etag } })).status).toBe(304);
+			await opts.sink.write(join(opts.dest, 'app.css'), 'main{}');
+			let changed = await fetch(url + '/app.css', { headers: { 'if-none-match': etag } });
+			expect(changed.status).toBe(200);
+			expect(await changed.text()).toBe('main{}');
+
+			let head = await fetch(url + '/app.css', { method: 'HEAD' });
+			expect(head.status).toBe(200);
+			expect(head.headers.get('content-length')).toBe('6');
+			expect(await head.text()).toBe('');
+
+			let part = await fetch(url + '/app.css', { headers: { range: 'bytes=1-3' } });
+			expect(part.status).toBe(206);
+			expect(part.headers.get('content-range')).toBe('bytes 1-3/6');
+			expect(await part.text()).toBe('ain');
+		} finally {
+			server.close();
+		}
+	});
+
+	test('serves a copied file from its source, so an edit shows at once', async () => {
+		let opts = argv();
+		let source = join(opts.dest, '..', `bongo-http-src-${Date.now()}.txt`);
+		writeFileSync(source, 'one');
+		await opts.sink.copy(source, join(opts.dest, 'notes/a.txt'));
+		let server = await http.start(opts, opts.sink);
+		try {
+			let url = `http://127.0.0.1:${opts.port}/notes/a.txt`;
+			expect(await (await fetch(url)).text()).toBe('one');
+			writeFileSync(source, 'two!');
+			let res = await fetch(url);
+			expect(res.headers.get('content-length')).toBe('4');
+			expect(await res.text()).toBe('two!');
+		} finally {
+			server.close();
+		}
+	});
+
+	test('a file that is gone from the sink is a 404', async () => {
+		let opts = argv();
+		let server = await http.start(opts, opts.sink);
+		try {
+			await opts.sink.write(join(opts.dest, 'gone/index.html'), 'x');
+			expect((await fetch(`http://127.0.0.1:${opts.port}/gone/`)).status).toBe(200);
+			await opts.sink.remove(join(opts.dest, 'gone/index.html'));
+			expect((await fetch(`http://127.0.0.1:${opts.port}/gone/`)).status).toBe(404);
+		} finally {
+			server.close();
+		}
+	});
+});
+
 describe('start', () => {
 	for (let held of ['::1', '127.0.0.1']) {
 		test(`skips a port that another server holds on ${held}, which localhost can reach`, async () => {
@@ -167,7 +234,7 @@ describe('start', () => {
 			let old = createServer((_, res) => res.end('old'));
 			await new Promise<void>(resolve => old.listen(port, held, resolve));
 			let opts = { ...argv(), host: 'localhost', port };
-			let server = await http.start(opts);
+			let server = await http.start(opts, opts.sink);
 			try {
 				expect(opts.port).toBe(port + 1);
 				expect(server.listenerCount('listening')).toBe(createServer().listenerCount('listening'));
@@ -182,7 +249,7 @@ describe('start', () => {
 
 	test('survives a reload stream queued behind another response', async () => {
 		let opts = argv();
-		let server = await http.start(opts);
+		let server = await http.start(opts, opts.sink);
 		try {
 			await raw(opts.port, 'GET / HTTP/1.1\r\nHost: x\r\n\r\nGET /~/reload HTTP/1.1\r\nHost: x\r\n\r\n');
 			let res = await fetch(`http://127.0.0.1:${opts.port}/`);
@@ -194,7 +261,7 @@ describe('start', () => {
 
 	test('survives request targets that are not valid urls', async () => {
 		let opts = argv();
-		let server = await http.start(opts);
+		let server = await http.start(opts, opts.sink);
 		try {
 			await raw(opts.port, 'GET // HTTP/1.1\r\nHost: x\r\n\r\n');
 			await raw(opts.port, 'GET //x:99999999/a HTTP/1.1\r\nHost: x\r\n\r\n');
@@ -207,7 +274,7 @@ describe('start', () => {
 
 	test('keeps sending after clients disconnect', async () => {
 		let opts = argv();
-		let server = await http.start(opts);
+		let server = await http.start(opts, opts.sink);
 		try {
 			let first = await socket(opts.port);
 			first.close();
@@ -230,7 +297,7 @@ describe('hold', () => {
 		let opts = argv();
 		let release!: () => void;
 		http.hold(new Promise<void>(r => release = r));
-		let server = await http.start(opts);
+		let server = await http.start(opts, opts.sink);
 		try {
 			let settled = false;
 			let pending = fetch(`http://127.0.0.1:${opts.port}/late/`).then(res => {
@@ -240,8 +307,7 @@ describe('hold', () => {
 			await new Promise(r => setTimeout(r, 150));
 			expect(settled).toBe(false);
 
-			mkdirSync(join(opts.dest, 'late'));
-			writeFileSync(join(opts.dest, 'late/index.html'), '<h1>late</h1>');
+			await opts.sink.write(join(opts.dest, 'late/index.html'), '<h1>late</h1>');
 			release();
 			let res = await pending;
 			expect(res.status).toBe(200);
@@ -255,7 +321,7 @@ describe('hold', () => {
 	test('never holds the reload stream', async () => {
 		let opts = argv();
 		http.hold(new Promise<void>(() => {}));
-		let server = await http.start(opts);
+		let server = await http.start(opts, opts.sink);
 		try {
 			let ws = await socket(opts.port);
 			ws.close();
@@ -269,7 +335,7 @@ describe('hold', () => {
 		let opts = argv();
 		let fail!: (err: Error) => void;
 		http.hold(new Promise<void>((_, reject) => fail = reject));
-		let server = await http.start(opts);
+		let server = await http.start(opts, opts.sink);
 		try {
 			let pending = fetch(`http://127.0.0.1:${opts.port}/`);
 			fail(new Error('first build broke'));
@@ -289,7 +355,7 @@ describe('images', () => {
 		let ctx = images.context({ outDir: opts.dest, cache: join(opts.dest, '.cache'), dev: true, emit: async file => file });
 		let info = await images.prepare(photo, images.settings({ formats: 'webp' }, {}), ctx);
 
-		let server = await http.start(opts);
+		let server = await http.start(opts, opts.sink);
 		try {
 			let url = (name: string) => `http://127.0.0.1:${opts.port}/docs/${encodeURIComponent(name)}`;
 			let res = await fetch(url(info.filename));

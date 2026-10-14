@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
-import { mkdir, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -26,9 +26,9 @@ async function until(check: () => boolean | Promise<boolean>, what: string, serv
 	}
 }
 
-async function serve(root: string): Promise<Server> {
+async function serve(root: string, write = false): Promise<Server> {
 	let port = 5200 + Math.floor(Math.random() * 2000);
-	let script = `import { dev } from ${JSON.stringify(DEV)}; await dev({ cwd: ${JSON.stringify(root)}, host: '127.0.0.1', port: ${port} });`;
+	let script = `import { dev } from ${JSON.stringify(DEV)}; await dev({ cwd: ${JSON.stringify(root)}, host: '127.0.0.1', port: ${port}, write: ${write} });`;
 	let proc = Bun.spawn(['bun', '-e', script], { stdout: 'pipe', stderr: 'pipe' });
 
 	let output = '';
@@ -282,21 +282,76 @@ describe('output folder', () => {
 		}
 	});
 
-	test('dev empties public/ before it serves', async () => {
+	test('dev keeps its output in memory: public/ stays as it is, and its files are never served', async () => {
 		let root = await site({
-			'bongo.config.ts': `await new Promise(r => setTimeout(r, 1500));\nexport default { $site: { url: 'https://example.com/', title: 'x', lang: 'en' } };`,
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'x', lang: 'en' } };`,
 			'layouts/html.hbs': '{{{ $page.content }}}',
 			'content/index.html': '<p>home</p>',
+			'public/index.html': 'stale',
 			'public/old/stale.html': 'old',
 		});
 		let server = await serve(root);
 		try {
-			expect(await readdir(join(root, 'public'))).not.toContain('old');
-			expect(await readdir(join(root, 'public'))).not.toContain('index.html');
+			await until(async () => (await server.page()).includes('<p>home</p>'), 'the first build', server);
 			expect((await fetch(server.url + '/old/stale.html')).status).toBe(404);
+			expect((await readdir(join(root, 'public'))).sort()).toEqual(['index.html', 'old']);
+			expect(await readFile(join(root, 'public/index.html'), 'utf8')).toBe('stale');
 		} finally {
 			await server.stop();
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test('dev --write also writes its output to public/, as dev did before', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'x', lang: 'en' } };`,
+			'layouts/html.hbs': '{{{ $page.content }}}',
+			'content/index.html': '<p>home</p>',
+			'public/old/stale.html': 'old',
+		});
+		let server = await serve(root, true);
+		try {
+			await until(async () => (await server.page()).includes('<p>home</p>'), 'the first build', server);
+			expect(await readdir(join(root, 'public'))).toEqual(['index.html']);
+			expect(await readFile(join(root, 'public/index.html'), 'utf8')).toContain('__bongo_ws');
+			await writeFile(join(root, 'content/index.html'), '<p>edited</p>');
+			await until(async () => (await readFile(join(root, 'public/index.html'), 'utf8')).includes('<p>edited</p>'), 'the mirrored edit', server);
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a build that runs at the same time neither breaks dev nor gets dev pages', async () => {
+		let files: Record<string, string> = {
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'x', lang: 'en' } };`,
+			'layouts/html.hbs': '{{{ $page.content }}}',
+			'content/index.html': '<p>home</p>',
+		};
+		for (let i = 0; i < 150; i++) files[`content/p${i}.html`] = `<p>${i}</p>`;
+		let root = await site(files);
+		let server = await serve(root);
+		try {
+			await until(async () => (await server.page()).includes('<p>home</p>'), 'the first build', server);
+			let script = `import { build } from ${JSON.stringify(join(import.meta.dirname, 'build.ts'))}; await build({ cwd: ${JSON.stringify(root)} });`;
+			let proc = Bun.spawn(['bun', '-e', script], { stdout: 'ignore', stderr: 'pipe' });
+			let statuses: number[] = [];
+			while (proc.exitCode === null) {
+				statuses.push((await fetch(server.url + '/p99/')).status);
+				await new Promise(r => setTimeout(r, 5));
+			}
+			expect(await proc.exited).toBe(0);
+			expect(statuses.length).toBeGreaterThan(0);
+			expect([...new Set(statuses)]).toEqual([200]);
+			expect(await server.page()).toContain('__bongo_ws');
+
+			await writeFile(join(root, 'content/index.html'), '<p>edited</p>');
+			await until(async () => (await server.page()).includes('<p>edited</p>'), 'the edit', server);
+			let built = await readFile(join(root, 'public/index.html'), 'utf8');
+			expect(built).toBe('<p>home</p>');
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
 });

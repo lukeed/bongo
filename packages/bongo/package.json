@@ -46,7 +46,6 @@
     "mrmime": "^2.0.1",
     "resolve.exports": "^2.0.3",
     "rolldown": "^1.0.0",
-    "sirv": "^3.0.0",
     "tempura": "^0.3.1"
   },
   "publishConfig": {

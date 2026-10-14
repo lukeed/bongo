@@ -1,11 +1,11 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 
 import * as mime from 'mrmime';
-import sirv from 'sirv';
 
 import * as images from './images';
 import * as log from './log';
@@ -15,6 +15,7 @@ import type { Socket } from 'node:net';
 import type { Duplex } from 'node:stream';
 import type { Argv } from 'bongo';
 import type { HmrMessage } from './bundler';
+import type { Memory } from './output';
 
 export const RELOAD = '/~/reload';
 
@@ -103,28 +104,97 @@ function listen(server: Server, port: number, host: string): Promise<void> {
 	});
 }
 
+const ETAGS: WeakMap<Buffer, string> = new WeakMap();
+
+// sirv's lookup: the path as it is, then with .html or .htm, then as a folder with an index file
+function candidates(path: string): string[] {
+	if (path.endsWith('/')) return [path + 'index.html', path + 'index.htm'];
+	return [path, path + '.html', path + '.htm', path + '/index.html', path + '/index.htm'];
+}
+
+// One `bytes=start-end` range of a body of `size` bytes; undefined when there is none, null when it cannot be served.
+function range(header: string | undefined, size: number): [number, number] | null | undefined {
+	let match = header && /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+	if (!match) return header ? null : undefined;
+	let [, from, to] = match;
+	let start = from ? +from : Math.max(0, size - +to);
+	let end = from && to ? Math.min(+to, size - 1) : size - 1;
+	return from === '' && to === '' || start > end || start >= size ? null : [start, end];
+}
+
+async function deliver(req: IncomingMessage, res: ServerResponse, sink: Memory, file: string, status = 200): Promise<boolean> {
+	let entry = sink.get(file);
+	if (!entry) return false;
+	let size: number, etag: string;
+	if ('data' in entry) {
+		size = entry.data.length;
+		etag = ETAGS.get(entry.data) ?? `"${createHash('sha1').update(entry.data).digest('base64url')}"`;
+		ETAGS.set(entry.data, etag);
+	} else {
+		let info = await stat(entry.file).catch(() => undefined);
+		if (!info?.isFile()) return false;
+		size = info.size;
+		etag = `W/"${size}-${info.mtimeMs}"`;
+	}
+
+	let headers: Record<string, string | number> = {
+		'content-type': mime.lookup(file) || 'application/octet-stream',
+		'cache-control': 'no-cache',
+		'accept-ranges': 'bytes',
+		'etag': etag,
+	};
+	if (status === 200 && req.headers['if-none-match'] === etag) {
+		res.writeHead(304, headers);
+		return void res.end(), true;
+	}
+
+	let span = status === 200 ? range(req.headers.range, size) : undefined;
+	if (span === null) {
+		res.writeHead(416, { ...headers, 'content-range': `bytes */${size}` });
+		return void res.end(), true;
+	}
+	let [start, end] = span ?? [0, size - 1];
+	if (span) {
+		status = 206;
+		headers['content-range'] = `bytes ${start}-${end}/${size}`;
+	}
+	headers['content-length'] = Math.max(0, end - start + 1);
+	res.writeHead(status, headers);
+	if (req.method === 'HEAD' || !size) return void res.end(), true;
+	if ('data' in entry) return void res.end(entry.data.subarray(start, end + 1)), true;
+	createReadStream(entry.file, { start, end }).pipe(res);
+	return true;
+}
+
 /**
- * Serve `argv.dest` with live reload on the first port from `argv.port` that is free on every address `argv.host` can mean.
+ * Serve the files of `sink` with live reload on the first port from `argv.port` that is free on every address `argv.host` can mean.
  * Sets `argv.port` to the port it took.
- * @example let server = await http.start(argv);
+ * @example let server = await http.start(argv, sink);
  */
-export async function start(argv: Required<Argv>): Promise<Server> {
+export async function start(argv: Required<Argv>, sink: Memory): Promise<Server> {
 	clients.clear();
 
-	const handler = sirv(argv.dest, {
-		etag: true,
-		dev: true,
-		async onNoMatch(_req: IncomingMessage, res: ServerResponse) {
-			let page = await readFile(join(argv.dest, '404.html'))
-				.catch(() => readFile(join(argv.dest, '404/index.html')))
-				.catch(() => undefined);
-			res.writeHead(404, {
-				'content-type': `text/${page ? 'html' : 'plain'}; charset=utf-8`,
-				'cache-control': 'no-store',
-			});
-			res.end(page ?? 'Not Found');
-		},
-	});
+	const handler = async (req: IncomingMessage, res: ServerResponse) => {
+		let path = (req.url || '/').replace(/[?#].*/, '');
+		try { path = decodeURIComponent(path); } catch { /* keep as written */ }
+		path = posix.normalize('/' + path);
+		for (let candidate of candidates(path)) {
+			if (await deliver(req, res, sink, join(argv.dest, candidate))) return;
+		}
+		for (let page of ['404.html', '404/index.html']) {
+			if (await deliver(req, res, sink, join(argv.dest, page), 404)) return;
+		}
+		res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
+		res.end('Not Found');
+	};
+
+	const fail = (res: ServerResponse) => (err: unknown) => {
+		let message = err instanceof Error ? err.message : String(err);
+		log.error(message);
+		if (res.headersSent) return void res.destroy();
+		res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+		res.end(message);
+	};
 
 	const page = (req: IncomingMessage, res: ServerResponse) => {
 		let pathname = (req.url || '/').replace(/[?#].*/, '');
@@ -133,19 +203,14 @@ export async function start(argv: Required<Argv>): Promise<Server> {
 
 		// resized images are encoded on their first request, then read from the cache
 		let image = images.serve(name);
-		if (!image) return handler(req, res);
+		if (!image) return void handler(req, res).catch(fail(res));
 		return void image.then(body => {
 			res.writeHead(200, {
 				'content-type': mime.lookup(name) || 'application/octet-stream',
 				'cache-control': 'public, max-age=31536000, immutable',
 			});
 			res.end(body);
-		}, err => {
-			let message = err instanceof Error ? err.message : String(err);
-			log.error(message);
-			res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
-			res.end(message);
-		});
+		}, fail(res));
 	};
 
 	const respond = (req: IncomingMessage, res: ServerResponse) => {

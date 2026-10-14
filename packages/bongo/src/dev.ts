@@ -1,4 +1,4 @@
-import { dirname, join, relative, sep } from 'node:path';
+import { dirname, relative, sep } from 'node:path';
 import { networkInterfaces } from 'node:os';
 import { bold, cyan, dim, green } from 'kleur/colors';
 import * as bundler from './utils/bundler';
@@ -6,7 +6,8 @@ import * as templates from './utils/templates';
 import * as http from './utils/http';
 import * as log from './utils/log';
 import * as fs from './utils/fs';
-import { build, imports, prepare, wipe } from './build';
+import * as output from './utils/output';
+import { build, imports, prepare } from './build';
 import { LoadError } from './utils/config';
 import { normalize } from './utils/argv';
 
@@ -107,16 +108,13 @@ export async function dev(argv: Argv) {
 
 	const flags = argv as Required<Argv>;
 
-	// Nothing from an earlier run is served, even before the first build ends.
-	await wipe(flags);
+	// The output lives in memory, so a `bongo build` of the same site never clobbers it; `--write` also writes public/.
+	const sink = output.memory(flags.dest, flags.write ? output.disk(flags) : undefined);
 
-	// Start server before build so the banner + URL appear instantly.
-	// sirv reads files per-request in dev mode, so it only needs the
-	// directory to exist — page requests wait until the first build settles.
-	await fs.mkdir(join(flags.dest, '_'));
+	// Start server before build so the banner + URL appear instantly; page requests wait until the first build settles.
 	let built!: () => void;
 	http.hold(new Promise<void>(resolve => built = resolve));
-	await http.start(flags);
+	await http.start(flags, sink);
 	banner(flags.host, flags.port);
 
 	// changes by file; one runner turns all that piled up during a build (a git checkout, say) into one rebuild
@@ -167,7 +165,7 @@ export async function dev(argv: Argv) {
 		// preserved, and only the changed page is re-rendered + rewritten. Other
 		// pages in `public/` are left alone.
 		let narrow = files.length === 1 && changes.has('content') && !deleted;
-		await rebuild(argv, { inputs, only: narrow ? relative(flags.content, files[0]) : undefined });
+		await rebuild(argv, { inputs, sink, only: narrow ? relative(flags.content, files[0]) : undefined });
 		await track();
 		done();
 	}
@@ -239,7 +237,7 @@ export async function dev(argv: Argv) {
 	inputs.files.forEach(file => tracked.add(file));
 	stop();
 	stop = await follow();
-	await build(argv, { inputs }).finally(async () => {
+	await build(argv, { inputs, sink }).finally(async () => {
 		built();
 		await track();
 	});
