@@ -411,6 +411,33 @@ describe('layouts', () => {
 	});
 });
 
+describe('layouts fallback', () => {
+	test('a page without a single.hbs uses the index.hbs of its folder, before any html.hbs', async () => {
+		let root = await site({
+			'layouts/html.hbs': '<html>{{{ $page.content }}}</html>',
+			'layouts/docs/index.hbs': 'docs/index',
+			'layouts/docs/html.hbs': '<docs>{{{ $page.content }}}</docs>',
+			'layouts/blog/index.hbs': 'blog/index',
+			'layouts/blog/single.hbs': 'blog/single',
+			'layouts/guide/2025/index.hbs': 'guide/2025/index',
+			'layouts/guide/single.hbs': 'guide/single',
+			'content/docs/index.html': '',
+			'content/docs/intro.html': '',
+			'content/blog/post.html': '',
+			'content/guide/2025/step.html': '',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'docs/index.html')).toBe('<docs>docs/index</docs>');
+			expect(await read(root, 'docs/intro/index.html')).toBe('<docs>docs/index</docs>');
+			expect(await read(root, 'blog/post/index.html')).toBe('<html>blog/single</html>');
+			expect(await read(root, 'guide/2025/step/index.html')).toBe('<html>guide/2025/index</html>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('content', () => {
 	test('folders named partials or shortcodes hold pages too', async () => {
 		let root = await site({

@@ -50,13 +50,18 @@ For each page, bongo uses the first layout that exists in a fixed order. It look
 
 1. `layouts/blog/2025/post.hbs`
 2. `layouts/blog/2025/single.hbs`
-3. `layouts/blog/2025/html.hbs`
-4. `layouts/blog/post.hbs`
-5. `layouts/blog/single.hbs`
-6. `layouts/blog/html.hbs`
-7. `layouts/post.hbs`
-8. `layouts/single.hbs`
-9. `layouts/html.hbs`
+3. `layouts/blog/2025/index.hbs`
+4. `layouts/blog/2025/html.hbs`
+5. `layouts/blog/post.hbs`
+6. `layouts/blog/single.hbs`
+7. `layouts/blog/index.hbs`
+8. `layouts/blog/html.hbs`
+9. `layouts/post.hbs`
+10. `layouts/single.hbs`
+11. `layouts/index.hbs`
+12. `layouts/html.hbs`
+
+A page uses the `index.hbs` of its folder when there is no `single.hbs`, so one `index.hbs` can serve a whole folder.
 
 For an index page, bongo looks for `index.hbs` in place of the file name and `single.hbs`. For `content/blog/index.md`, the order is:
 
@@ -65,7 +70,7 @@ For an index page, bongo looks for `index.hbs` in place of the file name and `si
 3. `layouts/index.hbs`
 4. `layouts/html.hbs`
 
-A page in the root of `content/` uses only the root of `layouts/`. For `content/about.md`, the order is `layouts/about.hbs`, `layouts/single.hbs`, then `layouts/html.hbs`.
+A page in the root of `content/` uses only the root of `layouts/`. For `content/about.md`, the order is `layouts/about.hbs`, `layouts/single.hbs`, `layouts/index.hbs`, then `layouts/html.hbs`.
 
 ### Layout chain
 

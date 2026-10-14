@@ -311,7 +311,7 @@ No manual configuration is required. The absolute `url` of each page, in `$page.
 
 ## Layouts
 
-Each page renders through a layout in `layouts/`. bongo looks in the folder of the page first, then in each parent folder, then in `layouts/` itself. In each folder, it uses the first of `<name>.hbs`, `single.hbs`, and `html.hbs`, where `<name>` is the file name of the page. An index page looks for `index.hbs` and `html.hbs`. For `content/blog/2025/post.md`, bongo looks in `layouts/blog/2025/`, then `layouts/blog/`, then `layouts/`.
+Each page renders through a layout in `layouts/`. bongo looks in the folder of the page first, then in each parent folder, then in `layouts/` itself. In each folder, it uses the first of `<name>.hbs`, `single.hbs`, `index.hbs`, and `html.hbs`, where `<name>` is the file name of the page. An index page looks for `index.hbs` and `html.hbs`. Thus one `index.hbs` can serve a whole folder. For `content/blog/2025/post.md`, bongo looks in `layouts/blog/2025/`, then `layouts/blog/`, then `layouts/`.
 
 When that layout is not an `html.hbs`, bongo wraps its output in the nearest `html.hbs`, found the same way. If no `html.hbs` exists, the build fails with `Missing "html.hbs" template`.
 

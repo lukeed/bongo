@@ -483,7 +483,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		if (isPage.test(item.ext)) {
 			let j=0, files = ['index.hbs', 'html.hbs'];
 			if (basename !== 'index') {
-				files.splice(0, 1, `${basename}.hbs`, 'single.hbs');
+				files.splice(0, 0, `${basename}.hbs`, 'single.hbs');
 			}
 
 			outer: for (; i < dirs.length; i++) {
