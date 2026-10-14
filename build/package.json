@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "devDependencies": {
-    "rolldown": "^1.0.0"
+    "rolldown": "^1.2.14"
   }
 }

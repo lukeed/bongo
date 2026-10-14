@@ -20,6 +20,7 @@ function mount(url: string, head: string): void {
 	let w: Window = win = new Window({
 		url,
 		settings: {
+			enableCSSFileLoading: true,
 			fetch: {
 				interceptor: {
 					async beforeAsyncRequest({ request }) {

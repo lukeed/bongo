@@ -8,6 +8,6 @@
   "devDependencies": {
     "@bongo/markdown": "workspace:*",
     "bongo": "workspace:@lukeed/bongo@*",
-    "shiki": "^4.0.2"
+    "shiki": "^4.5.0"
   }
 }

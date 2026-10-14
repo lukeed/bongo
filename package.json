@@ -16,12 +16,12 @@
     "test": "bun test"
   },
   "devDependencies": {
-    "@types/bun": "^1.4.2",
-    "@types/node": "^24",
+    "@types/bun": "^1.4.3",
+    "@types/node": "^24.19.2",
     "bump": "1.0.0-next.1",
-    "happy-dom": "^20.14.6",
+    "happy-dom": "^21.0.1",
     "mitata": "1.0.34",
-    "typescript": "6.0.3"
+    "typescript": "7.0.2"
   },
   "patchedDependencies": {
     "md4x@0.0.30": "patches/md4x@0.0.30.patch"

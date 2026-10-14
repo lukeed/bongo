@@ -146,6 +146,7 @@ describe('client() navigation', () => {
 		let w: Window = win = new Window({
 			url: 'https://example.com/',
 			settings: {
+				enableCSSFileLoading: true,
 				fetch: {
 					interceptor: {
 						async beforeAsyncRequest({ request }) {
