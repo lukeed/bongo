@@ -1,13 +1,15 @@
+import { lstatSync, realpathSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { isBuiltin } from 'node:module';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { summary, toBuildError } from './bundler';
 import * as fs from './fs';
 
 import type { Config } from 'bongo';
-import type { Plugin, RolldownBuild } from 'rolldown';
+import type { ImportKind, Plugin, PluginContext, RolldownBuild } from 'rolldown';
 import type { BuildError } from './bundler';
 
 const priority = [
@@ -40,6 +42,78 @@ const meta: Plugin = {
 		return { code: values + code };
 	},
 };
+
+const NODE_MODULES = /[\\/]node_modules[\\/]/;
+
+// The nearest folder above `file` that has a package.json.
+function home(file: string): string {
+	let dir = dirname(file);
+	while (!fs.exists(join(dir, 'package.json')) && dir !== dirname(dir)) dir = dirname(dir);
+	return dir;
+}
+
+// bongo stays a package even when it is linked, so only one copy of it runs.
+const SELF = home(realpathSync(__filename));
+
+// The real folder of a package that `importer` reaches through a symlink in node_modules, like a workspace package.
+function link(id: string, importer: string): string | undefined {
+	let name = id.split('/').slice(0, id.startsWith('@') ? 2 : 1).join('/');
+	for (let dir = dirname(importer); ; dir = dirname(dir)) {
+		let entry = join(dir, 'node_modules', name);
+		if (fs.exists(entry)) {
+			if (!lstatSync(entry).isSymbolicLink()) return;
+			let real = realpathSync(entry);
+			return NODE_MODULES.test(real + sep) ? undefined : real;
+		}
+		if (dir === dirname(dir)) return;
+	}
+}
+
+// The file a package import loads, found as the runtime finds it: Bun's resolver under Bun, else Rolldown's, which follows Node.
+async function locate(context: PluginContext, id: string, importer: string, kind: ImportKind): Promise<string | undefined> {
+	if (typeof Bun !== 'undefined') {
+		try {
+			var file = Bun.resolveSync(id, dirname(importer));
+		} catch {
+			return;
+		}
+	} else {
+		let found = await context.resolve(id, importer, { kind, skipSelf: true });
+		if (!found || !fs.exists(found.id)) return;
+		file = found.id;
+	}
+	return realpathSync(file);
+}
+
+/**
+ * Packages stay external, except a package linked from outside node_modules, such as a workspace package:
+ * that is local code, so it is bundled, watched, and loaded fresh each time.
+ * The packages that linked code imports resolve from its own folder, not from the temporary module.
+ */
+function packages(): Plugin {
+	let roots: string[] = [];
+	return {
+		name: 'bongo:packages',
+		async resolveId(id, importer, options) {
+			if (!importer || !BARE.test(id)) return null;
+			if (isBuiltin(id) || id.startsWith('bun:')) return { id, external: true };
+
+			let root = link(id, importer);
+			if (root && root !== SELF) {
+				let file = await locate(this, id, importer, options.kind);
+				if (file && file.startsWith(root + sep) && !file.endsWith('.node')) {
+					roots.push(root);
+					return file;
+				}
+			}
+
+			if (!roots.some(dir => importer.startsWith(dir + sep))) return { id, external: true };
+			let file = await locate(this, id, importer, options.kind);
+			if (!file) return { id, external: true };
+			return { id: options.kind === 'require-call' ? file : pathToFileURL(file).href, external: true };
+		},
+	};
+}
 
 // Next to the nearest node_modules, bare imports resolve as they do from the source file.
 function scratch(file: string): string {
@@ -79,7 +153,8 @@ export class LoadError extends Error {
 
 /**
  * Import `file` as fresh code: Rolldown bundles it and its local imports into one temporary module,
- * which is imported once and deleted. Packages stay external and resolve as usual.
+ * which is imported once and deleted. Packages stay external and resolve as usual,
+ * except packages linked from outside node_modules, which are local code and are bundled too.
  * Errors name places relative to `root`.
  * @example let { exports, files } = await loadModule('/site/bongo.config.ts');
  */
@@ -88,9 +163,8 @@ export async function loadModule(file: string, root = dirname(file)): Promise<Mo
 	let bundle = await rd.rolldown({
 		input: file,
 		platform: 'node',
-		external: id => BARE.test(id),
 		transform: { define: META },
-		plugins: [meta],
+		plugins: [packages(), meta],
 	});
 
 	try {

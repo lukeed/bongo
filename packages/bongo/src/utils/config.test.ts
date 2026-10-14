@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -188,6 +188,59 @@ describe('loadModule', () => {
 			expect(mod.exports.default).toBe(typeof Bun === 'undefined' ? 'node' : 'bun');
 			expect(mod.files).toEqual([join(root, 'entry.ts')]);
 			expect(readdirSync(join(root, 'node_modules/.bongo'))).toEqual([]);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a package linked from outside node_modules runs fresh every time, and its files are listed', async () => {
+		let root = await sandbox({
+			'pkgs/linked/package.json': JSON.stringify({ name: 'linked', type: 'module', exports: './index.js' }),
+			'pkgs/linked/index.js': `import { n } from './n.js';\nimport dep from 'dep';\nexport default { n, dep, dir: import.meta.dirname };`,
+			'pkgs/linked/n.js': 'export const n = 1;',
+			'pkgs/linked/node_modules/dep/package.json': JSON.stringify({ name: 'dep', type: 'module', exports: './index.js' }),
+			'pkgs/linked/node_modules/dep/index.js': `export default 'dep';`,
+			'pkgs/legacy/package.json': JSON.stringify({ name: 'legacy' }),
+			'pkgs/legacy/index.js': `module.exports = { dep: require('dep').default };`,
+			'pkgs/legacy/node_modules/dep/package.json': JSON.stringify({ name: 'dep', type: 'module', exports: './index.js' }),
+			'pkgs/legacy/node_modules/dep/index.js': `export default 'legacy dep';`,
+			'site/entry.ts': `import linked from 'linked';\nimport legacy from 'legacy';\nexport default { linked, legacy };`,
+		});
+		mkdirSync(join(root, 'site/node_modules'));
+		symlinkSync(join(root, 'pkgs/linked'), join(root, 'site/node_modules/linked'));
+		symlinkSync(join(root, 'pkgs/legacy'), join(root, 'site/node_modules/legacy'));
+		try {
+			let first = await config.loadModule(join(root, 'site/entry.ts'));
+			expect(first.exports.default).toEqual({
+				linked: { n: 1, dep: 'dep', dir: join(root, 'pkgs/linked') },
+				legacy: { dep: 'legacy dep' },
+			});
+			expect(first.files.toSorted()).toEqual([
+				join(root, 'pkgs/legacy/index.js'),
+				join(root, 'pkgs/linked/index.js'),
+				join(root, 'pkgs/linked/n.js'),
+				join(root, 'site/entry.ts'),
+			]);
+
+			writeFileSync(join(root, 'pkgs/linked/n.js'), 'export const n = 2;');
+			let second = await config.loadModule(join(root, 'site/entry.ts'));
+			expect(second.exports.default).toMatchObject({ linked: { n: 2 } });
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	test('bongo itself stays a package, even when it is linked', async () => {
+		let bongo = resolve(import.meta.dirname, '../..');
+		let root = await sandbox({
+			'entry.ts': `import * as bongo from 'bongo';\nexport default typeof bongo.build;`,
+		});
+		mkdirSync(join(root, 'node_modules'));
+		symlinkSync(bongo, join(root, 'node_modules/bongo'));
+		try {
+			let mod = await config.loadModule(join(root, 'entry.ts'));
+			expect(mod.exports.default).toBe('function');
+			expect(mod.files).toEqual([join(root, 'entry.ts')]);
 		} finally {
 			rmSync(root, { recursive: true, force: true });
 		}

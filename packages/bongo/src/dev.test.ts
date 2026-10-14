@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
-import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -126,6 +126,28 @@ describe('dev', () => {
 
 			await writeFile(join(root, 'data/site.json'), '{ "name": "second" }');
 			await until(async () => (await server.page()).includes('<p>second</p>'), 'a data edit', server);
+			expect(server.messages.filter(m => m.type === 'error')).toEqual([]);
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+
+	test('reloads when a package linked from outside node_modules changes', async () => {
+		let root = await site({
+			'pkgs/linked/package.json': JSON.stringify({ name: 'linked', type: 'module', exports: './index.js' }),
+			'pkgs/linked/index.js': `export const tagline = () => 'one';`,
+			'site/bongo.config.ts': `import { tagline } from 'linked';\nexport default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $utils: { tagline } };`,
+			'site/layouts/html.hbs': '<p>{{ $utils.tagline() }}</p>{{{ $page.content }}}',
+			'site/content/index.html': '<main>home</main>',
+		});
+		await mkdir(join(root, 'site/node_modules'));
+		await symlink(join(root, 'pkgs/linked'), join(root, 'site/node_modules/linked'));
+		let server = await serve(join(root, 'site'));
+		try {
+			await until(async () => (await server.page()).includes('<p>one</p>'), 'the first build', server);
+			await writeFile(join(root, 'pkgs/linked/index.js'), `export const tagline = () => 'two';`);
+			await until(async () => (await server.page()).includes('<p>two</p>'), 'a linked package edit', server);
 			expect(server.messages.filter(m => m.type === 'error')).toEqual([]);
 		} finally {
 			await server.stop();
