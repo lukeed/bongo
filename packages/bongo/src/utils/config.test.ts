@@ -58,6 +58,14 @@ describe('merge', () => {
 		expect(base.$utils.truncate).toBe(customTruncate);
 	});
 
+	test('adds a $utils group that bongo does not have, and keeps the built-in groups', () => {
+		let base = makeBase();
+		let up = (text: string) => text.toUpperCase();
+		config.merge(base, { $utils: { str: { up } } });
+		expect(base.$utils.str.up).toBe(up);
+		expect(typeof base.$utils.url.abs).toBe('function');
+	});
+
 	test('recursively merges plugins', () => {
 		let base = makeBase();
 		let plugin = {

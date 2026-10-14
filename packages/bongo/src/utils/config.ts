@@ -172,7 +172,7 @@ export function merge(base: Required<Config>, custom: Partial<Config>) {
 		if (typeof custom.$utils[key] !== 'object') {
 			base.$utils[key] = custom.$utils[key];
 		} else {
-			base.$utils[key] = Object.assign(base.$utils[key], custom.$utils[key]);
+			base.$utils[key] = Object.assign(base.$utils[key] || {}, custom.$utils[key]);
 		}
 	}
 }

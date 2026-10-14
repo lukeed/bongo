@@ -123,7 +123,7 @@ bongo gives `$utils` these helpers. Layouts, partials, `.hbs` content, and [data
 | `url.abs(to, from?)` | The path of `to`, resolved against `from`, or against `$site.url` when there is no `from`. For `https://example.com/blog/`, `url.abs('post/')` is `/blog/post/`. |
 | `date.format(value, format)` | `value` as an ISO 8601 string, such as `2024-05-01T00:00:00.000Z`. It ignores `format`. |
 
-A function in your `$utils` replaces the built-in one with the same name. The `url` and `date` groups merge with yours, so `$utils: { date: { year } }` keeps `date.format`:
+A function in your `$utils` replaces the built-in one with the same name. The `url` and `date` groups merge with yours, so `$utils: { date: { year } }` keeps `date.format`. You can add your own groups too, such as `$utils: { str: { up } }`:
 
 ```ts
 export default {
