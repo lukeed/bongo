@@ -304,3 +304,23 @@ describe('load', () => {
 		expect($utils.countwords?.('  one two\nthree ')).toBe(3);
 	});
 });
+
+async function builtins(site: string): Promise<NonNullable<Config['$utils']>> {
+	let dir = mkdtempSync(join(tmpdir(), 'bongo-utils-'));
+	writeFileSync(join(dir, 'bongo.config.ts'), `export default { $site: ${site} };`);
+	try {
+		return (await config.load(dir)).config.$utils;
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}
+
+describe('built-in utils', () => {
+	test('url.abs resolves a path to a full URL under $site.url', async () => {
+		let { url } = await builtins(`{ url: 'https://example.com/blog', lang: 'en', title: 'T' }`);
+		expect(url?.abs?.('post/')).toBe('https://example.com/blog/post/');
+		expect(url?.abs?.('/about/')).toBe('https://example.com/about/');
+		expect(url?.abs?.('a', 'https://cdn.example.com/x/')).toBe('https://cdn.example.com/x/a');
+	});
+
+});

@@ -123,7 +123,7 @@ bongo gives `$utils` these helpers. Layouts, partials, `.hbs` content, and [data
 | --- | --- |
 | `truncate(text, length)` | The first `length` characters of `text`, with no ellipsis. An empty `text` gives `''`. |
 | `countwords(text)` | The number of words in `text`, split on whitespace. An empty `text` gives `0`. |
-| `url.abs(to, from?)` | The path of `to`, resolved against `from`, or against `$site.url` when there is no `from`. For `https://example.com/blog/`, `url.abs('post/')` is `/blog/post/`. |
+| `url.abs(to, from?)` | The full URL of `to`, resolved against `from`, or against `$site.url` when there is no `from`. For `https://example.com/blog/`, `url.abs('post/')` is `https://example.com/blog/post/`, and `url.abs('/about/')` is `https://example.com/about/`. |
 | `date.format(value, format)` | `value` as an ISO 8601 string, such as `2024-05-01T00:00:00.000Z`. It ignores `format`. |
 
 A function in your `$utils` replaces the built-in one with the same name. The `url` and `date` groups merge with yours, so `$utils: { date: { year } }` keeps `date.format`. You can add your own groups too, such as `$utils: { str: { up } }`:

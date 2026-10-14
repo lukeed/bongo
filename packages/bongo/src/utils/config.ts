@@ -280,7 +280,7 @@ export async function load(root: string): Promise<Loaded> {
 			},
 			url: {
 				abs(to: string, fro?: string): string {
-					return new URL(to, fro || output.$site.url).pathname;
+					return new URL(to, fro || output.$site.url.replace(/\/?$/, '/')).href;
 				}
 			},
 			date: {
