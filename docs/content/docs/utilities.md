@@ -2,7 +2,7 @@
 title: Utilities
 summary: The helper functions that bongo gives every template as $utils, with example values, and how to add your own.
 group: Reference
-order: 2
+order: 3
 ---
 
 `$utils` holds helper functions. Layouts, partials, `.hbs` content, output files, and [data modules](/docs/data-modules/) all get it. bongo gives you the helpers on this page, and you can add your own or replace these in [`bongo.config.ts`](/docs/config/#utils).

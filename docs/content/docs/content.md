@@ -97,7 +97,7 @@ tags: js, css
 
 ## `.hbs` content
 
-Content files that end in `.hbs` are tempura-compiled with the same context as layouts: `$site`, `$page`, `$pages`, `$section`, `$tags`, `$assets`, `$utils`, `$data`, plus `params` as an alias for `$page.params`. See [Variables](/docs/templates/#variables).
+Content files that end in `.hbs` are tempura-compiled with the same context as layouts: `$site`, `$page`, `$pages`, `$section`, `$tags`, `$assets`, `$utils`, `$data`, plus `params` as an alias for `$page.params`. See [Variables](/docs/variables/).
 
 ```hbs [content/archive.hbs]
 ---
