@@ -12,7 +12,8 @@ import { LoadError } from './utils/config';
 import { normalize } from './utils/argv';
 
 import type { Argv } from 'bongo';
-import type { BuildOptions } from './build';
+import type { BuildOptions, Inputs } from './build';
+import type { BuildError } from './utils/bundler';
 
 // Host values that mean "bind to all interfaces". For these we resolve the
 // reachable network URLs via os.networkInterfaces() and also surface a
@@ -74,25 +75,6 @@ function rebuildLabel(cwd: string, file: string): string {
 	return `${dim('[' + timestamp() + ']')} ${relative(cwd, file)}`;
 }
 
-async function rebuild(argv: Argv, opts: BuildOptions = {}): Promise<void> {
-	try {
-		await build(argv, opts);
-		// Success: reload the page to pick up new output.
-		http.send({ type: 'reload' });
-	} catch (err) {
-		// Bundler errors: bundler.flush() already pushed { type: 'error' } via
-		// HMR_SEND, so the overlay is already mounted in the existing page.
-		// Non-bundler errors (template compile failures, etc.) need manual
-		// propagation since the bundler never saw them.
-		let message = err instanceof Error ? err.message : String(err);
-		if (!message.startsWith('Build failed:')) {
-			log.error(message);
-			http.send({ type: 'error', errors: [{ message }] });
-		}
-		// Don't reload — the overlay stays until the next successful build.
-	}
-}
-
 type Change = 'assets' | 'content' | 'inputs' | 'templates';
 
 function loadError(err: unknown): LoadError | undefined {
@@ -121,6 +103,38 @@ export async function dev(argv: Argv) {
 	let pending: Map<string, Change> = new Map();
 	let running: Promise<void> | undefined;
 
+	// Until a build succeeds, the server has no page to show an error in, so it serves one.
+	let good = false;
+	let inputs: Inputs | undefined;
+
+	function report(errors: BuildError[]): void {
+		http.send({ type: 'error', errors });
+		if (!good) http.fail(errors);
+	}
+
+	async function rebuild(opts: BuildOptions = {}): Promise<void> {
+		try {
+			await build(argv, { inputs, sink, ...opts });
+			good = true;
+			http.fail(undefined);
+			// Success: reload the page to pick up new output.
+			http.send({ type: 'reload' });
+		} catch (err) {
+			// Bundler errors: bundler.flush() already pushed { type: 'error' } via
+			// HMR_SEND, so the overlay is already mounted in the existing page.
+			// Non-bundler errors (template compile failures, etc.) need manual
+			// propagation since the bundler never saw them.
+			let message = err instanceof Error ? err.message : String(err);
+			if (message.startsWith('Build failed:')) {
+				if (!good) http.fail([{ message }]);
+			} else {
+				log.error(message);
+				report([{ message }]);
+			}
+			// Don't reload — the overlay stays until the next successful build.
+		}
+	}
+
 	function schedule(file: string, change: Change): void {
 		pending.set(file, change);
 		running ??= drain();
@@ -147,7 +161,7 @@ export async function dev(argv: Argv) {
 		let more = files.length > 1 ? dim(` and ${files.length - 1} more`) : '';
 		let done = log.spin(rebuildLabel(flags.cwd, files[0]) + more);
 
-		if (changes.has('inputs') && !await reload()) return done();
+		if ((changes.has('inputs') || !inputs) && !await reload()) return done();
 
 		// Layout/partial changes: blow away the compiled-template caches and run
 		// a full rebuild. A layout or partial edit can affect every page, so
@@ -165,7 +179,7 @@ export async function dev(argv: Argv) {
 		// preserved, and only the changed page is re-rendered + rewritten. Other
 		// pages in `public/` are left alone.
 		let narrow = files.length === 1 && changes.has('content') && !deleted;
-		await rebuild(argv, { inputs, sink, only: narrow ? relative(flags.content, files[0]) : undefined });
+		await rebuild({ only: narrow ? relative(flags.content, files[0]) : undefined });
 		await track();
 		done();
 	}
@@ -207,7 +221,7 @@ export async function dev(argv: Argv) {
 			stop();
 			stop = await follow();
 			log.error(message);
-			http.send({ type: 'error', errors: [failed ? failed.error : { message }] });
+			report([failed ? failed.error : { message }]);
 			return false;
 		}
 
@@ -229,27 +243,18 @@ export async function dev(argv: Argv) {
 	await fs.watch([flags.content], file => schedule(file, 'content'));
 	stop = await follow();
 
-	let done = log.spin(`${dim('~>')} building`);
-	let inputs = await prepare(argv).catch(err => {
-		built();
-		throw err;
-	});
-	inputs.files.forEach(file => tracked.add(file));
-	stop();
-	stop = await follow();
-	await build(argv, { inputs, sink }).finally(async () => {
-		built();
-		await track();
-	});
-	done();
-
-	// Reload any page that connected before the build finished.
-	http.send({ type: 'reload' });
-
 	// Route bundle-time errors to the browser error overlay (Phase G).
 	// hmr() must be called after http.start() so http.send is bound to the
 	// live client set. It persists across resets — the dev server stays up.
 	bundler.hmr(http.send);
+
+	// A failed first build keeps the server up: it shows the error, and the next good build reloads the page.
+	// Reload any page that connected before the build finished.
+	let done = log.spin(`${dim('~>')} building`);
+	if (await reload()) await rebuild();
+	built();
+	await track();
+	done();
 
 	running = pending.size ? drain() : undefined;
 }

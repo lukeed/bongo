@@ -14,7 +14,7 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
 import type { Duplex } from 'node:stream';
 import type { Argv } from 'bongo';
-import type { HmrMessage } from './bundler';
+import type { BuildError, HmrMessage } from './bundler';
 import type { Memory } from './output';
 
 export const RELOAD = '/~/reload';
@@ -22,12 +22,55 @@ export const RELOAD = '/~/reload';
 /** This server run. A page that another run rendered reloads when its socket connects. */
 export const ID = randomBytes(6).toString('hex');
 
+/** The script of each dev page: live reload over the reload socket, and the build error overlay. */
+export const SCRIPT: string = [
+	`<script>`,
+		`(function __bongo_ws() {`,
+			`var ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '${RELOAD}?id=${ID}');`,
+			`ws.onopen = function () { console.log('[dev] live reload enabled'); };`,
+			`ws.onclose = function () { setTimeout(__bongo_ws, 1000); };`,
+			`ws.onmessage = function (ev) {`,
+				`try {`,
+					`var m = JSON.parse(ev.data);`,
+					`if (m.type === 'reload') location.reload();`,
+					`else if (m.type === 'hmr') console.warn('[dev] HMR not yet implemented; ignoring');`,
+					`else if (m.type === 'error') __bongo_err(m.errors);`,
+					`else if (m.type === 'error-clear') __bongo_err_clear();`,
+				`} catch (e) {}`,
+			`};`,
+		`})();`,
+		`function __bongo_esc(s) { return String(s||'').replace(/[<>&]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]}); }`,
+		`function __bongo_err(errs) {`,
+			`__bongo_err_clear();`,
+			`var o = document.createElement('div');`,
+			`o.id = '__bongo_overlay';`,
+			`o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#141414;color:#f4f4f4;font:14px/1.5 ui-monospace,monospace;padding:24px;overflow:auto;white-space:pre-wrap';`,
+			`var html = '<h2 style=\\'margin:0 0 12px;color:#ff6b6b\\'>Build error</h2>';`,
+			`for (var i=0;i<errs.length;i++) {`,
+				`var e = errs[i];`,
+				`html += '<div style=\\'margin-bottom:12px\\'>';`,
+				`if (e.file) html += '<strong>'+__bongo_esc(e.file)+(e.line?':'+__bongo_esc(e.line):'')+'</strong>\\n';`,
+				`html += __bongo_esc(e.message);`,
+				`if (e.frame) html += '\\n'+__bongo_esc(e.frame);`,
+				`html += '</div>';`,
+			`}`,
+			`o.innerHTML = html;`,
+			`document.body.appendChild(o);`,
+		`}`,
+		`function __bongo_err_clear() {`,
+			`var o = document.getElementById('__bongo_overlay');`,
+			`if (o) o.remove();`,
+		`}`,
+	`</script>`,
+].join('');
+
 // Fixed by RFC 6455 to prove the server speaks WebSocket.
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
 const clients = new Set<Duplex>();
 
 let ready: Promise<void> = Promise.resolve();
+let failed: BuildError[] | undefined;
 
 /**
  * Hold page requests until `task` settles, whether it succeeds or fails; the reload stream is never held.
@@ -35,6 +78,14 @@ let ready: Promise<void> = Promise.resolve();
  */
 export function hold(task: Promise<unknown>): void {
 	ready = task.then(() => {}, () => {});
+}
+
+/**
+ * Answer each request that the output cannot, such as every request before a first good build, with a page that shows `errors` and reloads after the next good build; `undefined` stops it.
+ * @example http.fail([{ message: 'Unknown "nav" partial!' }]);
+ */
+export function fail(errors: BuildError[] | undefined): void {
+	failed = errors;
 }
 
 export function send(msg: HmrMessage): void {
@@ -188,6 +239,11 @@ export async function start(argv: Required<Argv>, sink: Memory): Promise<Server>
 			for (let candidate of candidates(path.slice(base.length - 1))) {
 				if (await deliver(req, res, sink, join(argv.dest, candidate))) return;
 			}
+		}
+		if (failed) {
+			let errors = JSON.stringify(failed).replace(/</g, '\\u003c');
+			res.writeHead(500, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+			return void res.end(`<!doctype html><html lang="en"><head><meta charset="utf-8"/><title>Build error</title></head><body>${SCRIPT}<script>__bongo_err(${errors})</script></body></html>`);
 		}
 		for (let page of ['404.html', '404/index.html']) {
 			if (await deliver(req, res, sink, join(argv.dest, page), 404)) return;

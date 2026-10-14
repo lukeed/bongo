@@ -17,7 +17,7 @@ import * as render from './utils/render';
 import * as templates from './utils/templates';
 import * as tags from './utils/tags';
 import { normalize } from './utils/argv';
-import { ID, RELOAD } from './utils/http';
+import { SCRIPT } from './utils/http';
 
 import type { Argv, Build, Config, Loader, Template } from 'bongo';
 import type { Blocks } from './utils/tempura/index';
@@ -544,46 +544,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			chain.push(`layouts/${layout}`);
 		}
 
-		if (argv.dev) {
-			rendered_content += `<script>`;
-			rendered_content +=   `(function __bongo_ws() {`;
-			rendered_content +=     `var ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '${RELOAD}?id=${ID}');`;
-			rendered_content +=     `ws.onopen = function () { console.log('[dev] live reload enabled'); };`;
-			rendered_content +=     `ws.onclose = function () { setTimeout(__bongo_ws, 1000); };`;
-			rendered_content +=     `ws.onmessage = function (ev) {`;
-			rendered_content +=       `try {`;
-			rendered_content +=         `var m = JSON.parse(ev.data);`;
-			rendered_content +=         `if (m.type === 'reload') location.reload();`;
-			rendered_content +=         `else if (m.type === 'hmr') console.warn('[dev] HMR not yet implemented; ignoring');`;
-			rendered_content +=         `else if (m.type === 'error') __bongo_err(m.errors);`;
-			rendered_content +=         `else if (m.type === 'error-clear') __bongo_err_clear();`;
-			rendered_content +=       `} catch (e) {}`;
-			rendered_content +=     `};`;
-			rendered_content +=   `})();`;
-			rendered_content +=   `function __bongo_esc(s) { return String(s||'').replace(/[<>&]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]}); }`;
-			rendered_content +=   `function __bongo_err(errs) {`;
-			rendered_content +=     `__bongo_err_clear();`;
-			rendered_content +=     `var o = document.createElement('div');`;
-			rendered_content +=     `o.id = '__bongo_overlay';`;
-			rendered_content +=     `o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#141414;color:#f4f4f4;font:14px/1.5 ui-monospace,monospace;padding:24px;overflow:auto;white-space:pre-wrap';`;
-			rendered_content +=     `var html = '<h2 style=\\'margin:0 0 12px;color:#ff6b6b\\'>Build error</h2>';`;
-			rendered_content +=     `for (var i=0;i<errs.length;i++) {`;
-			rendered_content +=       `var e = errs[i];`;
-			rendered_content +=       `html += '<div style=\\'margin-bottom:12px\\'>';`;
-			rendered_content +=       `if (e.file) html += '<strong>'+__bongo_esc(e.file)+(e.line?':'+__bongo_esc(e.line):'')+'</strong>\\n';`;
-			rendered_content +=       `html += __bongo_esc(e.message);`;
-			rendered_content +=       `if (e.frame) html += '\\n'+__bongo_esc(e.frame);`;
-			rendered_content +=       `html += '</div>';`;
-			rendered_content +=     `}`;
-			rendered_content +=     `o.innerHTML = html;`;
-			rendered_content +=     `document.body.appendChild(o);`;
-			rendered_content +=   `}`;
-			rendered_content +=   `function __bongo_err_clear() {`;
-			rendered_content +=     `var o = document.getElementById('__bongo_overlay');`;
-			rendered_content +=     `if (o) o.remove();`;
-			rendered_content +=   `}`;
-			rendered_content += `</script>`;
-		}
+		if (argv.dev) rendered_content += SCRIPT;
 
 		rendered_content = tags.scanBongoTags(rendered_content, argv as Required<Argv>, config, chain.join(' → '), item.path);
 		rendered_content = tags.rewriteTransitionAttrs(rendered_content);

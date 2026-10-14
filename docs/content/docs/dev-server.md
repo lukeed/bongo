@@ -28,7 +28,7 @@ A change to the config, to any local file that it imports, or to anything in `da
 
 A workspace package, or any package linked into `node_modules` from outside it, counts as a local file. When you rebuild or edit it, the config loads again with the new code.
 
-If the config or a data file fails to load, the error overlay shows the error, and the last good build keeps serving until you fix it. The same is true for a rebuild that fails.
+If the config or a data file fails to load, the error overlay shows the error, and the last good build keeps serving until you fix it. The same is true for a rebuild that fails. If the first build fails, there is no good build yet: `bongo dev` keeps running, and answers each request with a page that shows the error. When a fix builds, that page reloads.
 
 ## Output in memory
 

@@ -752,7 +752,7 @@ If a relative `url()` points at a file that does not exist, the build fails with
 
 The dev server keeps each build in memory and serves it from there, as Vite does. It does not read or write `public/`, unless you pass `--write`; see [Output folder](#output-folder). It serves a file that bongo only copies from `content/`, such as a PDF, from its source, so an edit shows at once. It encodes each resized image the first time the browser asks for it, then reads it from `node_modules/.cache/bongo/images`.
 
-A change to the config, to any local file it imports, or to anything in `data/` loads the config and data again, then rebuilds every page. A workspace package, or any package linked into `node_modules` from outside it, counts as a local file. You do not need to restart. If the config or a data file fails to load, the error overlay shows the error, and the last good build keeps serving until you fix it. The same is true for a rebuild that fails.
+A change to the config, to any local file it imports, or to anything in `data/` loads the config and data again, then rebuilds every page. A workspace package, or any package linked into `node_modules` from outside it, counts as a local file. You do not need to restart. If the config or a data file fails to load, the error overlay shows the error, and the last good build keeps serving until you fix it. The same is true for a rebuild that fails. If the first build fails, there is no good build yet: `bongo dev` keeps running, and answers each request with a page that shows the error. When a fix builds, that page reloads.
 
 When `$site.url` has a subpath, such as `https://example.com/blog/`, `bongo dev` serves the site under `/blog/`, as a host does, and redirects `/` there.
 

@@ -228,6 +228,56 @@ describe('dev', () => {
 	}, 30_000);
 });
 
+describe('a failed first build', () => {
+	test('keeps the server up, serves the error with the overlay, and reloads when a fix builds', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' } };`,
+			'layouts/html.hbs': '{{{ $page.content }}}',
+			'content/index.hbs': '<main>{{ $utils.nope() }}</main>',
+		});
+		let server = await serve(root);
+		try {
+			let res = await fetch(server.url + '/');
+			expect(res.status).toBe(500);
+			expect(res.headers.get('content-type')).toBe('text/html; charset=utf-8');
+			let html = await res.text();
+			expect(html).toContain('__bongo_err([{"message":');
+			expect(html).toContain('nope');
+			expect(html).toContain(`/~/reload?id=`);
+			expect((await fetch(server.url + '/about/')).status).toBe(500);
+
+			await writeFile(join(root, 'content/index.hbs'), '<main>fixed</main>');
+			await until(async () => (await server.page()).includes('<main>fixed</main>'), 'the fix', server);
+			expect(server.messages.some(m => m.type === 'reload')).toBe(true);
+			expect((await fetch(server.url + '/about/')).status).toBe(404);
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+
+	test('keeps the server up when the config is broken, and builds when the config is fixed', async () => {
+		let root = await site({
+			'bongo.config.ts': CONFIG('A'),
+			'lib/meta.ts': `export const tagline = ;`,
+			'layouts/html.hbs': '<title>{{ $site.title }}</title>{{{ $page.content }}}',
+			'content/index.html': '<main>home</main>',
+		});
+		let server = await serve(root);
+		try {
+			let res = await fetch(server.url + '/');
+			expect(res.status).toBe(500);
+			expect(await res.text()).toContain('lib/meta.ts');
+
+			await writeFile(join(root, 'lib/meta.ts'), `export const tagline = 'one';`);
+			await until(async () => (await server.page()).includes('<title>A one</title><main>home</main>'), 'the fixed config', server);
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+});
+
 describe('output files', () => {
 	test('are served with the type of their extension, and render again when any page changes', async () => {
 		let root = await site({
