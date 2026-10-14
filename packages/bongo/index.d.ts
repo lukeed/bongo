@@ -263,7 +263,12 @@ export interface Config {
 	};
 	$partials?: Template.Partials;
 	$build?: {
-		target?: string | string[];  // browserslist query or array of queries
+		/**
+		 * The browsers to build for, as a browserslist query or a list of queries. It sets the CSS prefixes and the syntax that CSS and JavaScript are lowered to.
+		 * @default 'defaults'
+		 * @example $build: { target: ['chrome >= 120', 'safari >= 17', 'firefox >= 121'] }
+		 */
+		target?: string | string[];
 	};
 	$images?: Images.Options;
 	$hooks?: Build.Hooks;

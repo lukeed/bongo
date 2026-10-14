@@ -296,6 +296,23 @@ describe('load', () => {
 		expect(output.files.filter(file => !file.endsWith('tsconfig.json'))).toEqual([realpathSync(join(dir, 'bongo.config.ts'))]);
 	});
 
+	test('$build.target is the browserslist "defaults" query, unless a plugin or the config sets it', async () => {
+		let target = async (body: string) => {
+			let dir = mkdtempSync(join(tmpdir(), 'bongo-target-'));
+			writeFileSync(join(dir, 'bongo.config.ts'), `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, ${body} };`);
+			try {
+				return (await config.load(dir)).config.$build.target;
+			} finally {
+				rmSync(dir, { recursive: true, force: true });
+			}
+		};
+		expect(await target('')).toBe('defaults');
+		expect(await target(`$build: {}`)).toBe('defaults');
+		expect(await target(`$build: { target: 'last 2 chrome versions' }`)).toBe('last 2 chrome versions');
+		expect(await target(`$build: { target: ['chrome >= 120', 'safari >= 17'] }`)).toEqual(['chrome >= 120', 'safari >= 17']);
+		expect(await target(`plugins: [{ $build: { target: 'safari >= 17' } }]`)).toBe('safari >= 17');
+	});
+
 	test('built-in countwords counts the words of a text', async () => {
 		let dir = resolve(import.meta.dirname, '../../test/fixtures/config-ts-utils');
 		let { $utils } = (await config.load(dir)).config;

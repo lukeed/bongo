@@ -354,6 +354,7 @@ export async function load(root: string): Promise<Loaded> {
 
 	// TODO: validate $site keys
 	merge(output, (user.exports.default as Partial<Config>) || (user.exports as Partial<Config>));
+	output.$build.target ||= 'defaults';
 
 	return { config: output, files: user.files };
 }

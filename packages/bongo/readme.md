@@ -148,17 +148,22 @@ export default {
 
 ### Build targets
 
-`$build.target` is a [browserslist](https://browsersl.ist) query, such as `'defaults'` or `['chrome >= 110', 'safari >= 16']`. There is no default target.
-
-- LightningCSS uses it for each `<bongo:style>` and the CSS that it imports. It adds vendor prefixes and lowers newer syntax, such as nesting and `inset`, for the target browsers. Without a target, CSS keeps its syntax and gets no prefixes.
-- Rolldown uses it for each `<bongo:script>` and for `<bongo:client>`. It lowers newer JavaScript syntax, such as `?.` and `??`. Rolldown targets Chrome, Edge, Firefox, Internet Explorer, Opera, Safari, and iOS Safari; bongo drops the Android and Samsung entries of the query.
-- `<bongo:script target="...">` replaces the target for that one script.
+`$build.target` names the browsers that your site supports, as a [browserslist](https://browsersl.ist) query or a list of queries. The default is `'defaults'`: `> 0.5%, last 2 versions, Firefox ESR, not dead`.
 
 ```ts
 export default {
-	$build: { target: 'defaults' },
+	$build: {
+		target: ['chrome >= 120', 'safari >= 17', 'firefox >= 121'],
+	},
 };
 ```
+
+- LightningCSS uses it for each `<bongo:style>` and the CSS that it imports. It adds vendor prefixes and lowers newer syntax, such as nesting and `inset`.
+- Rolldown uses it for each `<bongo:script>` and for `<bongo:client>`. It lowers newer JavaScript syntax, such as `?.` and `??`, and adds no polyfills. Rolldown targets Chrome, Edge, Firefox, Internet Explorer, Opera, Safari, and iOS Safari, so bongo drops the other browsers of the query, such as Android and Samsung.
+- `<bongo:script target="...">` replaces the target for that one script.
+- bongo does not read `.browserslistrc` or the `browserslist` field of `package.json`.
+
+Run `bunx browserslist '<query>'` to see the browsers of a query.
 
 ### JavaScript API
 
@@ -700,7 +705,7 @@ The partial must have one root element. Set styles with the `style` attribute. D
 
 ## CSS
 
-All CSS is handled by [LightningCSS](https://lightningcss.dev): `@import` bundling, autoprefixing, nesting, and optional minification. Prefixes and lowered syntax need a [build target](#build-targets).
+All CSS is handled by [LightningCSS](https://lightningcss.dev): `@import` bundling, autoprefixing, nesting, and optional minification. Prefixes and lowered syntax follow the [build target](#build-targets), which is `'defaults'` unless you set it.
 
 `.module.css` files automatically enable CSS modules.
 
