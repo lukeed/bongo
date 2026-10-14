@@ -386,6 +386,31 @@ describe('urls', () => {
 	});
 });
 
+describe('layouts', () => {
+	test('a page uses the layouts of its nearest folder first', async () => {
+		let root = await site({
+			'layouts/html.hbs': '<html>{{{ $page.content }}}</html>',
+			'layouts/blog/html.hbs': '<blog>{{{ $page.content }}}</blog>',
+			'layouts/blog/single.hbs': 'blog/single',
+			'layouts/blog/2025/single.hbs': 'blog/2025/single',
+			'layouts/2025/single.hbs': '2025/single',
+			'content/blog/2025/post.html': '',
+			'content/blog/note.html': '',
+			'content/2025/post.html': '',
+			'content/news/2025/post.html': '',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'blog/2025/post/index.html')).toBe('<blog>blog/2025/single</blog>');
+			expect(await read(root, 'blog/note/index.html')).toBe('<blog>blog/single</blog>');
+			expect(await read(root, '2025/post/index.html')).toBe('<html>2025/single</html>');
+			expect(await read(root, 'news/2025/post/index.html')).toBe('<html></html>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('$hooks.transform', () => {
 	test('changes each page, after its asset links resolve, and each output file, and knows what each one is', async () => {
 		let root = await site({

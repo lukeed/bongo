@@ -471,8 +471,9 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		rendered_content = tags.scanImages(rendered_content, argv as Required<Argv>, config, `content/${item.rel}`, item.path);
 		$page.content = rendered_content;
 
-		// lookup priority –> need "" for `/layouts/*` root
-		let i=0, dirs = item.rel.split(/[\\\/]+/g).slice(0, -1).concat('');
+		// lookup priority –> nearest folder first, then each parent, then "" for `/layouts/*` root
+		let i=0, folders = item.rel.split(/[\\\/]+/g).slice(0, -1);
+		let dirs = folders.map((_, n) => folders.slice(0, folders.length - n).join('/')).concat('');
 		let basename = item.name.substring(0, item.name.lastIndexOf('.'));
 
 		let render: Template.Compiler | void = undefined;
