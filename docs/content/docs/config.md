@@ -101,7 +101,7 @@ bongo gives `$utils` these helpers:
 | Helper | Returns |
 | --- | --- |
 | `truncate(text, length)` | The first `length` characters of `text`, with no ellipsis. An empty `text` gives `''`. |
-| `countwords(text)` | The number of parts of `text` between runs of whitespace. Each leading or trailing space adds one, and `''` gives `1`. |
+| `countwords(text)` | The number of words in `text`, split on whitespace. An empty `text` gives `0`. |
 | `url.abs(to, from?)` | The path of `to`, resolved against `from`, or against `$site.url` when there is no `from`. For `https://example.com/blog/`, `url.abs('post/')` is `/blog/post/`. |
 | `date.format(value, format)` | `value` as an ISO 8601 string, such as `2024-05-01T00:00:00.000Z`. It ignores `format`. |
 

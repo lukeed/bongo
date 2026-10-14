@@ -228,4 +228,12 @@ describe('load', () => {
 		expect(typeof utils.url.rel).toBe('function');
 		expect(output.files.filter(file => !file.endsWith('tsconfig.json'))).toEqual([realpathSync(join(dir, 'bongo.config.ts'))]);
 	});
+
+	test('built-in countwords counts the words of a text', async () => {
+		let dir = resolve(import.meta.dirname, '../../test/fixtures/config-ts-utils');
+		let { $utils } = (await config.load(dir)).config;
+		expect($utils.countwords?.('')).toBe(0);
+		expect($utils.countwords?.('   ')).toBe(0);
+		expect($utils.countwords?.('  one two\nthree ')).toBe(3);
+	});
 });

@@ -202,7 +202,8 @@ export async function load(root: string): Promise<Loaded> {
 				return (text || '').substring(0, length);
 			},
 			countwords(text: string): number {
-				return text.split(/\s+/g).length;
+				let words = (text || '').trim();
+				return words ? words.split(/\s+/g).length : 0;
 			},
 			url: {
 				abs(to: string, fro?: string): string {
