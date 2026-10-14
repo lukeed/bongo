@@ -225,7 +225,7 @@ export interface Config {
 			abs?(to: string, fro?: string): string;
 		};
 		date?: Helpers & {
-			format?(value: string|number|Date, format: string): string;
+			format?(value: string|number|Date, options?: Intl.DateTimeFormatOptions): string;
 		};
 	};
 	$loaders?: {

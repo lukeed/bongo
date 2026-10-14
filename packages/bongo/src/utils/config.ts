@@ -284,9 +284,11 @@ export async function load(root: string): Promise<Loaded> {
 				}
 			},
 			date: {
-				format(value: string|number|Date, format: string): string {
+				format(value: string|number|Date, options?: Intl.DateTimeFormatOptions): string {
 					let d = new Date(value);
-					return d.toISOString();
+					if (isNaN(d.getTime())) throw new Error(`Invalid date: ${JSON.stringify(value)}`);
+					if (!options) return d.toISOString();
+					return new Intl.DateTimeFormat(output.$site.lang || 'en', { timeZone: 'UTC', ...options }).format(d);
 				}
 			}
 		},

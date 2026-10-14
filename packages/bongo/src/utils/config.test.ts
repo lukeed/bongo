@@ -323,4 +323,12 @@ describe('built-in utils', () => {
 		expect(url?.abs?.('a', 'https://cdn.example.com/x/')).toBe('https://cdn.example.com/x/a');
 	});
 
+	test('date.format gives ISO 8601, or a date in $site.lang from Intl options, in UTC', async () => {
+		let { date } = await builtins(`{ url: 'https://example.com/', lang: 'fr', title: 'T' }`);
+		expect(date?.format?.('2024-05-01')).toBe('2024-05-01T00:00:00.000Z');
+		expect(date?.format?.('2024-05-01', { dateStyle: 'long' })).toBe('1 mai 2024');
+		expect(date?.format?.('2024-05-01T23:30:00Z', { day: 'numeric' })).toBe('1');
+		expect(date?.format?.('2024-05-01', { dateStyle: 'medium', timeZone: 'America/Los_Angeles' })).toBe('30 avr. 2024');
+		expect(() => date?.format?.('nope')).toThrow('Invalid date: "nope"');
+	});
 });
