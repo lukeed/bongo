@@ -50,9 +50,9 @@ bongo deletes a symlink in `public/`, but never the file or folder that it point
 
 When you run `bongo build`:
 
-1. `public/` is emptied. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` by walking upward from `cwd`. Rolldown bundles the config and the local files it imports into one temporary `.mjs` module, which bongo imports and then deletes. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual, and `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials, `data/` modules, and [data modules](#data-modules) load the same way.
+1. `public/` is emptied. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` in the project folder: `cwd`, or the folder that `-C` names. Rolldown bundles the config and the local files it imports into one temporary `.mjs` module, which bongo imports and then deletes. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual, and `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials, `data/` modules, and [data modules](#data-modules) load the same way.
 2. Files in `data/` are loaded as `$data`. Layouts and partials are collected from `layouts/` and `partials/`. Handlebars files (`.hbs`) are compiled with tempura. JavaScript and TypeScript partials are loaded as modules.
-3. Content files are passed through registered loaders, then rendered through the matching layout chain. [Output files](#output-files), such as `sitemap.xml.hbs`, get no layout. [Data modules](#data-modules), such as `search.json.ts`, run once every page is known, and write JSON.
+3. Content files are passed through registered loaders, then rendered through their [layouts](#layouts). [Output files](#output-files), such as `sitemap.xml.hbs`, get no layout. [Data modules](#data-modules), such as `search.json.ts`, run once every page is known, and write JSON.
 4. Rendered HTML is scanned for `<bongo:*>` elements, and each page's content for `<img>` elements with a relative `src`. Assets are registered and replaced with placeholder tokens.
 5. Asset groups are flushed. JavaScript goes through Rolldown; CSS goes through LightningCSS; images go through `Bun.Image`. Output filenames include content hashes.
 6. Placeholders are substituted with external asset URLs or inline asset contents.
@@ -131,6 +131,8 @@ bongo reads a small subset of YAML:
 An error names the file and the line, for example `content/blog/post.md: Invalid frontmatter: duplicate key "title" at line 3`.
 
 `$page.title` and `$page.summary` are always text, so `title: 2024` gives `"2024"`. `$page.tags` takes a list or a comma-separated string.
+
+`url` sets a custom path for a page. `url: /about/` writes `about/index.html`. A path that ends in `.html`, such as `url: /404.html`, writes that file.
 
 ### Migrate from string-only frontmatter
 
@@ -230,6 +232,12 @@ The `publicPath` prefix applied to external asset URLs is derived from `$site.ur
 - Subpath-served site (`https://example.com/blog/`) -> `publicPath = /blog/`
 
 No manual configuration is required. The absolute `url` of each page, in `$page.url` and `$pages`, includes the subpath too: `content/post.md` is `https://example.com/blog/post/`.
+
+## Layouts
+
+Each page renders through a layout in `layouts/`. bongo looks in the folder of the page first, then in each parent folder, then in `layouts/` itself. In each folder, it uses the first of `<name>.hbs`, `single.hbs`, and `html.hbs`, where `<name>` is the file name of the page. An index page looks for `index.hbs` and `html.hbs`. For `content/blog/2025/post.md`, bongo looks in `layouts/blog/2025/`, then `layouts/blog/`, then `layouts/`.
+
+When that layout is not an `html.hbs`, bongo wraps its output in the nearest `html.hbs`, found the same way. If no `html.hbs` exists, the build fails with `Missing "html.hbs" template`.
 
 ## Templates
 
@@ -350,7 +358,7 @@ If `transition:animate` is present without `transition:name`, an automatic name 
 - `$pages` — every page in the build, sorted by path.
 - `$section` — pages scoped to the current page's section directory.
 - `$tags` — array of `{ tag, pages }` entries.
-- `$assets` — configured loader map.
+- `$assets` — `load(filename, encoding?)` reads a file from `assets/` and returns a promise.
 - `$utils` — configured helper functions.
 - `$data` — the files in `data/`. See [Data](#data).
 
@@ -566,7 +574,7 @@ These are the defaults.
 
 All CSS is handled by [LightningCSS](https://lightningcss.dev): `@import` bundling, autoprefixing, nesting, and optional minification.
 
-`.module.css` files automatically enable CSS modules. Non-module files can opt in explicitly when registering the entry.
+`.module.css` files automatically enable CSS modules.
 
 ### Packages in `@import`
 
@@ -616,9 +624,9 @@ If a relative `url()` points at a file that does not exist, the build fails with
 
 A change to the config, to any local file it imports, or to anything in `data/` loads the config and data again, then rebuilds every page. You do not need to restart. If the config or a data file fails to load, the error overlay shows the error, and the last good build keeps serving until you fix it. The same is true for a rebuild that fails.
 
-A path with no matching file gets a `404` status, the same as on a static host, so broken links show up during development. The response body is your own 404 page when the build has one: `404.html`, or `404/index.html` (which `content/404.md` produces).
+A path with no matching file gets a `404` status, the same as on a static host, so broken links show up during development. The response body is your own 404 page when the build has one: `404.html`, or `404/index.html` (which `content/404.md` produces). Most static hosts serve `404.html` for a missing path, so give that page `url: /404.html`.
 
-Rebuilds push one of these SSE messages to the browser:
+Rebuilds send one of these messages to each open page, over its WebSocket:
 
 | Message | Meaning |
 |---|---|

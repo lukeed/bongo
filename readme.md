@@ -2,7 +2,7 @@
 
 > A static site generator built on Rolldown and LightningCSS.
 
-This repository contains the bongo static site generator, its Markdown and feed plugins, the project scaffolder, and the example site used for development.
+This repository contains the bongo static site generator, its Markdown and feed plugins, the project scaffolder, the example site used for development, and the docs site at [bongo.build](https://bongo.build).
 
 ## Packages
 
@@ -25,6 +25,12 @@ Run the example site:
 
 ```sh
 bun run example dev
+```
+
+Run the docs site, in `docs/`:
+
+```sh
+bun run docs dev
 ```
 
 The package build uses Rolldown and writes the publishable package files in place.
