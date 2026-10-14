@@ -438,6 +438,35 @@ describe('layouts fallback', () => {
 	});
 });
 
+describe('partials', () => {
+	test('a .hbs partial may read $slot without {{#expect}}', async () => {
+		let root = await site({
+			'partials/box.hbs': '<i>{{{ $slot }}}</i>',
+			'layouts/html.hbs': '{{#partial src="box" $slot="hi"}}',
+			'content/index.html': '',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toBe('<i>hi</i>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a .hbs partial that reads a name it does not declare fails with the fix', async () => {
+		let root = await site({
+			'partials/blog/meta.hbs': '<time>{{ date }}</time>',
+			'layouts/html.hbs': '{{#partial src="blog/meta" date="2024"}}',
+			'content/index.html': '',
+		});
+		try {
+			await expect(build({ cwd: root })).rejects.toThrow('partials/blog/meta.hbs reads "date", but does not declare it. Add {{#expect date}} at the top of the partial.');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('content', () => {
 	test('folders named partials or shortcodes hold pages too', async () => {
 		let root = await site({

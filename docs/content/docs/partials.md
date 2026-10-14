@@ -51,6 +51,14 @@ A `.hbs` partial is a tempura template. Declare the arguments that it reads with
 </p>
 ```
 
+`$slot` is always declared, so a partial for a Markdown element can print it with no `{{#expect}}`. See [Partials in Markdown](#partials-in-markdown).
+
+A partial that reads a name it does not declare fails the build, and the error gives the fix:
+
+```
+partials/postmeta.hbs reads "date", but does not declare it. Add {{#expect date}} at the top of the partial.
+```
+
 See [Templates](/docs/templates/#syntax) for the syntax.
 
 ## Module partials

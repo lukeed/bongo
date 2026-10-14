@@ -63,6 +63,13 @@ Some *Markdown* text.
 </bongo:card>
 ```
 
+A `.hbs` partial prints it with `{{{ $slot }}}`. It does not need to declare `$slot`:
+
+```hbs [partials/card.hbs]
+{{#expect title}}
+<article class="card"><h3>{{ title }}</h3>{{{ $slot }}}</article>
+```
+
 ### Built-in elements
 
 bongo's own elements, `<bongo:asset>`, `<bongo:image>`, `<bongo:style>`, `<bongo:script>`, and `<bongo:client>`, pass through untouched, for bongo to replace. See [Asset elements](/docs/templates/#asset-elements).

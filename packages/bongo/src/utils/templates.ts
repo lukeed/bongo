@@ -20,6 +20,9 @@ export type Context = Required<Config> & {
 	$data: Record<string, unknown>;
 };
 
+// V8 and Bun say "x is not defined"; JavaScriptCore says "Can't find variable: x"
+const UNDECLARED = /^(?:(\S+) is not defined|Can't find variable: (\S+))$/;
+
 export const Layouts: Cache = new Map;
 export const Partials: Cache = new Map;
 
@@ -92,12 +95,13 @@ export async function collect(argv: Required<Argv>, config: Context): Promise<vo
 	// tempura blocks is typed as Blocks (Record<string, Block>); we cast through
 	// unknown to satisfy the index signature without using `any`.
 	let options: tempura.Options = { async: true, props, blocks: blocks as unknown as tempura.Blocks };
+	let partial: tempura.Options = { ...options, props: [...props, '$slot'] };
 
-	async function compile(dir: string, rel: string) {
+	async function compile(dir: string, rel: string, opts = options) {
 		try {
 			let file = join(dir, rel);
 			let content = await fs.read(file, 'utf8');
-			return tempura.compile(content, options);
+			return tempura.compile(content, opts);
 		} catch (err) {
 			let type = parse(dir).name.slice(0, -1); // strip "s"
 			let reason = err instanceof Error ? err.message : String(err);
@@ -127,7 +131,17 @@ export async function collect(argv: Required<Argv>, config: Context): Promise<vo
 			let file = String(rel);
 			let render: Template.Compiler;
 			if (isHBS.test(file)) {
-				render = await compile(partials, file);
+				let compiled = await compile(partials, file, partial);
+				render = async (data, scope) => {
+					try {
+						return await compiled(data, scope);
+					} catch (err) {
+						let found = err instanceof ReferenceError && UNDECLARED.exec(err.message);
+						if (!found) throw err;
+						let name = found[1] || found[2];
+						throw new Error(`partials/${file.replace(/\\/g, '/')} reads "${name}", but does not declare it. Add {{#expect ${name}}} at the top of the partial.`, { cause: err });
+					}
+				};
 			} else {
 				let mod = await loadModule(join(partials, file), argv.cwd);
 				let fn = mod.exports.default || mod.exports;
