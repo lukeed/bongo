@@ -96,7 +96,8 @@ describe('bundle', () => {
 			expect(result.exports).toBeDefined();
 			expect(result.exports!.red).toMatch(/.+/);
 			// the emitted class name should no longer be "red" verbatim (hashed by CSS modules)
-			let code = result.code.toString('utf8');
+			// a hash that starts with a digit is escaped in the selector, like `.-\35 46fa_red`
+			let code = result.code.toString('utf8').replace(/\\([0-9a-f]{1,6}) ?/gi, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)));
 			expect(code).not.toContain('.red {');
 			expect(code).toContain(result.exports!.red);
 		} finally {
