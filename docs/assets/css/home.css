@@ -275,6 +275,7 @@
 	overflow-x: auto;
 	white-space: pre;
 	font: 500 14.5px/1.95 var(--mono);
+	font-feature-settings: "calt" 0, "liga" 0;
 	color: #E9E5DA;
 }
 

@@ -104,8 +104,10 @@ svg {
 }
 
 code,
-kbd {
+kbd,
+pre {
 	font-family: var(--mono);
+	font-feature-settings: "calt" 0, "liga" 0;
 }
 
 :not(pre) > code {
@@ -219,6 +221,7 @@ kbd {
 	border-radius: 14px;
 	box-shadow: 5px 5px 0 var(--s5);
 	font: 500 15px/1 var(--mono);
+	font-feature-settings: "calt" 0, "liga" 0;
 	color: var(--ink);
 	white-space: nowrap;
 }
