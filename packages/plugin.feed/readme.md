@@ -67,7 +67,7 @@ Use it in a layout or a page.
 
 | Attribute | Required | Notes |
 | --- | --- | --- |
-| `path` | yes | The URL path of the feed, such as `/blog/feed.xml`. It must be an output file with `format: rss` or `format: atom`. For a site in a subfolder of `$site.url`, the link gets the subfolder, as asset links do. |
+| `path` | yes | The URL path of the feed, such as `/blog/feed.xml`. It must be an output file with `format: rss` or `format: atom`. On a site under a subpath, the URL path starts with it, such as `/sub/blog/feed.xml`, as in `$hooks` and `$page.path`. |
 | `title` | no | The link title. Defaults to the `title` of the feed. |
 
 ### `<feed:channel>…</feed:channel>`
@@ -84,7 +84,7 @@ It holds the `<feed:item>` elements and takes no attributes. The frontmatter of 
 | `copyright` | no | RSS `<copyright>`, Atom `<rights>`. |
 | `link` | no | The page that the feed is for, such as `/blog/`, as a path or a URL. RSS `<link>`, Atom `<link rel="alternate">`. Defaults to `$site.url`. |
 | `author` | no | Atom `<author>` of the feed, for entries that do not name their own. Defaults to `$site.title`. |
-| `stylesheet` | no | A `.css` or `.xsl` file, as a path or a URL, that browsers use to show the feed as a page. A path gets the subfolder of `$site.url`. |
+| `stylesheet` | no | A `.css` or `.xsl` file, as a path or a URL, that browsers use to show the feed as a page. A relative path resolves under `$site.url`, and a root-relative path is used as written. |
 
 The URL of the feed comes from its path and `$site.url`. The latest item `date` becomes RSS `<lastBuildDate>` and Atom `<updated>`. An empty Atom feed gets the build time, because Atom requires `<updated>`.
 
@@ -96,7 +96,7 @@ Each one becomes an `<item>` in RSS or an `<entry>` in Atom, in the same order.
 
 | Attribute | Required | Notes |
 | --- | --- | --- |
-| `href` | yes | The URL of the post. A path resolves under `$site.url`. |
+| `href` | yes | The URL of the post, such as `{{ post.path }}`. A relative path resolves under `$site.url`, and a root-relative path is used as written, as a browser does. |
 | `title` | yes | The post title. |
 | `date` | yes | A date that JavaScript can parse, such as `2025-01-15` or `2025-01-15T10:00:00Z`. |
 | `summary` | no | RSS `<description>`, Atom `<summary>`. |

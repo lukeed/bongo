@@ -55,8 +55,8 @@ describe('<feed:link>', () => {
 		expect(await run(`<feed:link path="/feed.xml" title="News &amp; notes" />`, page(outputs))).toContain('title="News &amp; notes"');
 	});
 
-	test('links under the subfolder of $site.url, as asset links do', async () => {
-		let out = await run(`<feed:link path="/blog/feed.xml" />`, page([{ path: '/blog/feed.xml', params: { format: 'rss', title: 'Blog' } }], 'https://example.com/sub'));
+	test('links to the URL path of the feed, which holds the subfolder of $site.url', async () => {
+		let out = await run(`<feed:link path="/sub/blog/feed.xml" />`, page([{ path: '/sub/blog/feed.xml', params: { format: 'rss', title: 'Blog' } }], 'https://example.com/sub'));
 		expect(out).toContain('href="/sub/blog/feed.xml"');
 	});
 
@@ -113,7 +113,8 @@ describe('<feed:channel> link', () => {
 		expect(await run(BODY, output({ format: 'rss', title: 'T', link: '/blog/' }))).toContain('<link>https://example.com/blog/</link>');
 		expect(await run(BODY, output({ format: 'atom', title: 'T', link: '/blog/' }))).toContain('<link rel="alternate" href="https://example.com/blog/"/>');
 		expect(await run(BODY, output({ format: 'rss', title: 'T', link: 'https://other.example/' }))).toContain('<link>https://other.example/</link>');
-		expect(await run(BODY, output({ format: 'rss', title: 'T', link: '/blog/' }, '/feed.xml', 'https://my.example/sub/'))).toContain('<link>https://my.example/sub/blog/</link>');
+		expect(await run(BODY, output({ format: 'rss', title: 'T', link: 'blog/' }, '/sub/feed.xml', 'https://my.example/sub/'))).toContain('<link>https://my.example/sub/blog/</link>');
+		expect(await run(BODY, output({ format: 'rss', title: 'T', link: '/sub/blog/' }, '/sub/feed.xml', 'https://my.example/sub/'))).toContain('<link>https://my.example/sub/blog/</link>');
 	});
 });
 
@@ -160,7 +161,8 @@ describe('<feed:channel> stylesheet', () => {
 	});
 
 	test('links under the subfolder of $site.url, and keeps a full URL as written', async () => {
-		expect(second(await run(BODY, output({ format: 'rss', title: 'T', stylesheet: '/feed.css' }, '/feed.xml', 'https://example.com/sub/')))).toBe('<?xml-stylesheet type="text/css" href="/sub/feed.css"?>');
+		expect(second(await run(BODY, output({ format: 'rss', title: 'T', stylesheet: 'feed.css' }, '/sub/feed.xml', 'https://example.com/sub/')))).toBe('<?xml-stylesheet type="text/css" href="/sub/feed.css"?>');
+		expect(second(await run(BODY, output({ format: 'rss', title: 'T', stylesheet: '/sub/feed.css' }, '/sub/feed.xml', 'https://example.com/sub/')))).toBe('<?xml-stylesheet type="text/css" href="/sub/feed.css"?>');
 		expect(second(await run(BODY, output({ format: 'rss', title: 'T', stylesheet: 'https://cdn.example/feed.css?v=1&x=2' })))).toBe('<?xml-stylesheet type="text/css" href="https://cdn.example/feed.css?v=1&amp;x=2"?>');
 	});
 
@@ -278,10 +280,11 @@ describe('empty feeds', () => {
 });
 
 describe('URL inference', () => {
-	test('the feed URL and item paths keep a subpath in $site.url', async () => {
-		let out = await run('<feed:channel><feed:item href="/blog/a/" title="A" date="2025-01-01" /></feed:channel>', output({ format: 'rss', title: 'T' }, '/blog/feed.xml', 'https://my.example/sub/'));
+	test('the feed URL and item paths are URL paths, which hold the subpath of $site.url', async () => {
+		let out = await run('<feed:channel><feed:item href="/sub/blog/a/" title="A" date="2025-01-01" /><feed:item href="blog/b/" title="B" date="2025-01-02" /></feed:channel>', output({ format: 'rss', title: 'T' }, '/sub/blog/feed.xml', 'https://my.example/sub/'));
 		expect(out).toContain('<atom:link href="https://my.example/sub/blog/feed.xml"');
 		expect(out).toContain('<link>https://my.example/sub/blog/a/</link>');
+		expect(out).toContain('<link>https://my.example/sub/blog/b/</link>');
 	});
 });
 
@@ -328,6 +331,24 @@ describe('with bongo build', () => {
 	}
 
 	let read = (root: string, rel: string) => readFile(join(root, 'public', rel), 'utf8');
+
+	test('a site under a subpath links its feed and posts once under it', async () => {
+		let root = await site();
+		await writeFile(join(root, 'bongo.config.ts'), [
+			`import { feed } from ${JSON.stringify(join(import.meta.dirname, 'index'))};`,
+			`export default { $site: { url: 'https://example.com/sub', title: 'Feed Tags Fixture', lang: 'en' }, plugins: [feed()] };`,
+		].join('\n'));
+		await writeFile(join(root, 'layouts/html.hbs'), '<head><feed:link path="/sub/blog/feed.xml" /></head><body>{{{ $page.content }}}</body>');
+		try {
+			await build({ cwd: root });
+			let xml = await read(root, 'blog/feed.xml');
+			expect(xml).toContain('<atom:link href="https://example.com/sub/blog/feed.xml" rel="self" type="application/rss+xml"/>');
+			expect(xml).toContain('<link>https://example.com/sub/blog/post-a/</link>');
+			expect(await read(root, 'index.html')).toContain('href="/sub/blog/feed.xml"');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 
 	test('writes the feed as RSS at its own path, and a link to it on every page', async () => {
 		let root = await site();

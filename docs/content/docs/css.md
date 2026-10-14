@@ -71,7 +71,7 @@ A file that both CSS and a `<bongo:asset>` use gets one copy and one URL. Use `<
 These URLs stay as written:
 
 - external URLs, such as `https:`, `//cdn.example.com/…`, and `data:`
-- root-relative URLs, such as `/img/logo.png`, which point at files from `content/`
+- root-relative URLs, such as `/img/logo.png`, which point at files from `content/`. The browser requests them as written, so on a site under a subpath they must start with it.
 - fragment-only URLs, such as `url(#gradient)`
 
 If a relative `url()` points at a file that does not exist, the build fails with an error that names the URL and the CSS file that contains it.

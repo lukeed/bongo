@@ -44,17 +44,6 @@ function frontmatterSig(raw: string): string {
 	return createHash('sha256').update(block).digest('hex').slice(0, 16);
 }
 
-function derivePublicPath(siteUrl: string): string {
-	if (!siteUrl) return '/';
-	try {
-		let u = new URL(siteUrl);
-		let p = u.pathname;
-		return p.endsWith('/') ? p : p + '/';
-	} catch {
-		return '/';
-	}
-}
-
 // Section = the directory prefix of the page's rel path, using forward slashes.
 // e.g. "blog/post.md" -> "blog", "index.md" -> "", "blog/2025/post.md" -> "blog/2025"
 // Note: index.* stripping only applies to URL path, NOT section derivation.
@@ -189,6 +178,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	const { $site, $loaders: LOADERS } = config;
 	// a page path resolves under `$site.url`, so a site in a subfolder keeps it
 	let site = $site.url.endsWith('/') ? $site.url : $site.url + '/';
+	let base = tags.publicPath($site.url);
 	const debug = argv.debug ? log.debug : () => {};
 
 	debug('[build.argv]', argv);
@@ -256,7 +246,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		if (DATA_MODULE.test(name)) {
 			let file = rel.substring(0, rel.length - ext.length - 1);
 			let path = '/' + file.replace(/\\/g, '/');
-			scanned.push({ input, rel, name, kind: 'data', ext, body: '', params, path, url: new URL(path.substring(1), site).href, output: join(dest, file), section: deriveSection(rel), title: '', summary: '', tags: [], headings: [], sig: frontmatterSig('') });
+			scanned.push({ input, rel, name, kind: 'data', ext, body: '', params, path: base + path.substring(1), url: new URL(path.substring(1), site).href, output: join(dest, file), section: deriveSection(rel), title: '', summary: '', tags: [], headings: [], sig: frontmatterSig('') });
 			return;
 		}
 
@@ -340,7 +330,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			ext,
 			body: src,
 			params,
-			path: urlpath,
+			path: base + urlpath.substring(1),
 			url: new URL(urlpath.substring(1), site).href,
 			output,
 			section,
@@ -604,7 +594,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	}
 
 	// Flush: run every bundle group in parallel.
-	let publicPath = derivePublicPath($site.url);
+	let publicPath = tags.publicPath($site.url);
 	if ('base' in sink) sink.base = publicPath;
 	let cache = join(argv.cwd, 'node_modules', '.cache', 'bongo', 'images');
 	watch.step('bundling assets');

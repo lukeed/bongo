@@ -353,6 +353,58 @@ describe('urls', () => {
 		}
 	});
 
+	test('paths include the subfolder of $site.url, for pages, output files, data modules, and hooks', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/sub', title: 'T', lang: 'en' }, $hooks: { transform: (text, ctx) => ctx.kind === 'output' ? text + ' ' + ctx.path + ' ' + ctx.outputs.map(o => o.path).join() : text } };`,
+			'layouts/html.hbs': '{{ $page.path }}|{{ $pages.map(p => p.path).join() }}',
+			'content/index.html': '',
+			'content/blog/post.html': '',
+			'content/paths.txt.hbs': '{{ $page.path }}',
+			'content/paths.json.ts': 'export default ({ $pages }) => $pages.map(p => p.path);',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toBe('/sub/|/sub/,/sub/blog/post/');
+			expect(await read(root, 'blog/post/index.html')).toBe('/sub/blog/post/|/sub/,/sub/blog/post/');
+			expect(await read(root, 'paths.txt')).toBe('/sub/paths.txt /sub/paths.txt /sub/paths.txt');
+			expect(JSON.parse(await read(root, 'paths.json'))).toEqual(['/sub/', '/sub/blog/post/']);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('page images resolve as a browser resolves them, under the subfolder of $site.url', async () => {
+		let svg = '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="2"></svg>';
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/sub/', title: 'T', lang: 'en' } };`,
+			'content/post.html': '<img src="hero.svg" alt="a"><bongo:image src="/sub/post/hero.svg" alt="b" />',
+			'content/post/hero.svg': svg,
+		});
+		try {
+			await build({ cwd: root });
+			let html = await read(root, 'post/index.html');
+			let srcs = Array.from(html.matchAll(/src="([^"]+)"/g), m => m[1]);
+			expect(srcs).toHaveLength(2);
+			expect(srcs[0]).toMatch(/^\/sub\/hero\.[\w-]+\.svg$/);
+			expect(srcs[1]).toBe(srcs[0]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a root-relative image outside the subfolder of $site.url fails the build', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/sub/', title: 'T', lang: 'en' } };`,
+			'content/post.html': '<bongo:image src="/post/hero.svg" alt="" />',
+			'content/post/hero.svg': '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+		});
+		try {
+			await expect(build({ cwd: root })).rejects.toThrow('Image "/post/hero.svg" is outside the site at /sub/');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('a custom url sets the path of any page, index pages too', async () => {
 		let root = await site({
 			'layouts/html.hbs': '{{ $page.path }}',

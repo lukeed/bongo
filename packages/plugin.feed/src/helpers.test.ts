@@ -209,12 +209,15 @@ describe('url()', () => {
 		expect(helpers.url('/blog/post', 'https://my.example/')).toBe('https://my.example/blog/post');
 	});
 
-	test('preserves a subpath in the site URL', () => {
-		expect(helpers.url('/post', 'https://my.example/sub/')).toBe('https://my.example/sub/post');
+	test('resolves a relative href under the subpath of the site URL, and a root-relative href as written', () => {
+		expect(helpers.url('post', 'https://my.example/sub/')).toBe('https://my.example/sub/post');
+		expect(helpers.url('post', 'https://my.example/sub')).toBe('https://my.example/sub/post');
+		expect(helpers.url('/sub/post', 'https://my.example/sub/')).toBe('https://my.example/sub/post');
+		expect(helpers.url('/post', 'https://my.example/sub/')).toBe('https://my.example/post');
 	});
 
-	test('strips multiple leading slashes from href before resolving', () => {
-		expect(helpers.url('//blog/post', 'https://my.example/sub/')).toBe('https://my.example/sub/blog/post');
+	test('reads a href with several leading slashes as a path, not a host', () => {
+		expect(helpers.url('//blog/post', 'https://my.example/sub/')).toBe('https://my.example/blog/post');
 	});
 });
 

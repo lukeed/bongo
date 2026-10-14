@@ -50,7 +50,7 @@ The path in `src` tells bongo where the file is:
 - `img/hero.jpg` is relative to `assets/`, as for `<bongo:asset>`.
 - `./hero.jpg`, `../hero.jpg`, and `/blog/post/hero.jpg` resolve against the URL of the page, as a browser resolves them, and bongo reads the file from `content/`. For `content/blog/post.md`, which is served at `/blog/post/`, `./hero.jpg` is `content/blog/post/hero.jpg`.
 
-A root-relative path is relative to the site root, not to [publicPath](/docs/config/#publicpath). Thus `{{ post.path }}{{ post.params.cover }}` works in a list of posts.
+A root-relative path is the URL path that the browser requests, so on a site under `/blog/` it starts with `/blog/`. Thus `{{ post.path }}{{ post.params.cover }}` works in a list of posts. A path outside the site fails the build.
 
 ### Attributes
 

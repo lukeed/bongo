@@ -47,7 +47,7 @@ A custom `url` must be a path, not a full URL. [Output files](/docs/output-files
 
 Most static hosts serve `404.html` for a path that does not exist. Give your 404 page `url: /404.html` so that the build writes that file. The [dev server](/docs/dev-server/#not-found-pages) uses `404.html` or `404/index.html` as the body of its 404 responses.
 
-`$page.path` is the URL path, such as `/blog/post/`. `$page.url` is the absolute URL, made from `$site.url` and the path. When `$site.url` has a subpath, `$page.url` includes it. For `https://example.com/blog/`, `content/post.md` is `https://example.com/blog/post/`. See [publicPath](/docs/config/#publicpath).
+`$page.path` is the URL path, such as `/blog/post/`. `$page.url` is the absolute URL, made from `$site.url` and the path. When `$site.url` has a subpath, both include it. For `https://example.com/blog/`, `content/post.md` has the path `/blog/post/` and the URL `https://example.com/blog/post/`. Thus `href="{{ page.path }}"` works on any site. See [publicPath](/docs/config/#publicpath).
 
 ## Sections
 

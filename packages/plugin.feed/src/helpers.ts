@@ -103,11 +103,11 @@ export function text(value: string | true | undefined): string {
 }
 
 /**
- * An absolute URL for `href`. A path resolves under `$site.url`, so a site in a subfolder keeps it.
- * @example url('/blog/a/', 'https://example.com/sub/') //=> 'https://example.com/sub/blog/a/'
+ * An absolute URL for `href`, as a browser resolves it on `$site.url`: a relative path stays under its subfolder, a root-relative path is used as written.
+ * @example url('blog/a/', 'https://example.com/sub/') //=> 'https://example.com/sub/blog/a/'
  */
 export function url(href: string, site: string): string {
 	if (/^https?:\/\//i.test(href) || !site) return href;
 	let base = site.endsWith('/') ? site : site + '/';
-	return new URL(href.replace(/^\/+/, ''), base).href;
+	return new URL(href.replace(/^\/{2,}/, '/'), base).href;
 }

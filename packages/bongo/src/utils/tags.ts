@@ -116,10 +116,25 @@ function unescape(value: string): string {
 }
 
 // Resolve a url against the page url, as a browser would, to the file in content/ that it points at.
-function inPage(src: string, argv: Required<Argv>, path: string): string {
+/**
+ * The URL path that a site lives under, from its `$site.url`, such as `/blog/` for `https://example.com/blog`.
+ * @example publicPath('https://example.com/blog') //=> '/blog/'
+ */
+export function publicPath(siteUrl: string): string {
+	try {
+		let { pathname } = new URL(siteUrl);
+		return pathname.endsWith('/') ? pathname : pathname + '/';
+	} catch {
+		return '/';
+	}
+}
+
+// A page image resolves as a browser resolves it; undefined when the URL is outside the site
+function inPage(src: string, argv: Required<Argv>, path: string, base: string): string | undefined {
 	let { pathname } = new URL(src, 'http://bongo' + path);
 	try { pathname = decodeURIComponent(pathname); } catch { /* keep as written */ }
-	return join(argv.content, pathname);
+	if (!pathname.startsWith(base)) return;
+	return join(argv.content, pathname.substring(base.length - 1));
 }
 
 function reason(err: unknown): string {
@@ -155,10 +170,11 @@ function preload(href: string, src: string, props: attrs.Attrs): string {
 export function scanBongoTags(
 	html: string,
 	argv: Required<Argv>,
-	config: Pick<Required<Config>, '$build' | '$images'>,
+	config: Pick<Required<Config>, '$build' | '$images'> & Partial<Pick<Config, '$site'>>,
 	from?: string,
 	path = '/',
 ): string {
+	let base = publicPath(config.$site?.url ?? '');
 	let where = from ? `, rendering ${from}` : '';
 	return html.replace(BONGO_TAG, (match, kind: 'script' | 'style' | 'client' | 'asset' | 'image', rawAttrs: string) => {
 		let props = attrs.parse(rawAttrs);
@@ -184,7 +200,9 @@ export function scanBongoTags(
 			src = unescape(src);
 			// `./a.jpg`, `../a.jpg`, and `/blog/a.jpg` images are in content/; any other path is in assets/
 			let root = /^\.{0,2}\//.test(src) ? argv.content : argv.assets;
-			entry = root === argv.content ? inPage(src, argv, path) : join(argv.assets, src);
+			let found = root === argv.content ? inPage(src, argv, path, base) : join(argv.assets, src);
+			if (!found) throw new Error(`Image "${src}" is outside the site at ${base} for ${match.trim()}${where}`);
+			entry = found;
 			if (!entry.startsWith(root + sep)) {
 				throw new Error(`Image "${src}" is outside ${relative(argv.src, root)}/ for ${match.trim()}${where}`);
 			}
@@ -260,6 +278,7 @@ export function scanImages(
 ): string {
 	let options = config.$images;
 	if (options.content === false) return html;
+	let base = publicPath(config.$site.url);
 
 	let settings: images.Settings | undefined;
 	return html.replace(CONTENT_IMG, (match, _skipped, raw: string | undefined) => {
@@ -269,7 +288,8 @@ export function scanImages(
 		if (!src || attrs.srcset !== undefined || NOT_RELATIVE.test(src)) return match;
 		if (!mime.lookup(src.replace(/[?#].*/, ''))?.startsWith('image/')) return match;
 
-		let file = inPage(src, argv, path);
+		let file = inPage(src, argv, path, base);
+		if (!file) throw new Error(`Image "${src}" is outside the site at ${base} for ${match}, rendering ${from}`);
 		if (!file.startsWith(argv.content + sep)) {
 			throw new Error(`Image "${src}" is outside content/ for ${match}, rendering ${from}`);
 		}

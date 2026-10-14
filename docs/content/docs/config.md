@@ -159,4 +159,4 @@ bongo derives the publicPath prefix of external asset URLs from `$site.url`:
 - A root-served site (`https://example.com`) gets `publicPath = /`.
 - A subpath-served site (`https://example.com/blog/`) gets `publicPath = /blog/`.
 
-You do not need to configure it. The absolute `url` of each page, in `$page.url` and `$pages`, includes the subpath too: `content/post.md` is `https://example.com/blog/post/`.
+You do not need to configure it. The absolute `url` of each page, in `$page.url` and `$pages`, includes the subpath too: `content/post.md` is `https://example.com/blog/post/`. `$page.path`, the paths in `$pages`, and the paths of output files, data modules, and `$hooks.transform` include it too: on `https://example.com/blog/`, `content/post.md` has the path `/blog/post/`. A root-relative path is always a URL path, as a browser requests it, so `href="{{ page.path }}"` works on any site.

@@ -318,7 +318,7 @@ The `publicPath` prefix applied to external asset URLs is derived from `$site.ur
 - Root-served site (`https://example.com`) -> `publicPath = /`
 - Subpath-served site (`https://example.com/blog/`) -> `publicPath = /blog/`
 
-No manual configuration is required. The absolute `url` of each page, in `$page.url` and `$pages`, includes the subpath too: `content/post.md` is `https://example.com/blog/post/`. `bongo dev` serves the site under the same subpath.
+No manual configuration is required. The absolute `url` of each page, in `$page.url` and `$pages`, includes the subpath too: `content/post.md` is `https://example.com/blog/post/`. `$page.path`, the paths in `$pages`, and the paths of output files, data modules, and `$hooks.transform` include it too: on `https://example.com/blog/`, `content/post.md` has the path `/blog/post/`. A root-relative path is always a URL path, as a browser requests it, so `href="{{ page.path }}"` works on any site. `bongo dev` serves the site under the same subpath.
 
 ## Layouts
 
@@ -582,7 +582,7 @@ With the default settings and a 2400×1600 JPEG, this becomes the following, on 
 The path in `src` tells bongo where the file is:
 
 - `img/hero.jpg` is relative to `assets/`, as for `<bongo:asset>`.
-- `./hero.jpg`, `../hero.jpg`, and `/blog/post/hero.jpg` resolve against the URL of the page, as a browser resolves them, and bongo reads the file from `content/`. For `content/blog/post.md`, which is served at `/blog/post/`, `./hero.jpg` is `content/blog/post/hero.jpg`. A root-relative path is relative to the site root, not to `publicPath`, so `{{ post.path }}{{ post.params.cover }}` works in a list of posts.
+- `./hero.jpg`, `../hero.jpg`, and `/blog/post/hero.jpg` resolve against the URL of the page, as a browser resolves them, and bongo reads the file from `content/`. For `content/blog/post.md`, which is served at `/blog/post/`, `./hero.jpg` is `content/blog/post/hero.jpg`. A root-relative path is the URL path that the browser requests, so on a site under `/blog/` it starts with `/blog/`, and `{{ post.path }}{{ post.params.cover }}` works in a list of posts. A path outside the site fails the build.
 
 `<bongo:image>` attributes:
 
@@ -706,7 +706,7 @@ bongo copies each referenced file to the output once, with a content hash in its
 These URLs are left as written:
 
 - external URLs, such as `https:`, `//cdn.example.com/…`, and `data:`
-- root-relative URLs, such as `/img/logo.png`, which point at files from `content/`
+- root-relative URLs, such as `/img/logo.png`, which point at files from `content/`. The browser requests them as written, so on a site under a subpath they must start with it.
 - fragment-only URLs, such as `url(#gradient)`
 
 If a relative `url()` points at a file that does not exist, the build fails with an error that names the URL and the CSS file that contains it.
