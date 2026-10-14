@@ -2,9 +2,12 @@
 	<label>
 		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
 		<span class="sr">Search docs</span>
-		<input type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="find-list" aria-autocomplete="list"/>
-		<kbd>esc</kbd>
+		<input type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" enterkeyhint="go" role="combobox" aria-expanded="true" aria-controls="find-list" aria-autocomplete="list"/>
+		<button class="shut" type="button" data-close aria-label="Close search">
+			<kbd>esc</kbd>
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+		</button>
 	</label>
 	<ol id="find-list" role="listbox" aria-label="Results"></ol>
-	<p hidden>No pages match.</p>
+	<p>Type to search page titles and sections.</p>
 </dialog>

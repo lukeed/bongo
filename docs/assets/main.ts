@@ -71,7 +71,8 @@ async function render(query: string): Promise<void> {
 	let empty = box.querySelector('p');
 	if (!list || !empty) return;
 	list.innerHTML = hits.map((hit, i) => `<li><a id="hit-${i}" role="option" href="${hit.href}"><b>${mark(hit.title, words)}</b><small>${escape(hit.context)}</small></a></li>`).join('');
-	empty.hidden = hits.length > 0 || !words.length;
+	empty.hidden = hits.length > 0;
+	empty.textContent = words.length ? 'No pages match.' : 'Type to search page titles and sections.';
 	select(0);
 }
 
@@ -117,7 +118,7 @@ document.addEventListener('click', event => {
 	let target = event.target instanceof Element ? event.target : null;
 	if (!target) return;
 
-	let button = target.closest<HTMLElement>('[data-theme-toggle], [data-menu], [data-toc], [data-copy], [data-copy-code], [data-search], [role=tab]');
+	let button = target.closest<HTMLElement>('[data-theme-toggle], [data-menu], [data-toc], [data-copy], [data-copy-code], [data-search], [data-close], [role=tab]');
 	if (button?.matches('[data-theme-toggle]')) {
 		root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
 		return localStorage.setItem('theme', root.dataset.theme);
@@ -125,6 +126,7 @@ document.addEventListener('click', event => {
 	if (button?.matches('[data-menu]')) return toggle('nav-open', button);
 	if (button?.matches('[data-toc]')) return toggle('toc-open', button);
 	if (button?.matches('[data-search]')) return open();
+	if (button?.matches('[data-close]')) return dialog()?.close();
 	if (button?.dataset.copy) return copy(button, button.dataset.copy);
 	if (button?.matches('[data-copy-code]')) return copy(button, button.closest('.code')?.querySelector('pre')?.textContent ?? '');
 	if (button?.matches('[role=tab]')) {

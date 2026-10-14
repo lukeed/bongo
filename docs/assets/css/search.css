@@ -30,12 +30,7 @@
 	gap: 12px;
 	padding: 0 14px 0 18px;
 	background: var(--sun);
-	border-bottom: var(--bw) solid var(--line);
 	color: #141414;
-}
-
-:root[data-theme=dark] .find label {
-	border-bottom-color: #141414;
 }
 
 .find label svg {
@@ -45,6 +40,7 @@
 }
 
 .find input {
+	appearance: none;
 	flex: 1;
 	min-width: 0;
 	height: 60px;
@@ -59,10 +55,41 @@
 	color: #14141499;
 }
 
-.find kbd {
+.shut {
+	flex: none;
+	display: grid;
+	place-items: center;
+	padding: 0;
+	background: none;
+	border: 0;
+	color: #141414;
+	cursor: pointer;
+}
+
+.shut kbd {
 	background: #FFFFFFA8;
 	color: #141414;
 	border-color: #141414;
+}
+
+.shut svg {
+	display: none;
+	width: 22px;
+	height: 22px;
+}
+
+.find ol,
+.find p {
+	border-top: var(--bw) solid var(--line);
+}
+
+:root[data-theme=dark] .find ol,
+:root[data-theme=dark] .find p {
+	border-top-color: #141414;
+}
+
+.find ol:empty {
+	display: none;
 }
 
 .find ol {
@@ -108,9 +135,43 @@
 
 .find p {
 	margin: 0;
-	padding: 28px 18px 30px;
+	padding: 18px;
 	text-align: center;
+	font-size: 15px;
 	color: var(--muted);
+}
+
+@media (hover: none) {
+	.shut kbd {
+		display: none;
+	}
+
+	.shut svg {
+		display: block;
+	}
+
+	.shut {
+		width: 40px;
+		height: 40px;
+		margin-right: -8px;
+	}
+}
+
+@media (max-width: 820px) {
+	.find {
+		width: calc(100vw - 24px);
+		max-height: calc(100dvh - 24px);
+		margin-top: 12px;
+		box-shadow: 5px 5px 0 var(--s5);
+	}
+
+	:root:not([data-theme=dark]) .find {
+		box-shadow: 5px 5px 0 #141414;
+	}
+
+	.find input {
+		height: 56px;
+	}
 }
 
 .find input::-webkit-search-cancel-button {
