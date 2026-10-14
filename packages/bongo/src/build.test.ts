@@ -411,6 +411,22 @@ describe('layouts', () => {
 	});
 });
 
+describe('content', () => {
+	test('folders named partials or shortcodes hold pages too', async () => {
+		let root = await site({
+			'content/partials/a.html': '<p>a</p>',
+			'content/docs/shortcodes/b.html': '<p>b</p>',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'partials/a/index.html')).toBe('<html><p>a</p></html>');
+			expect(await read(root, 'docs/shortcodes/b/index.html')).toBe('<html><p>b</p></html>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('$hooks.transform', () => {
 	test('changes each page, after its asset links resolve, and each output file, and knows what each one is', async () => {
 		let root = await site({
