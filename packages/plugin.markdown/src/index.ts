@@ -1,6 +1,6 @@
 import { parseAST, renderToHtml } from 'md4x';
 import type { Config, Args, Loader } from 'bongo';
-import type { CodeBlockHighlighter, ComarkTree, HtmlOptions } from 'md4x';
+import type { CodeBlockHighlighter, ComarkNode, ComarkTree, HtmlOptions } from 'md4x';
 
 export type Options = Omit<HtmlOptions, 'highlighter'> & {
 	highlighter?: CodeBlockHighlighter | Promise<CodeBlockHighlighter>;
@@ -23,6 +23,29 @@ function restore(html: string, stash: string[]): string {
 	return html.replace(TOKENS, (_, block: string | undefined, inline: string | undefined) => stash[Number(block ?? inline)]);
 }
 
+const ESCAPE: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
+const VOID = new Set(['br', 'hr', 'img', 'input', 'wbr']);
+const HEADING = /^h[1-6]$/;
+
+function escape(text: string): string {
+	return text.replace(/[&<>"]/g, char => ESCAPE[char]);
+}
+
+function inline(node: ComarkNode): string {
+	if (typeof node === 'string') return escape(node);
+	let [tag, props, ...children] = node;
+	if (tag === 'html') return children.filter(child => typeof child === 'string').join('');
+	let inner = children.map(inline).join('');
+	if (!tag) return inner;
+	let attrs = '';
+	for (let key in props) {
+		let value = props[key];
+		if (value === true) attrs += ` ${key}`;
+		else if (value != null && value !== false) attrs += ` ${key}="${escape(String(value))}"`;
+	}
+	return VOID.has(tag) ? `<${tag}${attrs}>` : `<${tag}${attrs}>${inner}</${tag}>`;
+}
+
 // md4x builds a heading id from its text, stash tokens included; drop them, keep each id unique.
 function anchors(tree: ComarkTree): Map<string, string> {
 	let out = new Map<string, string>();
@@ -36,6 +59,25 @@ function anchors(tree: ComarkTree): Map<string, string> {
 		out.set(id, next);
 	}
 	return out;
+}
+
+function headings(tree: ComarkTree, ids: Map<string, string>, stash: string[]): Loader.Heading[] {
+	let inner = new Map<string, string>();
+	let walk = (nodes: ComarkNode[]): void => {
+		for (let node of nodes) {
+			if (typeof node === 'string') continue;
+			let [tag, props, ...children] = node;
+			if (tag && HEADING.test(tag) && typeof props.id === 'string') inner.set(props.id, restore(children.map(inline).join(''), stash));
+			else walk(children);
+		}
+	};
+	walk(tree.nodes);
+	return tree.meta.headings.map(heading => ({
+		level: heading.level,
+		id: ids.get(heading.id) ?? heading.id,
+		text: heading.text.replace(/\uE000\d+\uE001/g, ''),
+		html: inner.get(heading.id),
+	}));
 }
 
 // Inline code spans: a backtick run closed by the next run of the same length, within one block.
@@ -161,6 +203,7 @@ export function markdown(options: Options = {}): Partial<Config> {
 					filename: input + '.html',
 					content: restore(html, stash),
 					metadata: value,
+					headings: headings(tree, ids, stash),
 				};
 			}
 		}

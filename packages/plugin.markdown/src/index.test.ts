@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
+import { build } from '../../bongo/src/build';
 import * as attrs from '../../bongo/src/utils/attrs';
 import { markdown } from './index';
 
@@ -185,17 +189,94 @@ describe('partials', () => {
 	});
 });
 
-describe('heading ids', () => {
-	test('keep partial output out of the id', async () => {
-		let { run, utils } = setup();
-		let loader = markdown({ headingIds: true }).$assets!.md!;
-		let html = String((await loader('x.md', '## Hi <bongo:greet name="x" /> there\n\n## Hi <bongo:greet name="y" /> there\n\n## Hi there\n', utils)).content);
+describe('headings', () => {
+	async function load(src: string, options: Parameters<typeof markdown>[0] = { headingIds: true }) {
+		let { utils } = setup();
+		let result = await markdown(options).$assets!.md!('x.md', src, utils);
+		return { html: String(result.content), headings: result.headings ?? [] };
+	}
+
+	test('reports every heading with the id and the inner html that the page gets', async () => {
+		let src = [
+			'# Title',
+			'',
+			'## Where `$data` is available',
+			'',
+			'> ## In a quote',
+			'',
+			'### Files in `url()` & *more* [link](/x) {#files}',
+			'',
+			'## Same',
+			'',
+			'## Same',
+			'',
+			'```md',
+			'## Not a heading',
+			'```',
+			'',
+		].join('\n');
+		let { html, headings } = await load(src);
+		expect(headings).toEqual([
+			{ level: 1, id: 'title', text: 'Title', html: 'Title' },
+			{ level: 2, id: 'where-data-is-available', text: 'Where $data is available', html: 'Where <code>$data</code> is available' },
+			{ level: 2, id: 'in-a-quote', text: 'In a quote', html: 'In a quote' },
+			{ level: 3, id: 'files', text: 'Files in url() & more link', html: 'Files in <code>url()</code> &amp; <em>more</em> <a href="/x">link</a>' },
+			{ level: 2, id: 'same', text: 'Same', html: 'Same' },
+			{ level: 2, id: 'same-1', text: 'Same', html: 'Same' },
+		]);
+		for (let heading of headings) {
+			expect(html).toContain(`<h${heading.level} id="${heading.id}">${heading.html}</h${heading.level}>`);
+		}
+	});
+
+	test('gives the same ids when the html has none', async () => {
+		let { html, headings } = await load('## Hello, world!\n', {});
+		expect(html).toBe('<h2>Hello, world!</h2>\n');
+		expect(headings).toEqual([{ level: 2, id: 'hello-world', text: 'Hello, world!', html: 'Hello, world!' }]);
+	});
+
+	test('keeps partial output in the html and out of the text and the id', async () => {
+		let { html, headings } = await load('## Hi <bongo:greet name="x" /> there\n\n## Hi <bongo:greet name="y" /> there\n\n## Hi there\n');
+		expect(headings).toEqual([
+			{ level: 2, id: 'hi--there', text: 'Hi  there', html: 'Hi <i data-partial="greet"></i> there' },
+			{ level: 2, id: 'hi--there-1', text: 'Hi  there', html: 'Hi <i data-partial="greet"></i> there' },
+			{ level: 2, id: 'hi-there', text: 'Hi there', html: 'Hi there' },
+		]);
 		expect(html).toBe([
 			'<h2 id="hi--there">Hi <i data-partial="greet"></i> there</h2>',
 			'<h2 id="hi--there-1">Hi <i data-partial="greet"></i> there</h2>',
 			'<h2 id="hi-there">Hi there</h2>',
 			'',
 		].join('\n'));
-		expect(await run('## Plain\n')).toBe('<h2>Plain</h2>\n');
+	});
+
+	test('reach $page.headings and data modules in a site build', async () => {
+		let root = await mkdtemp(join(tmpdir(), 'bongo-markdown-headings-'));
+		let files: Record<string, string> = {
+			'bongo.config.ts': [
+				`import { markdown } from ${JSON.stringify(join(import.meta.dirname, 'index'))};`,
+				`export default {`,
+				`	$site: { url: 'https://example.com/', title: 'T', lang: 'en' },`,
+				`	plugins: [markdown({ headingIds: true })],`,
+				`};`,
+			].join('\n'),
+			'layouts/html.hbs': '<ol>{{#each $page.headings.filter(h => h.level === 2) as h}}<li><a href="#{{ h.id }}">{{{ h.html }}}</a></li>{{/each}}</ol>',
+			'content/guide.md': '---\ntitle: Guide\n---\n\n## Install `bongo`\n\n### Detail\n\n## Use it\n',
+			'content/toc.json.ts': 'export default ({ $pages }) => $pages.map(page => [page.path, page.headings.map(h => [h.level, h.id, h.text])]);',
+		};
+		try {
+			await symlink(join(import.meta.dirname, '../node_modules'), join(root, 'node_modules'));
+			for (let [rel, text] of Object.entries(files)) {
+				await mkdir(join(root, rel, '..'), { recursive: true });
+				await writeFile(join(root, rel), text);
+			}
+			await build({ cwd: root });
+			expect(await readFile(join(root, 'public/guide/index.html'), 'utf8')).toBe('<ol><li><a href="#install-bongo">Install <code>bongo</code></a></li><li><a href="#use-it">Use it</a></li></ol>');
+			expect(JSON.parse(await readFile(join(root, 'public/toc.json'), 'utf8'))).toEqual([
+				['/guide/', [[2, 'install-bongo', 'Install bongo'], [3, 'detail', 'Detail'], [2, 'use-it', 'Use it']]],
+			]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 });
