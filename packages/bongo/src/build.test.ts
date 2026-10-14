@@ -445,7 +445,7 @@ describe('$assets.load', () => {
 			await build({ cwd: root });
 			expect(await readFile(join(root, 'public/index.html'), 'utf8')).toBe('hello');
 			await writeFile(join(root, 'content/index.hbs'), `{{ await $assets.load('none.txt') }}`);
-			await expect(build({ cwd: root })).rejects.toThrow(/^Missing "none\.txt" asset!$/);
+			await expect(build({ cwd: root })).rejects.toThrow(/^Missing "none\.txt" asset!, rendering content\/index\.hbs$/);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -507,6 +507,29 @@ describe('scripts and styles', () => {
 			expect(await read(root, 'index.html')).toMatch(/<style media="print" nonce="r4nd">\.a \{\s*color: red;?\s*\}\s*<\/style>/);
 		} finally {
 			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('template errors', () => {
+	test('name the content file and the layouts that rendered the page', async () => {
+		let cases: [Record<string, string>, string][] = [
+			[{ 'content/blog/post.hbs': '<p>{{ $utils.nope() }}</p>' }, ', rendering content/blog/post.hbs'],
+			[{ 'content/blog/post.html': '<p>post</p>', 'layouts/blog/single.hbs': '{{ $utils.nope() }}' }, ', rendering content/blog/post.html → layouts/blog/single.hbs'],
+			[{ 'content/blog/post.html': '<p>post</p>', 'layouts/html.hbs': '{{ $utils.nope() }}' }, ', rendering content/blog/post.html → layouts/html.hbs'],
+			[{ 'content/feed.xml.hbs': '{{ $utils.nope() }}' }, ', rendering content/feed.xml.hbs'],
+		];
+		for (let [files, where] of cases) {
+			let root = await site(files);
+			try {
+				templates.Partials.clear();
+				templates.Layouts.clear();
+				let err = await build({ cwd: root }).then(() => undefined, (err: Error) => err);
+				expect(err?.message).toMatch(/nope/);
+				expect(err?.message).toEndWith(where);
+			} finally {
+				await rm(root, { recursive: true, force: true });
+			}
 		}
 	});
 });

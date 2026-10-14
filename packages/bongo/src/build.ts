@@ -101,6 +101,16 @@ function headings(list: Loader.Heading[] | undefined): Template.Heading[] {
 	}));
 }
 
+// An error from the templates of a page, with the files that rendered it.
+async function rendering<T>(from: string, work: () => Promise<T>): Promise<T> {
+	try {
+		return await work();
+	} catch (err) {
+		let reason = err instanceof Error ? err.message : String(err);
+		throw new Error(`${reason}, rendering ${from}`, { cause: err });
+	}
+}
+
 function parseTags(value: unknown): string[] {
 	let list = Array.isArray(value) ? value.map(text) : text(value).split(',');
 	return list.map(s => s.trim()).filter(Boolean);
@@ -488,10 +498,10 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		// `$page`, `$pages`, `$section`, `$tags` are all available to the
 		// body. Non-`.hbs` content bodies pass through raw.
 		let rendered_content = item.ext === 'hbs'
-			? await (await templates.compileContent(item.body))(
+			? await rendering(`content/${item.rel}`, async () => (await templates.compileContent(item.body))(
 				{ ...context, ...scope.values, params: item.params },
 				scope.blocks,
-			)
+			))
 			: item.body;
 
 		if (item.kind === 'output') {
@@ -527,8 +537,9 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 			// Should always be defined as a fallback
 			if (!render) throw new Error('Missing "html.hbs" template');
-			rendered_content = await render({ ...context, ...scope.values }, scope.blocks);
 			chain.push(`layouts/${layout}`);
+			let view = render;
+			rendered_content = await rendering(chain.join(' → '), async () => view({ ...context, ...scope.values }, scope.blocks));
 		}
 
 		if (!layout.endsWith('html.hbs')) {
@@ -540,8 +551,9 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			}
 			// Should always be defined as a bare minimum
 			if (!render) throw new Error('Missing "html.hbs" template');
-			rendered_content = await render({ ...context, ...scope.values }, scope.blocks);
 			chain.push(`layouts/${layout}`);
+			let view = render;
+			rendered_content = await rendering(chain.join(' → '), async () => view({ ...context, ...scope.values }, scope.blocks));
 		}
 
 		if (argv.dev) rendered_content += SCRIPT;
