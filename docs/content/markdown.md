@@ -25,7 +25,7 @@ export default {
 };
 ```
 
-The plugin registers an `.md` [loader](/docs/loaders/). It converts Markdown files to HTML content files, and exposes the frontmatter as page metadata:
+The plugin registers an `.md` [loader](/loaders/). It converts Markdown files to HTML content files, and exposes the frontmatter as page metadata:
 
 ```md [content/hello.md]
 ---
@@ -36,11 +36,11 @@ tags: docs, markdown
 # Hello
 ```
 
-See [Content](/docs/content/) and [Frontmatter](/docs/frontmatter/).
+See [Content](/content/) and [Frontmatter](/frontmatter/).
 
 ## Elements
 
-A `<bongo:name>` element in Markdown prose calls the [partial](/docs/partials/) with that name. bongo leaves elements inside code blocks and inline code as written.
+A `<bongo:name>` element in Markdown prose calls the [partial](/partials/) with that name. bongo leaves elements inside code blocks and inline code as written.
 
 The element's attributes become the partial's arguments. bongo reads them as data, and never runs them as code:
 
@@ -72,11 +72,11 @@ A `.hbs` partial prints it with `{{{ $slot }}}`. It does not need to declare `$s
 
 ### Built-in elements
 
-bongo's own elements, `<bongo:asset>`, `<bongo:image>`, `<bongo:style>`, `<bongo:script>`, and `<bongo:client>`, pass through untouched, for bongo to replace. See [Special elements](/docs/special-elements/#reserved-names).
+bongo's own elements, `<bongo:asset>`, `<bongo:image>`, `<bongo:style>`, `<bongo:script>`, and `<bongo:client>`, pass through untouched, for bongo to replace. See [Special elements](/special-elements/#reserved-names).
 
 ## Images
 
-Images next to a post need no element. bongo gives `![alt](hero.jpg)` and `<img src="hero.jpg">` a `srcset` and their dimensions. Use `<bongo:image>` for a `<picture>` with more formats, or for your own `sizes`. See [Images](/docs/images/).
+Images next to a post need no element. bongo gives `![alt](hero.jpg)` and `<img src="hero.jpg">` a `srcset` and their dimensions. Use `<bongo:image>` for a `<picture>` with more formats, or for your own `sizes`. See [Images](/images/).
 
 ```md
 <figure>
@@ -87,7 +87,7 @@ Images next to a post need no element. bongo gives `![alt](hero.jpg)` and `<img 
 
 ## Headings
 
-The plugin gives each page its headings, in document order, as `$page.headings`. Each heading has a `level`, an `id`, its plain `text`, and its inner `html`, which keeps inline code and links. The headings are also in each entry of `$pages`, and in the `$pages` of [data modules](/docs/data-modules/). A table of contents in a layout:
+The plugin gives each page its headings, in document order, as `$page.headings`. Each heading has a `level`, an `id`, its plain `text`, and its inner `html`, which keeps inline code and links. The headings are also in each entry of `$pages`, and in the `$pages` of [data modules](/data-modules/). A table of contents in a layout:
 
 ```hbs
 <ol>
@@ -188,7 +188,7 @@ The other options, such as `default_language`, `line_numbers`, and `render`, are
 
 ### Theme
 
-Import the theme in your CSS by its package name. See [Packages in @import](/docs/css/#packages-in-import).
+Import the theme in your CSS by its package name. See [Packages in @import](/css/#packages-in-import).
 
 ```css [assets/app.css]
 @import "@twinkleplop/theme-github";

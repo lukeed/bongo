@@ -24,14 +24,14 @@ const REPO = 'https://github.com/lukeed/bongo';
 
 /**
  * Group the docs pages for the sidebar, in the `GROUPS` order, then by each page's `order` frontmatter.
- * @example $utils.nav($pages, $page.path) //=> [{ title: 'Start', color: 'sun', pages: [{ title: 'Introduction', path: '/docs/', current: true }] }]
+ * @example $utils.nav($pages, $page.path) //=> [{ title: 'Start', color: 'sun', pages: [{ title: 'Introduction', path: '/intro/', current: true }] }]
  */
 export function nav(pages: Template.PageInfo[], current: string): Group[] {
 	return GROUPS.map(([title, color]) => ({
 		title,
 		color,
 		pages: pages
-			.filter(page => page.section === 'docs' && page.params.group === title)
+			.filter(page => page.params.group === title)
 			.toSorted((a, b) => Number(a.params.order) - Number(b.params.order))
 			.map(page => ({ title: page.title, path: page.path, current: page.path === current })),
 	}));
@@ -39,7 +39,7 @@ export function nav(pages: Template.PageInfo[], current: string): Group[] {
 
 /**
  * The docs pages before and after the current one, in sidebar order.
- * @example $utils.pager($pages, '/docs/templates/') //=> { prev: { title: 'Frontmatter', … }, next: { title: 'Partials', … } }
+ * @example $utils.pager($pages, '/templates/') //=> { prev: { title: 'Frontmatter', … }, next: { title: 'Partials', … } }
  */
 export function pager(pages: Template.PageInfo[], current: string): { prev?: Link; next?: Link } {
 	let links = nav(pages, current).flatMap(group => group.pages);
@@ -50,9 +50,8 @@ export function pager(pages: Template.PageInfo[], current: string): { prev?: Lin
 
 /**
  * The GitHub URL that edits the source of a docs page.
- * @example $utils.source('/docs/templates/') //=> 'https://github.com/lukeed/bongo/edit/main/docs/content/docs/templates.md'
+ * @example $utils.source('/templates/') //=> 'https://github.com/lukeed/bongo/edit/main/docs/content/templates.md'
  */
 export function source(path: string): string {
-	let slug = path.replace(/^\/docs\/?/, '').replace(/\/$/, '') || 'index';
-	return `${REPO}/edit/main/docs/content/docs/${slug}.md`;
+	return `${REPO}/edit/main/docs/content/${path.replace(/^\/|\/$/g, '')}.md`;
 }

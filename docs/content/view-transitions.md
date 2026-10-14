@@ -5,7 +5,7 @@ group: Runtime
 order: 2
 ---
 
-bongo has two parts for view transitions. At build time, it turns `transition:name` and `transition:animate` attributes into CSS. At run time, the [client runtime](/docs/client-runtime/) wraps each navigation in a view transition.
+bongo has two parts for view transitions. At build time, it turns `transition:name` and `transition:animate` attributes into CSS. At run time, the [client runtime](/client-runtime/) wraps each navigation in a view transition.
 
 ## Turn on transitions
 
@@ -24,7 +24,7 @@ Give the `transitions` option to the client runtime:
 | any other string | Wraps the swap only. Your CSS gives the rules. |
 | any falsy value | Turns transitions off. This is the default. |
 
-See [ClientOptions](/docs/client-runtime/#clientoptions).
+See [ClientOptions](/client-runtime/#clientoptions).
 
 ## Name elements
 
@@ -71,4 +71,4 @@ A link with `transition:disable` forces a full-page load, with no transition:
 
 ## Types
 
-The TypeScript types of bongo add `transition:name` and `transition:animate` to every HTML element, and `transition:disable` to anchors. See [TypeScript](/docs/typescript/).
+The TypeScript types of bongo add `transition:name` and `transition:animate` to every HTML element, and `transition:disable` to anchors. See [TypeScript](/typescript/).

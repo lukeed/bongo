@@ -5,7 +5,7 @@ group: Reference
 order: 4
 ---
 
-`$utils` holds helper functions. Layouts, partials, `.hbs` content, output files, and [data modules](/docs/data-modules/) all get it. bongo gives you the helpers on this page, and you can add your own or replace these in [`bongo.config.ts`](/docs/config/#utils).
+`$utils` holds helper functions. Layouts, partials, `.hbs` content, output files, and [data modules](/data-modules/) all get it. bongo gives you the helpers on this page, and you can add your own or replace these in [`bongo.config.ts`](/config/#utils).
 
 ```hbs
 <p>{{ $utils.excerpt($page.content, 140) }}</p>
@@ -66,7 +66,7 @@ $utils.minutes('')
 
 ### `slug(text)`
 
-A slug for a URL or an anchor: `text` in lower case, with punctuation, symbols, and emoji removed, and each space as `-`. Letters and digits of every language stay. It is the same id that [@bongo/markdown](/docs/markdown/#headings) gives a heading when `headingIds` is on, so `slug(heading.text)` equals `heading.id`. Unlike the heading ids, `slug` does not add `-1` to a slug that repeats.
+A slug for a URL or an anchor: `text` in lower case, with punctuation, symbols, and emoji removed, and each space as `-`. Letters and digits of every language stay. It is the same id that [@bongo/markdown](/markdown/#headings) gives a heading when `headingIds` is on, so `slug(heading.text)` equals `heading.id`. Unlike the heading ids, `slug` does not add `-1` to a slug that repeats.
 
 ```ts
 $utils.slug('Hello, world!')
@@ -194,4 +194,4 @@ export default {
 
 Templates then call `{{ $utils.date.year(post.params.date) }}` and `{{ $utils.str.up($page.title) }}`.
 
-A helper gets only the values that you give it. It does not get `$data` or `$page` by itself, so pass them in: `{{ $utils.total($data.stats) }}`. See [Data](/docs/data/#where-data-is-available).
+A helper gets only the values that you give it. It does not get `$data` or `$page` by itself, so pass them in: `{{ $utils.total($data.stats) }}`. See [Data](/data/#where-data-is-available).

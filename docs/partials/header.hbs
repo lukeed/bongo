@@ -1,4 +1,4 @@
-{{#var docs = $page.section === 'docs'}}
+{{#var docs = !!$page.params.group}}
 {{#var version = $data.release.version}}
 <header class="top">
 	<div class="top-in">
@@ -11,8 +11,8 @@
 		</button>
 		{{/if}}
 		<nav class="links" aria-label="Main">
-			<a href="/docs/"{{#if docs}} aria-current="true"{{/if}}>Docs</a>
-			<a href="/docs/markdown/">Plugins</a>
+			<a href="/intro/"{{#if docs}} aria-current="true"{{/if}}>Docs</a>
+			<a href="/markdown/">Plugins</a>
 			{{#if docs}}
 			<button class="icon only-m" type="button" data-search aria-label="Search docs">
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>

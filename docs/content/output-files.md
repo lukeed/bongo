@@ -21,7 +21,7 @@ bongo writes an output file to its own path, without the `.hbs`:
 
 ## Values
 
-An output file compiles with the same values as [`.hbs` content](/docs/content/#hbs-content): `$site`, `$page`, `$pages`, `$section`, `$tags`, `$data`, `$utils`, and its own frontmatter as `params`.
+An output file compiles with the same values as [`.hbs` content](/content/#hbs-content): `$site`, `$page`, `$pages`, `$section`, `$tags`, `$data`, `$utils`, and its own frontmatter as `params`.
 
 ## How it differs from a page
 
@@ -30,7 +30,7 @@ An output file compiles with the same values as [`.hbs` content](/docs/content/#
 - Its frontmatter cannot set `url`. To change its path, rename the file.
 - `bongo dev` serves it with the content type of its extension, such as `text/xml`. bongo renders it again after every change to a page, because it can read every page.
 
-[`$hooks.transform`](/docs/hooks/) gets each output file, with `ctx.kind` set to `'output'`.
+[`$hooks.transform`](/hooks/) gets each output file, with `ctx.kind` set to `'output'`.
 
 ## Whitespace
 
@@ -68,7 +68,7 @@ Sitemap: {{ $site.url }}sitemap.xml
 
 ## Feeds
 
-A feed is an output file whose frontmatter has `format: rss` or `format: atom`. The [@bongo/feed](/docs/feed/) plugin turns its `<feed:*>` elements into RSS or Atom. It also turns each `<feed:link>` in your layouts into a link to the feed.
+A feed is an output file whose frontmatter has `format: rss` or `format: atom`. The [@bongo/feed](/feed/) plugin turns its `<feed:*>` elements into RSS or Atom. It also turns each `<feed:link>` in your layouts into a link to the feed.
 
 ```hbs [content/blog/index.xml.hbs]
 ---
@@ -84,4 +84,4 @@ title: My blog
 
 ## JSON
 
-`content/feed.json.hbs` also works, but it is not recommended. `{{ }}` escapes text for HTML, not for JSON, so the output is easily invalid. For JSON, use a [data module](/docs/data-modules/).
+`content/feed.json.hbs` also works, but it is not recommended. `{{ }}` escapes text for HTML, not for JSON, so the output is easily invalid. For JSON, use a [data module](/data-modules/).

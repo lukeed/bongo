@@ -5,12 +5,12 @@ group: Reference
 order: 3
 ---
 
-bongo replaces `<bongo:*>` elements in the HTML of each page, after the layouts render. They work in layouts, partials, and content. Write one as `<bongo:style src="app.css" />` or as `<bongo:style src="app.css"></bongo:style>`. For an introduction, see the [Templates guide](/docs/templates/#special-elements).
+bongo replaces `<bongo:*>` elements in the HTML of each page, after the layouts render. They work in layouts, partials, and content. Write one as `<bongo:style src="app.css" />` or as `<bongo:style src="app.css"></bongo:style>`. For an introduction, see the [Templates guide](/templates/#special-elements).
 
 - Each `src` is a path relative to `assets/`. `<bongo:image>` also takes paths in `content/`.
 - A `src` that does not exist fails the build. The error shows the element, and the content file and layouts that rendered it.
 - The built files get content-hashed names, such as `/app.3f9a1c2e.css`. On a site under `/blog/`, the URLs start with `/blog/`.
-- bongo does not replace them in [output files](/docs/output-files/) or in the templates of [dynamic images](/docs/dynamic-images/).
+- bongo does not replace them in [output files](/output-files/) or in the templates of [dynamic images](/dynamic-images/).
 
 ## Attribute values
 
@@ -22,7 +22,7 @@ bongo reads attribute values as data, and never runs them as code:
 
 ## `<bongo:style>`
 
-Builds a stylesheet with LightningCSS. See [CSS](/docs/css/).
+Builds a stylesheet with LightningCSS. See [CSS](/css/).
 
 ```hbs
 <bongo:style src="app.css" />
@@ -36,7 +36,7 @@ becomes:
 
 - `src` — the stylesheet. Required.
 - `inline` — write the built CSS in a `<style>` element, in place of the `<link>`.
-- `global` — turn off [CSS modules](/docs/css/#css-modules) for a `*.module.css` file.
+- `global` — turn off [CSS modules](/css/#css-modules) for a `*.module.css` file.
 
 All other attributes, such as `media`, `nonce`, and `title`, go on the `<link>` or the `<style>`:
 
@@ -71,7 +71,7 @@ becomes:
 - `format` — `esm`, `iife`, or `cjs`. See [Formats](#formats).
 - `async` — add `async`.
 - `defer` — add `defer` to an `iife` or `cjs` script. A module script is deferred already.
-- `target` — a browserslist query for this script. It replaces [`$build.target`](/docs/config/#build-targets).
+- `target` — a browserslist query for this script. It replaces [`$build.target`](/config/#build-targets).
 
 All other attributes, such as `nonce` and `id`, go on the `<script>`. `format` sets its `type`.
 
@@ -141,7 +141,7 @@ The URL is percent-encoded, so it is safe in any attribute.
 
 ## `<bongo:client>`
 
-Bundles the [client runtime](/docs/client-runtime/), and starts it. It has no `src`. Its attributes become the [client options](/docs/client-runtime/#clientoptions):
+Bundles the [client runtime](/client-runtime/), and starts it. It has no `src`. Its attributes become the [client options](/client-runtime/#clientoptions):
 
 ```hbs
 <bongo:client transitions prefetch="hover" />
@@ -157,17 +157,17 @@ It writes only that script, so you can put it anywhere in `<head>` or `<body>`. 
 
 ## `<bongo:image>`
 
-Resizes and converts an image with `Bun.Image`, and writes a `<picture>` with a `srcset` for each format. Under Deno and Node, bongo copies the image as it is. See [Images](/docs/images/).
+Resizes and converts an image with `Bun.Image`, and writes a `<picture>` with a `srcset` for each format. Under Deno and Node, bongo copies the image as it is. See [Images](/images/).
 
 ```hbs
 <bongo:image src="img/hero.jpg" alt="A hero" sizes="(min-width: 800px) 720px, 100vw" />
 ```
 
-The `src` is relative to `assets/`. A path that starts with `./`, `../`, or `/` resolves against the URL of the page, and bongo reads the file from `content/`. See [Source paths](/docs/images/#source-paths).
+The `src` is relative to `assets/`. A path that starts with `./`, `../`, or `/` resolves against the URL of the page, and bongo reads the file from `content/`. See [Source paths](/images/#source-paths).
 
 - `src` — the image. Required.
 - `sizes` — defaults to `$images.sizes`.
-- `widths="640,1280"`, `formats="webp,jpeg"`, `quality="60"` — replace the [`$images`](/docs/images/#image-config) values for this image.
+- `widths="640,1280"`, `formats="webp,jpeg"`, `quality="60"` — replace the [`$images`](/images/#image-config) values for this image.
 - `width`, `height` — default to the size of the source. If you give only one, bongo calculates the other from the aspect ratio.
 - `loading` — defaults to `lazy`, or to `eager` when `fetchpriority="high"`.
 - `decoding` — defaults to `async`.
@@ -176,4 +176,4 @@ All other attributes, such as `alt`, `class`, and `fetchpriority`, go on the `<i
 
 ## Reserved names
 
-With [`@bongo/markdown`](/docs/markdown/#elements), a `<bongo:name>` element in Markdown calls the partial with that name. The names `asset`, `client`, `image`, `script`, and `style` belong to bongo. Markdown passes those elements through, for bongo to replace, so a partial with one of these names cannot be called from Markdown. Call it with `{{#partial}}` instead.
+With [`@bongo/markdown`](/markdown/#elements), a `<bongo:name>` element in Markdown calls the partial with that name. The names `asset`, `client`, `image`, `script`, and `style` belong to bongo. Markdown passes those elements through, for bongo to replace, so a partial with one of these names cannot be called from Markdown. Call it with `{{#partial}}` instead.

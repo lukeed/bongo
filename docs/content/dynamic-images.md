@@ -13,7 +13,7 @@ order: 7
 <img src="{{ banner }}" width="1600" height="400" alt=""/>
 ```
 
-For a social card on each page, see [Open Graph images](/docs/open-graph-images/). It builds on this guide.
+For a social card on each page, see [Open Graph images](/open-graph-images/). It builds on this guide.
 
 ## Install
 
@@ -50,7 +50,7 @@ Without `output`, the name changes when the image changes. Thus a host can cache
 | `.png` | Satori and resvg | Bun, Deno, and Node |
 | `.jpg`, `.jpeg`, `.webp` | Satori, resvg, and `Bun.Image` | Bun only |
 
-JPEG and WebP use [`Bun.Image`](https://bun.com/docs/runtime/image), as [image processing](/docs/images/#bun-runtime) does. Thus they need the Bun runtime. Under Deno or Node, they fail the build. Their quality comes from [`$images.quality`](/docs/images/#image-config).
+JPEG and WebP use [`Bun.Image`](https://bun.com/docs/runtime/image), as [image processing](/images/#bun-runtime) does. Thus they need the Bun runtime. Under Deno or Node, they fail the build. Their quality comes from [`$images.quality`](/images/#image-config).
 
 ## The template
 
@@ -86,7 +86,7 @@ An `<img src>` or a CSS `url()` with a path reads that file from `assets/`. bong
 
 `bongo build` draws all the images. `bongo dev` draws an image at its first request.
 
-bongo keeps each drawing in `node_modules/.cache/bongo/render`. The key is a hash of the drawing, the fonts, the images, the size, the format, and the versions of Satori, resvg, and Bun. A rebuild copies unchanged images from the cache. [`$images.prune`](/docs/images/#cache) also cleans this folder. To clear the cache, delete the folder.
+bongo keeps each drawing in `node_modules/.cache/bongo/render`. The key is a hash of the drawing, the fonts, the images, the size, the format, and the versions of Satori, resvg, and Bun. A rebuild copies unchanged images from the cache. [`$images.prune`](/images/#cache) also cleans this folder. To clear the cache, delete the folder.
 
 ## Errors
 

@@ -11,15 +11,15 @@ Each file in `content/` becomes a page, an output file, a data module, or a copi
 
 | File | Result |
 | --- | --- |
-| `.md` | A page, made by the `.md` loader of [@bongo/markdown](/docs/markdown/). |
+| `.md` | A page, made by the `.md` loader of [@bongo/markdown](/markdown/). |
 | `.html`, `.htm` | A page. bongo uses the body as it is written. |
 | `.hbs` | A page that tempura compiles. See [.hbs content](#hbs-content). |
-| `.hbs` with a second extension that has a known content type, other than `.html`, such as `sitemap.xml.hbs` | An [output file](/docs/output-files/). |
-| `.json.ts`, `.json.js` | A [data module](/docs/data-modules/). |
-| An extension with a loader in `$loaders` | The loader chain transforms it. See [Loaders](/docs/loaders/). |
+| `.hbs` with a second extension that has a known content type, other than `.html`, such as `sitemap.xml.hbs` | An [output file](/output-files/). |
+| `.json.ts`, `.json.js` | A [data module](/data-modules/). |
+| An extension with a loader in `$loaders` | The loader chain transforms it. See [Loaders](/loaders/). |
 | Any other file, such as an image | bongo copies it to the same path in `public/`. |
 
-Each content file can start with a frontmatter block. See [Frontmatter](/docs/frontmatter/).
+Each content file can start with a frontmatter block. See [Frontmatter](/frontmatter/).
 
 ## Page URLs
 
@@ -43,11 +43,11 @@ Set `url` in the frontmatter to give a page another path. bongo adds the trailin
 | `url: team` | `/team/` | `public/team/index.html` |
 | `url: /404.html` | `/404.html` | `public/404.html` |
 
-A custom `url` must be a path, not a full URL. [Output files](/docs/output-files/) cannot set `url`: rename the file to change its path.
+A custom `url` must be a path, not a full URL. [Output files](/output-files/) cannot set `url`: rename the file to change its path.
 
-Most static hosts serve `404.html` for a path that does not exist. Give your 404 page `url: /404.html` so that the build writes that file. The [dev server](/docs/dev-server/#not-found-pages) uses `404.html` or `404/index.html` as the body of its 404 responses.
+Most static hosts serve `404.html` for a path that does not exist. Give your 404 page `url: /404.html` so that the build writes that file. The [dev server](/dev-server/#not-found-pages) uses `404.html` or `404/index.html` as the body of its 404 responses.
 
-`$page.path` is the URL path, such as `/blog/post/`. `$page.url` is the absolute URL, made from `$site.url` and the path. When `$site.url` has a subpath, both include it. For `https://example.com/blog/`, `content/post.md` has the path `/blog/post/` and the URL `https://example.com/blog/post/`. Thus `href="{{ page.path }}"` works on any site. See [publicPath](/docs/config/#publicpath).
+`$page.path` is the URL path, such as `/blog/post/`. `$page.url` is the absolute URL, made from `$site.url` and the path. When `$site.url` has a subpath, both include it. For `https://example.com/blog/`, `content/post.md` has the path `/blog/post/` and the URL `https://example.com/blog/post/`. Thus `href="{{ page.path }}"` works on any site. See [publicPath](/config/#publicpath).
 
 ## Sections
 
@@ -97,7 +97,7 @@ tags: js, css
 
 ## `.hbs` content
 
-Content files that end in `.hbs` are tempura-compiled with the same context as layouts: `$site`, `$page`, `$pages`, `$section`, `$tags`, `$assets`, `$utils`, `$data`, plus `params` as an alias for `$page.params`. See [Variables](/docs/variables/).
+Content files that end in `.hbs` are tempura-compiled with the same context as layouts: `$site`, `$page`, `$pages`, `$section`, `$tags`, `$assets`, `$utils`, `$data`, plus `params` as an alias for `$page.params`. See [Variables](/variables/).
 
 ```hbs [content/archive.hbs]
 ---
@@ -114,8 +114,8 @@ summary: Every page of the site.
 
 The current page's own `$page.content` is empty while its body compiles. It is the value that this compile produces.
 
-Only `.hbs` content compiles as a template. bongo uses `.html` content and loader output, such as rendered Markdown, as they are. Markdown can still call partials with elements. See [Elements](/docs/markdown/#elements).
+Only `.hbs` content compiles as a template. bongo uses `.html` content and loader output, such as rendered Markdown, as they are. Markdown can still call partials with elements. See [Elements](/markdown/#elements).
 
 ## Images in content
 
-bongo processes each `<img>` in a page's content whose `src` is a relative path. It gives the image a `srcset`, a `width`, and a `height`. The path resolves against the URL of the page. For `content/blog/post.md`, which is served at `/blog/post/`, `hero.jpg` is `content/blog/post/hero.jpg`. See [Content images](/docs/images/#content-images).
+bongo processes each `<img>` in a page's content whose `src` is a relative path. It gives the image a `srcset`, a `width`, and a `height`. The path resolves against the URL of the page. For `content/blog/post.md`, which is served at `/blog/post/`, `hero.jpg` is `content/blog/post/hero.jpg`. See [Content images](/images/#content-images).

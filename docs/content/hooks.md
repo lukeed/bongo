@@ -5,7 +5,7 @@ group: Reference
 order: 5
 ---
 
-`$hooks.transform(text, ctx)` changes each page and each [output file](/docs/output-files/) after it renders and before bongo writes it. Pages arrive with their final asset URLs. Return the new text, or a promise of it. [Data modules](/docs/data-modules/) do not pass through it.
+`$hooks.transform(text, ctx)` changes each page and each [output file](/output-files/) after it renders and before bongo writes it. Pages arrive with their final asset URLs. Return the new text, or a promise of it. [Data modules](/data-modules/) do not pass through it.
 
 ## Example
 
@@ -29,13 +29,13 @@ export default {
 - `outputs` — every output file of the build, as `{ path, params }`, sorted by path.
 - `config` — the config, with its plugins merged.
 
-To type a hook, use `Build.Transform` from `bongo`. See [TypeScript](/docs/typescript/).
+To type a hook, use `Build.Transform` from `bongo`. See [TypeScript](/typescript/).
 
 ## Order
 
 When plugins and the config each set `transform`, all of them run: first the plugins, in order, then the config's own. Each one gets the text that the one before it returned.
 
-[@bongo/feed](/docs/feed/) is a plugin of this kind. Its `transform` turns feed files into RSS or Atom, and turns `<feed:link>` elements in pages into links.
+[@bongo/feed](/feed/) is a plugin of this kind. Its `transform` turns feed files into RSS or Atom, and turns `<feed:link>` elements in pages into links.
 
 ## Errors
 

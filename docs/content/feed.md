@@ -5,7 +5,7 @@ group: Plugins
 order: 2
 ---
 
-`@bongo/feed` makes RSS and Atom feeds for bongo. You write a feed as an [output file](/docs/output-files/), and the plugin turns it into RSS 2.0 or Atom 1.0.
+`@bongo/feed` makes RSS and Atom feeds for bongo. You write a feed as an [output file](/output-files/), and the plugin turns it into RSS 2.0 or Atom 1.0.
 
 ## Install
 
@@ -64,7 +64,7 @@ Write attribute values with `{{ }}`, not `{{{ }}}`. `{{ }}` escapes `&`, `<`, an
 
 Change `format: rss` to `format: atom`, and both the feed and the type of every `<feed:link>` to it change. You do not edit your layouts or the `<feed:channel>` block.
 
-The plugin does its work in [`$hooks.transform`](/docs/hooks/).
+The plugin does its work in [`$hooks.transform`](/hooks/).
 
 ## Elements
 

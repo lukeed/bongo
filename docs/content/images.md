@@ -20,7 +20,7 @@ Under Node, bongo copies each image as it is, under a hashed name, and prints on
 
 JPEG, PNG, and WebP files are encoded with the same codecs on every platform. Thus a build makes the same bytes on macOS, Linux, and Windows.
 
-[`$assets.render`](/docs/dynamic-images/) also uses `Bun.Image`, to write JPEG and WebP images. Its SVG and PNG images work in every runtime.
+[`$assets.render`](/dynamic-images/) also uses `Bun.Image`, to write JPEG and WebP images. Its SVG and PNG images work in every runtime.
 
 ## Width and height
 
@@ -84,7 +84,7 @@ bongo does not change an `<img>` that:
 - is in a `<picture>`,
 - has an absolute URL, a root-relative path such as `/img/a.png`, or a `data:` URL in `src`.
 
-To leave all content images as written, set `$images.content` to `false`. To get a `<picture>` with all formats in Markdown, write a `<bongo:image>`. See [@bongo/markdown](/docs/markdown/#images).
+To leave all content images as written, set `$images.content` to `false`. To get a `<picture>` with all formats in Markdown, write a `<bongo:image>`. See [@bongo/markdown](/markdown/#images).
 
 ## Processing
 
@@ -139,4 +139,4 @@ export default {
 - `quality` — from 1 to 100, for AVIF, WebP, and JPEG. Give one number for all of them, or one number for each format. PNG is always lossless.
 - `sizes` — the `sizes` of images that do not have one.
 - `content` — process `<img>` elements in content.
-- `prune` — delete cached images and [dynamic images](/docs/dynamic-images/#dev-and-cache) that no build has used for this many days, or `false` to keep them all.
+- `prune` — delete cached images and [dynamic images](/dynamic-images/#dev-and-cache) that no build has used for this many days, or `false` to keep them all.

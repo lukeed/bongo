@@ -85,7 +85,7 @@ Prefetch same-origin links into the in-memory HTML cache, and fetch the new styl
 
 Opt a link out with `prefetch:disable`.
 
-See [View transitions](/docs/view-transitions/) for the presets and for build-time transition attributes.
+See [View transitions](/view-transitions/) for the presets and for build-time transition attributes.
 
 ## Events
 
@@ -153,4 +153,4 @@ The Navigation API is available in Chrome and Edge. At the time of writing, it i
 
 ## Types
 
-`bongo/client` also exports the `ClientOptions`, `BongoEvent`, and `BongoEventDetails` types. See [TypeScript](/docs/typescript/).
+`bongo/client` also exports the `ClientOptions`, `BongoEvent`, and `BongoEventDetails` types. See [TypeScript](/typescript/).

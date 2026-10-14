@@ -39,7 +39,7 @@ export default {
 
 ## The config file
 
-bongo looks for the config in the project folder: `bongo.config.ts`, `bongo.config.mjs`, `bongo.config.cjs`, or `bongo.config.js`, in that order. Rolldown bundles it with its local imports, so it can be TypeScript and import local files. See [How a build works](/docs/project-layout/#how-a-build-works).
+bongo looks for the config in the project folder: `bongo.config.ts`, `bongo.config.mjs`, `bongo.config.cjs`, or `bongo.config.js`, in that order. Rolldown bundles it with its local imports, so it can be TypeScript and import local files. See [How a build works](/project-layout/#how-a-build-works).
 
 Export the config as the default export. Named exports for each field, such as `export const $loaders = {…}`, also work.
 
@@ -72,12 +72,12 @@ export default define({
 | Field | Description |
 | --- | --- |
 | `$site` | Site metadata. Templates read it as `{{ $site.title }}`. The `url` field also drives [publicPath](#publicpath). |
-| `$loaders` | A loader map, keyed by file extension. See [Loaders](/docs/loaders/). |
+| `$loaders` | A loader map, keyed by file extension. See [Loaders](/loaders/). |
 | `$utils` | Helper functions that templates can call. See [`$utils`](#utils). |
-| `$partials` | Programmatic partial functions. See [Config partials](/docs/partials/#config-partials). |
-| `$images` | Image defaults. See [Image config](/docs/images/#image-config). |
+| `$partials` | Programmatic partial functions. See [Config partials](/partials/#config-partials). |
+| `$images` | Image defaults. See [Image config](/images/#image-config). |
 | `$build` | Build options. See [Build targets](#build-targets). |
-| `$hooks` | Functions that change the build output. See [Hooks](/docs/hooks/). |
+| `$hooks` | Functions that change the build output. See [Hooks](/hooks/). |
 | `plugins` | An array of partial config objects, merged in order. See [Plugins](#plugins). |
 
 ### `$site`
@@ -90,7 +90,7 @@ export default define({
 - `description` — optional. The site description.
 - `menu` — optional. Named links, as `{ name, href }` objects.
 
-bongo itself reads only `url`. Templates get every field as it is. [@bongo/feed](/docs/feed/) also reads `title` and `lang`.
+bongo itself reads only `url`. Templates get every field as it is. [@bongo/feed](/feed/) also reads `title` and `lang`.
 
 ### `$utils`
 
@@ -106,7 +106,7 @@ export default {
 };
 ```
 
-See [Utilities](/docs/utilities/) for every built-in helper, with examples, and for how your helpers merge with them.
+See [Utilities](/utilities/) for every built-in helper, with examples, and for how your helpers merge with them.
 
 ## Build targets
 
@@ -156,11 +156,11 @@ bongo does not read a `.browserslistrc` file or the `browserslist` field of `pac
 <bongo:script src="editor.ts" target="chrome >= 124, safari >= 17.4" />
 ```
 
-The value is one query. Join more queries with commas. See [`<bongo:script>`](/docs/special-elements/#bongoscript).
+The value is one query. Join more queries with commas. See [`<bongo:script>`](/special-elements/#bongoscript).
 
 ## Plugins
 
-A plugin is a partial config object. Plugins usually come from a function, such as `markdown()` from [@bongo/markdown](/docs/markdown/) or `feed()` from [@bongo/feed](/docs/feed/):
+A plugin is a partial config object. Plugins usually come from a function, such as `markdown()` from [@bongo/markdown](/markdown/) or `feed()` from [@bongo/feed](/feed/):
 
 ```ts [bongo.config.ts]
 import { feed } from '@bongo/feed';
@@ -172,7 +172,7 @@ export default {
 };
 ```
 
-bongo merges the plugins in order, and then the config's own fields. When plugins and the config each set `$hooks.transform`, all of them run. See [Hooks](/docs/hooks/#order).
+bongo merges the plugins in order, and then the config's own fields. When plugins and the config each set `$hooks.transform`, all of them run. See [Hooks](/hooks/#order).
 
 ## publicPath
 

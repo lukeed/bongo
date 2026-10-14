@@ -17,7 +17,7 @@ bongo dev
 | Command | Description |
 | --- | --- |
 | `bongo build` | Build the site into `public/`. |
-| `bongo dev` | Start the dev server, build the site behind it, and rebuild on each change. See [Dev server](/docs/dev-server/). |
+| `bongo dev` | Start the dev server, build the site behind it, and rebuild on each change. See [Dev server](/dev-server/). |
 
 ## Options
 
@@ -50,7 +50,7 @@ bunx --bun bongo build
 bun --bun run build   # for a "build": "bongo build" script
 ```
 
-See [Images](/docs/images/#bun-runtime).
+See [Images](/images/#bun-runtime).
 
 ## Debug
 
@@ -89,7 +89,7 @@ The error starts with `Refusing to empty the output folder`, and gives the reaso
 
 If the `minify` CLI is missing, the build still succeeds. It prints one notice and leaves the HTML as it is. Without `--minify`, bongo minifies nothing.
 
-bongo never minifies [output files](/docs/output-files/) or [data modules](/docs/data-modules/). A data module always writes compact JSON.
+bongo never minifies [output files](/output-files/) or [data modules](/data-modules/). A data module always writes compact JSON.
 
 ## JavaScript API
 

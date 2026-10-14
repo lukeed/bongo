@@ -7,7 +7,7 @@ order: 9
 
 All CSS is handled by [LightningCSS](https://lightningcss.dev): `@import` bundling, autoprefixing, nesting, and optional minification. Add a stylesheet to a layout with `<bongo:style>`.
 
-LightningCSS adds prefixes and lowers newer syntax, such as nesting, for the [build target](/docs/config/#build-targets). The default target is `'defaults'`.
+LightningCSS adds prefixes and lowers newer syntax, such as nesting, for the [build target](/config/#build-targets). The default target is `'defaults'`.
 
 ## Add a stylesheet
 
@@ -15,9 +15,9 @@ LightningCSS adds prefixes and lowers newer syntax, such as nesting, for the [bu
 <bongo:style src="app.css"></bongo:style>
 ```
 
-The `src` is relative to `assets/`. bongo emits a `<link rel="stylesheet">` to the built file. With `inline`, it splices the built CSS into a `<style>` block. See [`<bongo:style>`](/docs/special-elements/#bongostyle) for all attributes.
+The `src` is relative to `assets/`. bongo emits a `<link rel="stylesheet">` to the built file. With `inline`, it splices the built CSS into a `<style>` block. See [`<bongo:style>`](/special-elements/#bongostyle) for all attributes.
 
-With `--minify`, LightningCSS minifies every stylesheet, inline ones included. See [Minify](/docs/cli/#minify).
+With `--minify`, LightningCSS minifies every stylesheet, inline ones included. See [Minify](/cli/#minify).
 
 ## CSS modules
 
@@ -64,9 +64,9 @@ Fonts, images, and other files that CSS references with a relative `url()` can l
 }
 ```
 
-bongo copies each referenced file to the output once, with a content hash in its name. It rewrites the `url()` to the file's public path under [publicPath](/docs/config/#publicpath), for example `url("/inter.3f9a1c2e.woff2")`. A `?query` or `#fragment` on the URL stays. Linked and inline styles behave the same, and `bongo dev` rebuilds when a referenced file changes.
+bongo copies each referenced file to the output once, with a content hash in its name. It rewrites the `url()` to the file's public path under [publicPath](/config/#publicpath), for example `url("/inter.3f9a1c2e.woff2")`. A `?query` or `#fragment` on the URL stays. Linked and inline styles behave the same, and `bongo dev` rebuilds when a referenced file changes.
 
-A file that both CSS and a `<bongo:asset>` use gets one copy and one URL. Use `<bongo:asset preload>` to preload a font that your CSS loads. See [`<bongo:asset>`](/docs/special-elements/#bongoasset).
+A file that both CSS and a `<bongo:asset>` use gets one copy and one URL. Use `<bongo:asset preload>` to preload a font that your CSS loads. See [`<bongo:asset>`](/special-elements/#bongoasset).
 
 These URLs stay as written:
 

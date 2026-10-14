@@ -71,11 +71,11 @@ A partial that reads a name it does not declare fails the build, and the error g
 partials/postmeta.hbs reads "date", but does not declare it. Add {{#expect date}} at the top of the partial.
 ```
 
-See [Templates](/docs/templates/#syntax) for the syntax.
+See [Templates](/templates/#syntax) for the syntax.
 
 ## Module partials
 
-A `.js`, `.mjs`, `.cjs`, or `.ts` file in `partials/` is a module partial. bongo loads it as it loads the config: Rolldown bundles it with its local imports. See [How a build works](/docs/project-layout/#how-a-build-works).
+A `.js`, `.mjs`, `.cjs`, or `.ts` file in `partials/` is a module partial. bongo loads it as it loads the config: Rolldown bundles it with its local imports. See [How a build works](/project-layout/#how-a-build-works).
 
 Its default export must be a render function. The function gets the arguments, and returns the HTML as a string or a promise of a string:
 
@@ -113,8 +113,8 @@ With `@bongo/markdown`, a `<bongo:name>` element in Markdown prose calls the par
 <bongo:card title="Hello" count=3 />
 ```
 
-See [Elements](/docs/markdown/#elements).
+See [Elements](/markdown/#elements).
 
 ## Partials in loaders
 
-A loader can call a partial with `utils.render(partialName, args)`. See [Loader utilities](/docs/loaders/#loader-utilities).
+A loader can call a partial with `utils.render(partialName, args)`. See [Loader utilities](/loaders/#loader-utilities).

@@ -1,4 +1,4 @@
-{{#var docs = $page.section === 'docs'}}
+{{#var docs = !!$page.params.group}}
 {{#var home = $page.path === '/'}}
 {{#var title = home ? 'bongo · Static sites with a good beat' : $page.title + ' · bongo'}}
 {{#var summary = $page.summary || $site.description}}

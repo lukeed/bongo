@@ -14,7 +14,7 @@ bongo dev -C site --host --port 3000
 
 ## Host and port
 
-The server binds `localhost` on port `3000` by default. Change them with `--host` and `--port`, or with the `HOST` and `PORT` environment variables. A bare `--host`, with no value, exposes the server on your network, and the server prints its network URLs. See [CLI](/docs/cli/#options).
+The server binds `localhost` on port `3000` by default. Change them with `--host` and `--port`, or with the `HOST` and `PORT` environment variables. A bare `--host`, with no value, exposes the server on your network, and the server prints its network URLs. See [CLI](/cli/#options).
 
 When the port is in use, the server tries the next port, up to 10 ports above the one you gave.
 
@@ -34,26 +34,26 @@ If the config or a data file fails to load, the error overlay shows the error, a
 
 The dev server keeps each build in memory and serves it from there, as Vite does. It does not read or write `public/`. Thus you can run `bongo build` while `bongo dev` runs: neither one changes the output of the other.
 
-To see the dev output as files, run `bongo dev --write`. Then dev also writes its output to `public/`. See [Output folder](/docs/cli/#output-folder).
+To see the dev output as files, run `bongo dev --write`. Then dev also writes its output to `public/`. See [Output folder](/cli/#output-folder).
 
 The dev server serves a file that bongo only copies from `content/`, such as a PDF, from its source. Thus an edit to it shows at once.
 
 ## What each rebuild updates
 
 - Each rebuild drops only the files that the new build no longer writes.
-- [Output files](/docs/output-files/) render again after every change to a page, because they can read every page.
-- [Data modules](/docs/data-modules/) run again after every change to a page, to the module, or to a local file that it imports.
-- `bongo dev` does not watch the packages that your CSS imports from `node_modules`. After you update one, save the CSS file that imports it, or restart `bongo dev`. See [Packages in @import](/docs/css/#packages-in-import).
+- [Output files](/output-files/) render again after every change to a page, because they can read every page.
+- [Data modules](/data-modules/) run again after every change to a page, to the module, or to a local file that it imports.
+- `bongo dev` does not watch the packages that your CSS imports from `node_modules`. After you update one, save the CSS file that imports it, or restart `bongo dev`. See [Packages in @import](/css/#packages-in-import).
 
 ## Images in dev
 
-`bongo dev` does not encode images when it builds, so the first build stays fast. The server encodes each image file the first time that the browser asks for it. See [Images in dev](/docs/images/#images-in-dev).
+`bongo dev` does not encode images when it builds, so the first build stays fast. The server encodes each image file the first time that the browser asks for it. See [Images in dev](/images/#images-in-dev).
 
 ## Not found pages
 
 When `$site.url` has a subpath, such as `https://example.com/blog/`, `bongo dev` serves the site under `/blog/`, as a host does, and redirects `/` there.
 
-A path with no matching file gets a `404` status, the same as on a static host. Thus broken links show up during development. The response body is your own 404 page when the build has one: `404.html`, or `404/index.html`, which `content/404.md` produces. To write `404.html`, give the page `url: /404.html`. See [Custom URLs](/docs/content/#custom-urls).
+A path with no matching file gets a `404` status, the same as on a static host. Thus broken links show up during development. The response body is your own 404 page when the build has one: `404.html`, or `404/index.html`, which `content/404.md` produces. To write `404.html`, give the page `url: /404.html`. See [Custom URLs](/content/#custom-urls).
 
 ## Reload messages
 

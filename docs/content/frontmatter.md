@@ -29,11 +29,11 @@ bongo reads three keys into fields of `$page`:
 
 - `title` becomes `$page.title`.
 - `summary` becomes `$page.summary`.
-- `tags` becomes `$page.tags`. It takes a list or a comma-separated string. See [Tags](/docs/content/#tags).
+- `tags` becomes `$page.tags`. It takes a list or a comma-separated string. See [Tags](/content/#tags).
 
 `$page.title` and `$page.summary` are always text, so `title: 2024` gives `"2024"`. All keys, these three included, stay in `$page.params` with their typed values.
 
-`url` sets a custom path for the page. See [Custom URLs](/docs/content/#custom-urls).
+`url` sets a custom path for the page. See [Custom URLs](/content/#custom-urls).
 
 ## The YAML subset
 
@@ -47,7 +47,7 @@ bongo reads a small subset of YAML:
 - A plain value runs from the first `: ` to the end of the line, so `summary: Install with: brew` works. A value that only starts like a quoted string, list, or map, such as `[WIP] Notes`, is plain text.
 - Not supported: multi-line strings (`|`, `>`, or a value that continues on the next line), anchors, aliases, and tags. Inline lists and maps must fit on one line.
 
-The same subset applies to YAML files in `data/`. See [Data](/docs/data/).
+The same subset applies to YAML files in `data/`. See [Data](/data/).
 
 ## Errors
 
@@ -59,9 +59,9 @@ content/blog/post.md: Invalid frontmatter: duplicate key "title" at line 3
 
 ## Where it applies
 
-bongo reads the frontmatter of `.html` and `.hbs` content. `@bongo/markdown` reads the frontmatter of `.md` files. Your own loader can parse a frontmatter block with `utils.frontmatter(content)`. It returns `{ offset, value }`, where `offset` is where the body starts. See [Loader utilities](/docs/loaders/#loader-utilities).
+bongo reads the frontmatter of `.html` and `.hbs` content. `@bongo/markdown` reads the frontmatter of `.md` files. Your own loader can parse a frontmatter block with `utils.frontmatter(content)`. It returns `{ offset, value }`, where `offset` is where the body starts. See [Loader utilities](/loaders/#loader-utilities).
 
-An [output file](/docs/output-files/) also has frontmatter, but it cannot set `url`. A feed sets `format: rss` or `format: atom` in its frontmatter. See [@bongo/feed](/docs/feed/).
+An [output file](/output-files/) also has frontmatter, but it cannot set `url`. A feed sets `format: rss` or `format: atom` in its frontmatter. See [@bongo/feed](/feed/).
 
 ## Migrate from string-only frontmatter
 

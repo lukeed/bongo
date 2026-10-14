@@ -23,7 +23,7 @@ bun install
 bun run dev
 ```
 
-The dev server prints its URL, which is `http://localhost:3000/` by default. See [Dev server](/docs/dev-server/).
+The dev server prints its URL, which is `http://localhost:3000/` by default. See [Dev server](/dev-server/).
 
 To build the site into `public/`:
 
@@ -32,7 +32,7 @@ bun run build
 ```
 
 <bongo:note>
-The `bongo` command starts with Node, and image processing needs Bun. To resize images, run the scripts through Bun: `bun --bun run dev` and `bun --bun run build`. See [Images](/docs/images/#bun-runtime).
+The `bongo` command starts with Node, and image processing needs Bun. To resize images, run the scripts through Bun: `bun --bun run dev` and `bun --bun run build`. See [Images](/images/#bun-runtime).
 </bongo:note>
 
 ## Starter files
@@ -67,7 +67,7 @@ my-site/
 └── tsconfig.json
 ```
 
-The blog in `content/blog/` has more posts than this tree shows. [Project layout](/docs/project-layout/) describes each folder.
+The blog in `content/blog/` has more posts than this tree shows. [Project layout](/project-layout/) describes each folder.
 
 The `package.json` has two scripts, and installs `bongo`, `@bongo/markdown`, and `shiki` as dev dependencies:
 
@@ -133,7 +133,7 @@ export default {
 };
 ```
 
-See [Config](/docs/config/) for all fields.
+See [Config](/config/) for all fields.
 
 ### Add a layout
 
@@ -152,7 +152,7 @@ Every page needs a `layouts/html.hbs`. It prints the page inside an HTML documen
 </html>
 ```
 
-See [Templates](/docs/templates/) for layouts and template values.
+See [Templates](/templates/) for layouts and template values.
 
 ### Add a page
 
@@ -166,7 +166,7 @@ title: Home
 # Hello
 ```
 
-See [Content](/docs/content/) for page files and URLs.
+See [Content](/content/) for page files and URLs.
 
 ### Run it
 
@@ -186,6 +186,6 @@ To run them as `bun run dev` and `bun run build`, add the two scripts from the [
 
 ## Next steps
 
-- [Project layout](/docs/project-layout/): learn what each folder does.
-- [CLI](/docs/cli/): see every command and option.
-- [Templates](/docs/templates/): add styles, scripts, and assets to your layout.
+- [Project layout](/project-layout/): learn what each folder does.
+- [CLI](/cli/): see every command and option.
+- [Templates](/templates/): add styles, scripts, and assets to your layout.

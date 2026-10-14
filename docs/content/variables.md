@@ -5,7 +5,7 @@ group: Reference
 order: 2
 ---
 
-Templates read the build through variables whose names start with `$`. Layouts, [`.hbs` content](/docs/content/#hbs-content), and [output files](/docs/output-files/) get all of them. [Partials](/docs/partials/#values) get them for the page that renders them. [Data modules](/docs/data-modules/) get `$site`, `$pages`, `$section`, `$tags`, `$data`, and `$utils`.
+Templates read the build through variables whose names start with `$`. Layouts, [`.hbs` content](/content/#hbs-content), and [output files](/output-files/) get all of them. [Partials](/partials/#values) get them for the page that renders them. [Data modules](/data-modules/) get `$site`, `$pages`, `$section`, `$tags`, `$data`, and `$utils`.
 
 The examples on this page show what each variable holds while bongo renders this post, on a site whose `$site.url` is `https://example.com/`:
 
@@ -60,14 +60,14 @@ An object with data about the current page. For the example `content/blog/hello.
 
 | Field | What it holds |
 | --- | --- |
-| `path` | The URL path of the page. On a site under a subpath, it starts with that subpath. See [Page URLs](/docs/content/#page-urls). |
+| `path` | The URL path of the page. On a site under a subpath, it starts with that subpath. See [Page URLs](/content/#page-urls). |
 | `url` | The absolute URL of the page. |
 | `title` | The `title` frontmatter, as text. `''` when the page has none. |
 | `summary` | The `summary` frontmatter, as text. `''` when the page has none. |
-| `section` | The folder of the content file inside `content/`, such as `blog` or `docs/guides`. `''` for a file at the root of `content/`. See [Sections](/docs/content/#sections). |
-| `tags` | The `tags` frontmatter, as a list. The frontmatter can be a list or a comma-separated string. See [Tags](/docs/content/#tags). |
-| `params` | All the frontmatter, with typed values. See [Frontmatter](/docs/frontmatter/). |
-| `headings` | The headings that the page's [loader](/docs/loaders/) reports, each with its `level`, `id`, plain `text`, and inner `html`. [@bongo/markdown](/docs/markdown/#headings) reports every Markdown heading. `.html` and `.hbs` content has none. |
+| `section` | The folder of the content file inside `content/`, such as `blog` or `docs/guides`. `''` for a file at the root of `content/`. See [Sections](/content/#sections). |
+| `tags` | The `tags` frontmatter, as a list. The frontmatter can be a list or a comma-separated string. See [Tags](/content/#tags). |
+| `params` | All the frontmatter, with typed values. See [Frontmatter](/frontmatter/). |
+| `headings` | The headings that the page's [loader](/loaders/) reports, each with its `level`, `id`, plain `text`, and inner `html`. [@bongo/markdown](/markdown/#headings) reports every Markdown heading. `.html` and `.hbs` content has none. |
 | `content` | The body of the page, as HTML. Print it with `{{{ $page.content }}}`. While the page's own `.hbs` body compiles, `content` is empty. |
 
 A table of contents from `headings`:
@@ -147,7 +147,7 @@ One entry for each tag, with the pages that have it. The tags come in the order 
 
 ## `$site`
 
-The `$site` field of the [config](/docs/config/#site). `description` is `''` and `menu` is `{}` when the config does not set them.
+The `$site` field of the [config](/config/#site). `description` is `''` and `menu` is `{}` when the config does not set them.
 
 ```ts
 {
@@ -161,7 +161,7 @@ The `$site` field of the [config](/docs/config/#site). `description` is `''` and
 
 ## `$data`
 
-The files in `data/`, keyed by their paths without the extension. See [Data](/docs/data/).
+The files in `data/`, keyed by their paths without the extension. See [Data](/data/).
 
 ```yaml [data/site.yaml]
 author: Luke
@@ -174,7 +174,7 @@ links: [github, npm]
 
 ## `$utils`
 
-The helper functions, such as `{{ $utils.date.format($page.params.date, { dateStyle: 'long' }) }}`. See [Utilities](/docs/utilities/).
+The helper functions, such as `{{ $utils.date.format($page.params.date, { dateStyle: 'long' }) }}`. See [Utilities](/utilities/).
 
 ## `$assets`
 
@@ -193,8 +193,8 @@ An object with two methods for the files of `assets/`.
 <meta property="og:image" content="{{ $utils.url.abs(card) }}"/>
 ```
 
-See [Render dynamic images](/docs/dynamic-images/) and [Open Graph images](/docs/open-graph-images/).
+See [Render dynamic images](/dynamic-images/) and [Open Graph images](/open-graph-images/).
 
 ## `params`
 
-In [`.hbs` content](/docs/content/#hbs-content) and [output files](/docs/output-files/), `params` is a short name for `$page.params`, such as `{{ params.date }}`.
+In [`.hbs` content](/content/#hbs-content) and [output files](/output-files/), `params` is a short name for `$page.params`, such as `{{ params.date }}`.

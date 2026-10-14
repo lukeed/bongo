@@ -32,7 +32,7 @@ Or reference the types directly:
 /// <reference types="bongo/jsx" />
 ```
 
-See [Special elements](/docs/special-elements/), [View transitions](/docs/view-transitions/), and [Opt out](/docs/client-runtime/#opt-out).
+See [Special elements](/special-elements/), [View transitions](/view-transitions/), and [Opt out](/client-runtime/#opt-out).
 
 ## Exported types
 
@@ -40,12 +40,12 @@ Import types from `bongo`:
 
 | Type | Use |
 | --- | --- |
-| `Config` | The config. Write `export default {…} satisfies Config`. See [Config](/docs/config/#the-config-file). |
-| `Loader` | A loader in `$loaders`. See [Loaders](/docs/loaders/). |
-| `Build.Transform` | A `$hooks.transform` function. See [Hooks](/docs/hooks/). |
+| `Config` | The config. Write `export default {…} satisfies Config`. See [Config](/config/#the-config-file). |
+| `Loader` | A loader in `$loaders`. See [Loaders](/loaders/). |
+| `Build.Transform` | A `$hooks.transform` function. See [Hooks](/hooks/). |
 | `Build.Context` | The `ctx` of a hook. |
-| `Build.Data` | What the default export of a data module gets when it is a function. See [Data modules](/docs/data-modules/). |
-| `Images.Options` | The `$images` config field. See [Image config](/docs/images/#image-config). |
+| `Build.Data` | What the default export of a data module gets when it is a function. See [Data modules](/data-modules/). |
+| `Images.Options` | The `$images` config field. See [Image config](/images/#image-config). |
 
 ```ts [content/search.json.ts]
 import type { Build } from 'bongo';
@@ -53,4 +53,4 @@ import type { Build } from 'bongo';
 export default ({ $pages }: Build.Data) => $pages.map(page => ({ title: page.title, path: page.path }));
 ```
 
-Import the client runtime types from `bongo/client`: `ClientOptions`, `BongoEvent`, and `BongoEventDetails`. See [Client runtime](/docs/client-runtime/).
+Import the client runtime types from `bongo/client`: `ClientOptions`, `BongoEvent`, and `BongoEventDetails`. See [Client runtime](/client-runtime/).

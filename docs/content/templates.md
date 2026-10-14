@@ -20,7 +20,7 @@ These are the tempura forms that these docs use:
 | `{{#each list as item}} … {{/each}}` | Print the block once for each item. `as (item, i)` also names the index. |
 | `{{#var name = value}}` | Declare a variable. See [Your own variables](#your-own-variables). |
 | `{{#expect a, b}}` | Declare the arguments that a partial reads. |
-| `{{#partial src="name"}}` | Call a partial. See [Partials](/docs/partials/). |
+| `{{#partial src="name"}}` | Call a partial. See [Partials](/partials/). |
 
 Values are JavaScript expressions, so `{{ $pages.length }}` and `{{#each $section.filter(post => post.params.date) as post}}` work. See the [tempura docs](https://github.com/lukeed/tempura) for the full syntax.
 
@@ -94,7 +94,7 @@ When bongo finds no `html.hbs` for a page, the build fails with `Missing "html.h
 
 ## Variables
 
-Templates read the build through reserved variables: `$site`, `$page`, `$pages`, `$section`, `$tags`, `$data`, `$utils`, and `$assets`. `{{ $page.title }}` prints the title of the current page, and `{{#each $section as post}}` loops over the pages of its folder. See [Variables](/docs/variables/) for what each one holds, with examples.
+Templates read the build through reserved variables: `$site`, `$page`, `$pages`, `$section`, `$tags`, `$data`, `$utils`, and `$assets`. `{{ $page.title }}` prints the title of the current page, and `{{#each $section as post}}` loops over the pages of its folder. See [Variables](/variables/) for what each one holds, with examples.
 
 ### Your own variables
 
@@ -122,13 +122,13 @@ Templates read the build through reserved variables: `$site`, `$page`, `$pages`,
 
 - To change a variable, declare it again: `{{#var count = count + 1}}`.
 - `{{#each list as post}}` declares `post` for each item. `{{#each list as (post, i)}}` also declares the index, `i`, which starts at 0.
-- Each template has its own variables. A partial does not see the variables of the layout that calls it. Give them to the partial as arguments, such as `{{#partial src="byline" date=date}}`, and declare them in the partial with `{{#expect date}}`. See [Partials](/docs/partials/#values).
+- Each template has its own variables. A partial does not see the variables of the layout that calls it. Give them to the partial as arguments, such as `{{#partial src="byline" date=date}}`, and declare them in the partial with `{{#expect date}}`. See [Partials](/partials/#values).
 
 Your own values can also come from:
 
-- the frontmatter of a page, as `$page.params`. See [Frontmatter](/docs/frontmatter/).
-- the files in `data/`, as `$data`. See [Data](/docs/data/).
-- your own helper functions, as `$utils`. See [Utilities](/docs/utilities/#your-own-helpers).
+- the frontmatter of a page, as `$page.params`. See [Frontmatter](/frontmatter/).
+- the files in `data/`, as `$data`. See [Data](/data/).
+- your own helper functions, as `$utils`. See [Utilities](/utilities/#your-own-helpers).
 
 ## Special elements
 
@@ -154,10 +154,10 @@ bongo has its own elements for the scripts, styles, and other files of `assets/`
 
 | Element | Use it to |
 | --- | --- |
-| `<bongo:style>` | build a stylesheet with LightningCSS, as a `<link>` or an inline `<style>`. See [CSS](/docs/css/). |
+| `<bongo:style>` | build a stylesheet with LightningCSS, as a `<link>` or an inline `<style>`. See [CSS](/css/). |
 | `<bongo:script>` | bundle a script with Rolldown, as a module `<script>` or an inline script. |
 | `<bongo:asset>` | publish any file, such as a font or an icon, as a URL or a `<link rel="preload">`. |
-| `<bongo:client>` | add the [client runtime](/docs/client-runtime/), for client-side navigation and view transitions. |
-| `<bongo:image>` | resize and convert an image, as a `<picture>` with a `srcset`. See [Images](/docs/images/). |
+| `<bongo:client>` | add the [client runtime](/client-runtime/), for client-side navigation and view transitions. |
+| `<bongo:image>` | resize and convert an image, as a `<picture>` with a `srcset`. See [Images](/images/). |
 
-bongo publishes only the files that these elements and your CSS use. A `src` that does not exist fails the build. See [Special elements](/docs/special-elements/) for each attribute and the HTML that each element becomes, and [TypeScript](/docs/typescript/) for type checks of these elements.
+bongo publishes only the files that these elements and your CSS use. A `src` that does not exist fails the build. See [Special elements](/special-elements/) for each attribute and the HTML that each element becomes, and [TypeScript](/typescript/) for type checks of these elements.

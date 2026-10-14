@@ -5,7 +5,7 @@ group: Guides
 order: 8
 ---
 
-When someone shares a link to your site, apps such as Slack, Discord, iMessage, and X show a preview card. The image of that card comes from the `og:image` meta tag of the page. This guide draws a card for each page with `$assets.render`, and adds the meta tags. Read [Render dynamic images](/docs/dynamic-images/) first.
+When someone shares a link to your site, apps such as Slack, Discord, iMessage, and X show a preview card. The image of that card comes from the `og:image` meta tag of the page. This guide draws a card for each page with `$assets.render`, and adds the meta tags. Read [Render dynamic images](/dynamic-images/) first.
 
 ## Install
 

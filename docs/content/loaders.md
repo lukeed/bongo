@@ -29,7 +29,7 @@ bongo passes the content of the file as a `Uint8Array`. Use `utils.decode` to re
 `headings` lists the headings of the HTML, in document order, as `{ level, id, text, html }`. `html` is optional: without it, bongo uses the escaped `text`. The list becomes `$page.headings`, and the page's entry in `$pages`. When more than one loader in a [chain](#loader-chains) gives headings, the last one wins.
 
 <bongo:note>
-You can use [@bongo/markdown](/docs/markdown/) for a ready-made Markdown loader.
+You can use [@bongo/markdown](/markdown/) for a ready-made Markdown loader.
 </bongo:note>
 
 ## Loader chains
@@ -41,10 +41,10 @@ When a loader returns a file name with a new extension that has its own loader, 
 ## Loader utilities
 
 - `utils.decode(uint8array)` — convert a buffer to a string.
-- `utils.render(partialName, args)` — invoke a registered partial. See [Partials](/docs/partials/).
-- `utils.attrs(input)` — parse element attributes, like `title="Hi" count=2 tags=[a, b] featured`, into data. Values are never evaluated. `@bongo/markdown` uses it for `<bongo:*>` partial elements. See [Elements](/docs/markdown/#elements).
-- `utils.frontmatter(content)` — parse the `---` block at the top of `content`, as [Frontmatter](/docs/frontmatter/) describes. It returns `{ offset, value }`, where `offset` is where the body starts.
+- `utils.render(partialName, args)` — invoke a registered partial. See [Partials](/partials/).
+- `utils.attrs(input)` — parse element attributes, like `title="Hi" count=2 tags=[a, b] featured`, into data. Values are never evaluated. `@bongo/markdown` uses it for `<bongo:*>` partial elements. See [Elements](/markdown/#elements).
+- `utils.frontmatter(content)` — parse the `---` block at the top of `content`, as [Frontmatter](/frontmatter/) describes. It returns `{ offset, value }`, where `offset` is where the body starts.
 
 ## Types
 
-Type a loader with the `Loader` type from `bongo`. See [TypeScript](/docs/typescript/).
+Type a loader with the `Loader` type from `bongo`. See [TypeScript](/typescript/).
