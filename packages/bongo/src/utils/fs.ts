@@ -115,7 +115,7 @@ export async function mkdir(input: string) {
 }
 
 export function assert(path: string, msg = ''): asserts path is string {
-	if (!exists(path)) throw new Error(`Missing "${msg || path}" file!`);
+	if (!exists(path)) throw new Error(msg || `Missing "${path}" file!`);
 }
 
 export async function write(file: string, data: string|Buffer|Uint8Array) {

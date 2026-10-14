@@ -438,6 +438,20 @@ describe('urls', () => {
 	});
 });
 
+describe('$assets.load', () => {
+	test('reads a file of assets/, and names a missing one', async () => {
+		let root = await site({ 'layouts/html.hbs': '{{{ $page.content }}}', 'assets/hi.txt': 'hello', 'content/index.hbs': `{{ await $assets.load('hi.txt', 'utf8') }}` });
+		try {
+			await build({ cwd: root });
+			expect(await readFile(join(root, 'public/index.html'), 'utf8')).toBe('hello');
+			await writeFile(join(root, 'content/index.hbs'), `{{ await $assets.load('none.txt') }}`);
+			await expect(build({ cwd: root })).rejects.toThrow(/^Missing "none\.txt" asset!$/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('layouts', () => {
 	test('a page uses the layouts of its nearest folder first', async () => {
 		let root = await site({
