@@ -278,6 +278,11 @@ export async function load(root: string): Promise<Loaded> {
 				let words = (text || '').trim();
 				return words ? words.split(/\s+/g).length : 0;
 			},
+			slug(text: string): string {
+				// full case folding, as md4x does: ß is ss, ς is σ
+				let folded = (text || '').trim().toUpperCase().toLowerCase().replace(/ς/g, 'σ').replace(/ß/g, 'ss');
+				return folded.replace(/[^\p{L}\p{M}\p{N}_\- ]/gu, '').replace(/ /g, '-');
+			},
 			url: {
 				abs(to: string, fro?: string): string {
 					return new URL(to, fro || output.$site.url.replace(/\/?$/, '/')).href;

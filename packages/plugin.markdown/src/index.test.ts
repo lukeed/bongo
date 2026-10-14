@@ -7,6 +7,7 @@ import { language as typescript } from '@twinkleplop/typescript';
 
 import { build } from '../../bongo/src/build';
 import * as attrs from '../../bongo/src/utils/attrs';
+import * as config from '../../bongo/src/utils/config';
 import { shiki, sugarhigh } from './highlight';
 import { markdown } from './index';
 import { twinkleplop } from './twinkleplop';
@@ -201,6 +202,25 @@ describe('headings', () => {
 		let result = await markdown(options).$loaders!.md!('x.md', src, utils);
 		return { html: String(result.content), headings: result.headings ?? [] };
 	}
+
+	test('$utils.slug turns each heading text into the id that md4x gives it', async () => {
+		let dir = await mkdtemp(join(tmpdir(), 'bongo-slug-'));
+		await writeFile(join(dir, 'bongo.config.ts'), `export default { $site: { url: 'https://example.com/', lang: 'en', title: 'T' } };`);
+		try {
+			var { slug } = (await config.load(dir)).config.$utils;
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+		let texts = [
+			'Hello, world!', '`<bongo:style>` attributes', 'Ünïcode Café', 'Version 2.0 notes', 'Emoji 🎉 party', 'MixedCase Title',
+			'a-b_c d', 'Spaces  double', 'What’s new?', 'C++ & Rust', '日本語 見出し', '--dash--', 'x/y\\z', 'Ends with -', '100%',
+			'\\#hash tag', '$page.path', 'A.B.C', 'Hi *there* _you_', 'Link [text](/url)', 'Über-Straße', 'ẞ GROSS', 'ﬁle ligature',
+			'ΣΊΣΥΦΟΣ', 'İstanbul', 'Ａｂｃ fullwidth', 'x\u00a0nbsp', '٣ arabic digit', 'x² sup', 'Ⅻ roman', 'a—b dash', 'under__score',
+		];
+		let { headings } = await load(texts.map(text => '## ' + text).join('\n\n'));
+		expect(headings.length).toBe(texts.length);
+		for (let heading of headings) expect(slug?.(heading.text)).toBe(heading.id);
+	});
 
 	test('reports every heading with the id and the inner html that the page gets', async () => {
 		let src = [

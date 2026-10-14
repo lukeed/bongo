@@ -333,6 +333,16 @@ describe('built-in utils', () => {
 		expect(url?.path?.('https://other.com/y')).toBe('/y');
 	});
 
+	test('slug makes a GitHub-style anchor slug, as md4x does for heading ids', async () => {
+		let { slug } = await builtins(`{ url: 'https://example.com/', lang: 'en', title: 'T' }`);
+		expect(slug?.('Hello, world!')).toBe('hello-world');
+		expect(slug?.('<bongo:style> attributes')).toBe('bongostyle-attributes');
+		expect(slug?.('Über-Straße')).toBe('über-strasse');
+		expect(slug?.('  Version 2.0  notes ')).toBe('version-20--notes');
+		expect(slug?.('a_b—c 🎉')).toBe('a_bc-');
+		expect(slug?.('')).toBe('');
+	});
+
 	test('date.format gives ISO 8601, or a date in $site.lang from Intl options, in UTC', async () => {
 		let { date } = await builtins(`{ url: 'https://example.com/', lang: 'fr', title: 'T' }`);
 		expect(date?.format?.('2024-05-01')).toBe('2024-05-01T00:00:00.000Z');
