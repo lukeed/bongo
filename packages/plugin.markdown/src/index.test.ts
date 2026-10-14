@@ -18,7 +18,7 @@ function setup() {
 	};
 	let loader = markdown().$assets!.md!;
 	let run = async (src: string) => String((await loader('x.md', src, utils)).content);
-	return { calls, run };
+	return { calls, run, utils };
 }
 
 describe('partials', () => {
@@ -182,5 +182,20 @@ describe('partials', () => {
 		let { run } = setup();
 		let html = await run('# Title\n\nSome *text* & more.\n');
 		expect(html).toBe('<h1>Title</h1>\n<p>Some <em>text</em> &amp; more.</p>\n');
+	});
+});
+
+describe('heading ids', () => {
+	test('keep partial output out of the id', async () => {
+		let { run, utils } = setup();
+		let loader = markdown({ headingIds: true }).$assets!.md!;
+		let html = String((await loader('x.md', '## Hi <bongo:greet name="x" /> there\n\n## Hi <bongo:greet name="y" /> there\n\n## Hi there\n', utils)).content);
+		expect(html).toBe([
+			'<h2 id="hi--there">Hi <i data-partial="greet"></i> there</h2>',
+			'<h2 id="hi--there-1">Hi <i data-partial="greet"></i> there</h2>',
+			'<h2 id="hi-there">Hi there</h2>',
+			'',
+		].join('\n'));
+		expect(await run('## Plain\n')).toBe('<h2>Plain</h2>\n');
 	});
 });

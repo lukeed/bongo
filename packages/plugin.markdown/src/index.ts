@@ -1,6 +1,6 @@
-import { renderToHtml } from 'md4x';
+import { parseAST, renderToHtml } from 'md4x';
 import type { Config, Args, Loader } from 'bongo';
-import type { CodeBlockHighlighter, HtmlOptions } from 'md4x';
+import type { CodeBlockHighlighter, ComarkTree, HtmlOptions } from 'md4x';
 
 export type Options = Omit<HtmlOptions, 'highlighter'> & {
 	highlighter?: CodeBlockHighlighter | Promise<CodeBlockHighlighter>;
@@ -21,6 +21,21 @@ const TOKENS = /<p>\uE000(\d+)\uE001<\/p>\n?|\uE000(\d+)\uE001/g;
 
 function restore(html: string, stash: string[]): string {
 	return html.replace(TOKENS, (_, block: string | undefined, inline: string | undefined) => stash[Number(block ?? inline)]);
+}
+
+// md4x builds a heading id from its text, stash tokens included; drop them, keep each id unique.
+function anchors(tree: ComarkTree): Map<string, string> {
+	let out = new Map<string, string>();
+	let taken = new Set(tree.meta.headings.map(heading => heading.id));
+	for (let { id } of tree.meta.headings) {
+		if (!id.includes('\uE000')) continue;
+		let base = id.replace(/\uE000\d+\uE001/g, '');
+		let next = base;
+		for (let n = 1; taken.has(next); n++) next = `${base}-${n}`;
+		taken.add(next);
+		out.set(id, next);
+	}
+	return out;
 }
 
 // Inline code spans: a backtick run closed by the next run of the same length, within one block.
@@ -137,9 +152,14 @@ export function markdown(options: Options = {}): Partial<Config> {
 				let stash: string[] = [];
 				content = await unpack(content, stash, utils, opts);
 
+				let tree = parseAST(content);
+				let ids = anchors(tree);
+				let html = renderToHtml(content, opts);
+				if (ids.size) html = html.replace(/<h([1-6]) id="([^"]*)"/g, (tag, level: string, id: string) => ids.has(id) ? `<h${level} id="${ids.get(id)}"` : tag);
+
 				return {
 					filename: input + '.html',
-					content: restore(renderToHtml(content, opts), stash),
+					content: restore(html, stash),
 					metadata: value,
 				};
 			}
