@@ -16,7 +16,7 @@ type Cache = Map<string, Template.Compiler>;
 
 /** What layouts, partials, and `.hbs` content see, on top of `$page`, `$pages`, `$section`, and `$tags`. */
 export type Context = Required<Config> & {
-	$assets: { load(filename: string, encoding?: BufferEncoding): Promise<string | Buffer> };
+	$assets: Template.Assets;
 	$data: Record<string, unknown>;
 };
 
@@ -25,6 +25,9 @@ const UNDECLARED = /^(?:(\S+) is not defined|Can't find variable: (\S+))$/;
 
 export const Layouts: Cache = new Map;
 export const Partials: Cache = new Map;
+
+// The file of each partial, for errors; `$partials` entries have none.
+const FILES: Map<string, string> = new Map;
 
 // Strip the extension and normalise backslashes to forward slashes so partial
 // names are stable across platforms (Windows' `\`-separated `fs.readdir` paths
@@ -52,18 +55,31 @@ export type Scope = {
 	$pages: Template.PageInfo[];
 	$section: Template.PageInfo[];
 	$tags: Template.TagEntry[];
+	$assets: Template.Assets;
 };
 
 const SCOPES = new WeakMap<object, Scope>();
 
 /**
- * The blocks for one page render, so that the partials it calls get its page values.
- * @example await layout({ $page, ...context }, templates.scope({ $page, $pages, $section, $tags }));
+ * The blocks for one page render, so that the partials it calls get its page values, and its `$assets`, made for those blocks.
+ * @example let scope = templates.scope({ $page, $pages, $section, $tags }, page => assets(page)); await layout({ ...context, ...scope.values }, scope.blocks);
  */
-export function scope(values: Scope): tempura.Blocks {
+export function scope(values: Omit<Scope, '$assets'>, assets: (page: tempura.Blocks) => Template.Assets): { blocks: tempura.Blocks; values: Scope } {
 	let page: tempura.Blocks = Object.create(blocks);
-	SCOPES.set(page, values);
-	return page;
+	let all: Scope = { ...values, $assets: assets(page) };
+	SCOPES.set(page, all);
+	return { blocks: page, values: all };
+}
+
+/**
+ * Render a partial by name, as `{{#partial}}` does, with the page values of `page` when given.
+ * @example let { html, file } = await templates.partial('og/card', { tone: 'red' }, scope.blocks) //=> { html: '<div>…</div>', file: 'partials/og/card.hbs' }
+ */
+export async function partial(name: string, args: Args, page?: tempura.Blocks): Promise<{ html: string; file: string }> {
+	let key = toPartialName(name);
+	let render = Partials.get(key);
+	if (!render) throw new Error(`Unknown "${key}" partial!`);
+	return { html: await render(args, page), file: FILES.get(key) ?? `$partials["${key}"]` };
 }
 
 function makeBlocks(_argv: Required<Argv>, _config: Context) {
@@ -137,11 +153,13 @@ export async function collect(argv: Required<Argv>, config: Context): Promise<vo
 	let { layouts, partials } = argv;
 	let debug = argv.debug ? log.debug : () => {};
 
+	FILES.clear();
 	if (fs.exists(partials)) {
 		await fs.list(partials, async (_, rel) => {
 			if (isHBS.test(rel) || isJS.test(rel)) {
 				let key = toPartialName(rel);
 				debug('[collect.partials]', key);
+				FILES.set(key, 'partials/' + rel.replace(/\\/g, '/'));
 				// @ts-ignore - setting placeholders
 				Partials.set(key, blocks[key] = rel);
 			}
@@ -170,7 +188,10 @@ export async function collect(argv: Required<Argv>, config: Context): Promise<vo
 			}
 
 			// NOTE: Partials get the page values of the page that renders them; arguments win
-			let compiler = (x: Args, page?: tempura.Blocks) => render({ ...(page && SCOPES.get(page)), ...x, ...config }, page ?? blocks as unknown as tempura.Blocks);
+			let compiler = (x: Args, page?: tempura.Blocks) => {
+				let values = page && SCOPES.get(page);
+				return render({ ...values, ...x, ...config, $assets: values?.$assets ?? config.$assets }, page ?? blocks as unknown as tempura.Blocks);
+			};
 			Partials.set(key, blocks[key] = compiler);
 		}
 	}
@@ -179,6 +200,7 @@ export async function collect(argv: Required<Argv>, config: Context): Promise<vo
 		let key = toPartialName(name);
 		debug('[collect.$partials]', key);
 		let compiler = config.$partials[name];
+		FILES.delete(key);
 		Partials.set(key, blocks[key] = compiler);
 	}
 

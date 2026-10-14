@@ -91,6 +91,37 @@ describe('memory', () => {
 	});
 });
 
+describe('defer', () => {
+	test('memory makes a deferred file on its first read, once, and keeps it', async () => {
+		let argv = await project();
+		let sink = output.memory(argv.dest);
+		let made = 0;
+		let file = join(argv.dest, 'og/card.png');
+		await sink.defer(file, async () => (made++, Buffer.from('png')));
+		expect(made).toBe(0);
+		let entry = sink.get(file);
+		expect(entry && 'make' in entry).toBe(true);
+		expect(String(await sink.read(file))).toBe('png');
+		expect(String(await sink.read(file))).toBe('png');
+		expect(made).toBe(1);
+		expect(sink.get(file)).toMatchObject({ data: Buffer.from('png') });
+		expect(existsSync(argv.dest)).toBe(false);
+		await rm(argv.cwd, { recursive: true, force: true });
+	});
+
+	test('a disk sink, and the mirror of a memory sink, make the file at once', async () => {
+		let argv = await project();
+		let sink = output.memory(argv.dest, output.disk(argv));
+		try {
+			let file = join(argv.dest, 'og/card.png');
+			await sink.defer(file, async () => Buffer.from('png'));
+			expect(await readFile(file, 'utf8')).toBe('png');
+		} finally {
+			await rm(argv.cwd, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('memory minify', () => {
 	test('minifies the HTML it holds with the minify CLI, through temp files', async () => {
 		let argv = await project();

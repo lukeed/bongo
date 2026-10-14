@@ -127,8 +127,11 @@ function unsupported(err: unknown): boolean {
 	return err instanceof Error && 'code' in err && err.code === 'ERR_IMAGE_FORMAT_UNSUPPORTED';
 }
 
-// JPEG, PNG, and WebP use the portable backend, so their bytes are the same on every machine; AVIF needs the OS encoder.
-function encode(image: Bun.Image, format: Format, options: Job['options']): Promise<Uint8Array> {
+/**
+ * Encode an image with Bun.Image. JPEG, PNG, and WebP use the portable backend, so their bytes are the same on every machine; AVIF needs the OS encoder.
+ * @example let bytes = await images.encode(new Bun.Image(png), 'webp', { quality: 80 })
+ */
+export function encode(image: Bun.Image, format: Format, options: Job['options']): Promise<Uint8Array> {
 	if (format === 'avif') image.avif(options);
 	else if (format === 'webp') image.webp(options);
 	else if (format === 'jpeg') image.jpeg(options);

@@ -50,5 +50,21 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "satori": "^0.57.2"
+  },
+  "peerDependencies": {
+    "@resvg/resvg-js": "^2.6.0",
+    "satori": ">=0.57.0"
+  },
+  "peerDependenciesMeta": {
+    "@resvg/resvg-js": {
+      "optional": true
+    },
+    "satori": {
+      "optional": true
+    }
   }
 }

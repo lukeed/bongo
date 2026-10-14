@@ -125,6 +125,7 @@ function range(header: string | undefined, size: number): [number, number] | nul
 async function deliver(req: IncomingMessage, res: ServerResponse, sink: Memory, file: string, status = 200): Promise<boolean> {
 	let entry = sink.get(file);
 	if (!entry) return false;
+	if ('make' in entry) entry = { data: await entry.make(), version: 0 };
 	let size: number, etag: string;
 	if ('data' in entry) {
 		size = entry.data.length;

@@ -144,6 +144,31 @@ export namespace Template {
 		pages: PageInfo[];
 	};
 
+	/** `$assets` in layouts, partials, and `.hbs` content. */
+	type Assets = {
+		/**
+		 * Read a file of `assets/`; with an encoding, as text.
+		 * @example {{{ await $assets.load('img/logo.svg', 'utf8') }}}
+		 */
+		load(filename: string, encoding?: BufferEncoding): Promise<string | Buffer>;
+		/**
+		 * Draw a partial as an image, with the values of the current page, and return the URL path of the image.
+		 * The extension of `output` picks the format: `.svg` and `.png` work everywhere, `.jpg` and `.webp` need Bun.
+		 * Without `output`, the image is a PNG named from its partial and content. Needs `satori`, and `@resvg/resvg-js` for all but SVG.
+		 * @example {{#var card = await $assets.render('og/card', 'og/' + $utils.slug($page.title) + '.png')}}
+		 */
+		render(template: string, output?: string, options?: Render): Promise<string>;
+	};
+
+	type Render = {
+		/** @default 1200 */
+		width?: number;
+		/** @default 630 */
+		height?: number;
+		/** Values for the partial, as the attributes of `{{#partial}}` are. */
+		args?: Record<string, unknown>;
+	};
+
 	interface Params {
 		[name: string]: unknown;
 	}

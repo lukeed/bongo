@@ -13,12 +13,14 @@ import * as output from './utils/output';
 import * as bundler from './utils/bundler';
 import { load, loadModule, LoadError } from './utils/config';
 import * as loaders from './utils/loaders';
+import * as render from './utils/render';
 import * as templates from './utils/templates';
 import * as tags from './utils/tags';
 import { normalize } from './utils/argv';
 import { ID, RELOAD } from './utils/http';
 
 import type { Argv, Build, Config, Loader, Template } from 'bongo';
+import type { Blocks } from './utils/tempura/index';
 
 // Per-page frontmatter signatures from the last completed build. A narrow
 // rebuild (`opts.only`) compares the target's current frontmatter hash against
@@ -28,8 +30,8 @@ import type { Argv, Build, Config, Loader, Template } from 'bongo';
 // to keep sibling output accurate. Body-only edits keep the narrow path.
 let FRONTMATTER_SIG: Map<string, string> = new Map();
 
-// Per sink, the last good build's files and each page's assets, to keep or delete on the next build.
-type Output = { assets: Map<string, string[]>; files: Set<string>; dev: boolean };
+// Per sink, the last good build's files, and each page's assets and renders, to keep or delete on the next build.
+type Output = { assets: Map<string, string[]>; renders: Map<string, string[]>; files: Set<string>; dev: boolean };
 let OUTPUT: Map<output.Sink, Output> = new Map();
 
 // Local files outside content/ that the last build's data modules read.
@@ -183,18 +185,32 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	debug('[build.argv]', argv);
 
-	const context: templates.Context = {
-		...config,
-		$data,
-		$assets: {
-			// switcheroo: templates get a reader for assets/ in place of the loader map
+	let renders = render.context({
+		assets: argv.assets,
+		cache: join(argv.cwd, 'node_modules', '.cache', 'bongo', 'render'),
+		quality: images.settings({}, config.$images).quality,
+	});
+
+	// switcheroo: templates get a reader for assets/ in place of the loader map
+	function assets(from: string, made: string[], page?: Blocks): Template.Assets {
+		return {
 			load(filename: string, encoding?: BufferEncoding) {
 				let file = join(argv.assets, filename);
 				fs.assert(file, `Missing "${filename}" asset!`);
 				return encoding ? fs.read(file, encoding) : fs.read(file);
-			}
-		},
-	};
+			},
+			async render(template, output, options = {}) {
+				let { html, file } = await templates.partial(template, options.args ?? {}, page);
+				let name = await render.add(renders, { html, file, template, output, options, from });
+				made.push(name);
+				return bundler.href(base, name);
+			},
+		};
+	}
+
+	// renders outside a page, as from a loader that calls a partial
+	let loose: string[] = [];
+	const context: templates.Context = { ...config, $data, $assets: assets('a loader', loose) };
 
 	// sets `templates` caches
 	watch.step('compiling layouts and partials');
@@ -431,7 +447,9 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	let pages: CollectedPage[] = [];
 	let outputs: CollectedPage[] = [];
 	let modules: ScanItem[] = [];
-	let assets: Map<string, string[]> = new Map(narrowOnly && last ? last.assets : []);
+	let bundles: Map<string, string[]> = new Map(narrowOnly && last ? last.assets : []);
+	let rendered: Map<string, string[]> = new Map(narrowOnly && last ? last.renders : []);
+	rendered.set('', loose);
 
 	for (let item of scanned) {
 		if (narrowOnly && item.rel !== narrowOnly && item.kind === 'page') continue;
@@ -455,15 +473,17 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		};
 
 		let $section = Sections.get(item.section) || [];
-		let scope = templates.scope({ $page, $pages: Pages, $section, $tags });
+		let made: string[] = [];
+		rendered.set(item.rel, made);
+		let scope = templates.scope({ $page, $pages: Pages, $section, $tags }, page => assets(item.path, made, page));
 
 		// `.hbs` content is compiled here, with full walk-2 context —
 		// `$page`, `$pages`, `$section`, `$tags` are all available to the
 		// body. Non-`.hbs` content bodies pass through raw.
 		let rendered_content = item.ext === 'hbs'
 			? await (await templates.compileContent(item.body))(
-				{ $page, $pages: Pages, $section, $tags, params: item.params, ...context },
-				scope,
+				{ ...context, ...scope.values, params: item.params },
+				scope.blocks,
 			)
 			: item.body;
 
@@ -500,7 +520,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 			// Should always be defined as a fallback
 			if (!render) throw new Error('Missing "html.hbs" template');
-			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...context }, scope);
+			rendered_content = await render({ ...context, ...scope.values }, scope.blocks);
 			chain.push(`layouts/${layout}`);
 		}
 
@@ -513,7 +533,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			}
 			// Should always be defined as a bare minimum
 			if (!render) throw new Error('Missing "html.hbs" template');
-			rendered_content = await render({ $page, $pages: Pages, $section, $tags, ...context }, scope);
+			rendered_content = await render({ ...context, ...scope.values }, scope.blocks);
 			chain.push(`layouts/${layout}`);
 		}
 
@@ -561,11 +581,11 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		rendered_content = tags.scanBongoTags(rendered_content, argv as Required<Argv>, config, chain.join(' → '), item.path);
 		rendered_content = tags.rewriteTransitionAttrs(rendered_content);
 
-		assets.set(item.rel, bundler.placeholders(rendered_content));
+		bundles.set(item.rel, bundler.placeholders(rendered_content));
 		pages.push({ output: item.output, html: rendered_content, path: item.path, params: item.params, from: chain.join(' → ') });
 	}
 
-	bundler.retain(new Set([...assets.values()].flat()));
+	bundler.retain(new Set([...bundles.values()].flat()));
 
 	// Data modules run on every build, narrow ones too, since they read `$pages`.
 	let imported: Set<string> = new Set();
@@ -655,6 +675,11 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		...outputs.map(file => finish(file, 'output', file.html)),
 		...json,
 	]);
+	let taken = new Set([...written, ...scanned.map(item => item.output), ...flushResult.files.map(file => join(dest, file))]);
+	for (let name of renders.files.keys()) {
+		if (taken.has(join(dest, name))) throw new Error(`"${name}" is a file of the site; render to another path`);
+	}
+	await Promise.all([...renders.files].map(([name, entry]) => sink.defer(join(dest, name), entry.make)));
 	await Promise.all(ready.map(([file, text]) => sink.write(file, text)));
 
 	if (argv.minify) watch.step('minifying html');
@@ -662,9 +687,9 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		log.info(`${dim('--minify:')} HTML left as-is; install tdewolff/minify to minify it`);
 	}
 
-	let files = new Set([...written, ...scanned.map(item => item.output), ...flushResult.files.map(file => join(dest, file))]);
+	let files = new Set([...taken, ...[...rendered.values()].flat().map(name => join(dest, name))]);
 	await Promise.all([...last?.files ?? []].filter(file => !files.has(file)).map(file => sink.remove(file)));
-	OUTPUT.set(sink, { assets, files, dev: argv.dev });
+	OUTPUT.set(sink, { assets: bundles, renders: rendered, files, dev: argv.dev });
 
 	// Refresh the frontmatter-sig snapshot for the next narrow rebuild. Only
 	// pages actually scanned in this build are updated; narrow builds don't
@@ -673,7 +698,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	for (let item of scanned) FRONTMATTER_SIG.set(item.rel, item.sig);
 
 	// after this build's own files are out; a racing build re-encodes what it loses
-	await images.prune(cache, config.$images);
+	await Promise.all([images.prune(cache, config.$images), images.prune(renders.cache, config.$images)]);
 
 	if (!argv.dev) {
 		log.info(`${green('done')} ${dim('in ' + log.elapsed(Date.now() - t0))}`);

@@ -7,8 +7,8 @@ import * as minify from './minify';
 
 import type { Argv } from 'bongo';
 
-/** A file in a memory sink: its bytes, or the source file it copies, read when it is served. */
-export type Entry = { data: Buffer; version: number } | { file: string };
+/** A file in a memory sink: its bytes, the source file it copies, read when it is served, or a maker that runs on the first read. */
+export type Entry = { data: Buffer; version: number } | { file: string } | { make(): Promise<Buffer> };
 
 /**
  * Where a build puts its files. Every path is absolute and inside `dir`.
@@ -18,6 +18,8 @@ export type Sink = {
 	dir: string;
 	write(file: string, data: string | Uint8Array): Promise<void>;
 	copy(source: string, file: string): Promise<void>;
+	/** Write the bytes that `make` gives; a memory sink calls it on the first read of the file. */
+	defer(file: string, make: () => Promise<Uint8Array>): Promise<void>;
 	read(file: string): Promise<Buffer>;
 	remove(file: string): Promise<void>;
 	clear(): Promise<void>;
@@ -41,6 +43,7 @@ export function folder(dir: string): Sink {
 		dir,
 		write: fs.write,
 		copy: fs.copy,
+		defer: async (file, make) => fs.write(file, await make()),
 		read: file => fs.read(file),
 		remove: file => fs.prune(file, dir),
 		clear: () => Promise.reject(new Error(`Refusing to empty "${dir}": it is not an output folder`)),
@@ -83,9 +86,22 @@ export function memory(dir: string, mirror?: Sink): Memory {
 			files.set(file, { file: source });
 			await mirror?.copy(source, file);
 		},
+		async defer(file, make) {
+			let made: Promise<Buffer> | undefined;
+			let entry: Entry = {
+				make: () => made ??= make().then(bytes => {
+					let data = Buffer.from(bytes);
+					if (files.get(file) === entry) files.set(file, { data, version: ++version });
+					return data;
+				}),
+			};
+			files.set(file, entry);
+			await mirror?.defer(file, entry.make);
+		},
 		async read(file) {
 			let entry = files.get(file);
 			if (!entry) throw new Error(`No "${file}" in the dev output`);
+			if ('make' in entry) return entry.make();
 			return 'data' in entry ? entry.data : fs.read(entry.file);
 		},
 		async remove(file) {

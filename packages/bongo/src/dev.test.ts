@@ -264,6 +264,34 @@ describe('output files', () => {
 	}, 30_000);
 });
 
+describe('$assets.render', () => {
+	test('serves a render on its first request, and stops serving one that no page makes any more', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' } };`,
+			'layouts/html.hbs': '{{{ $page.content }}}',
+			'partials/card.hbs': '<div style="display: flex; width: 100%; height: 100%; background: red"></div>',
+			'content/index.hbs': `<p>{{ await $assets.render('card', 'og/a.png') }}</p>`,
+		});
+		let server = await serve(root);
+		try {
+			await until(async () => (await server.page()).includes('<p>/og/a.png</p>'), 'the first build', server);
+			let res = await fetch(server.url + '/og/a.png');
+			expect(res.status).toBe(200);
+			expect(res.headers.get('content-type')).toBe('image/png');
+			expect(Buffer.from(await res.arrayBuffer()).subarray(1, 4).toString()).toBe('PNG');
+
+			await writeFile(join(root, 'content/index.hbs'), `<p>{{ await $assets.render('card', 'og/b.png') }}</p>`);
+			await until(async () => (await server.page()).includes('<p>/og/b.png</p>'), 'the edit', server);
+			expect((await fetch(server.url + '/og/a.png')).status).toBe(404);
+			expect((await fetch(server.url + '/og/b.png')).status).toBe(200);
+			expect(server.messages.filter(m => m.type === 'error')).toEqual([]);
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+});
+
 describe('output folder', () => {
 	test('holds requests made during the first build until it ends', async () => {
 		let root = await site({
