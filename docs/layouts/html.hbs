@@ -1,4 +1,3 @@
-{{#var docs = $page.section === 'docs'}}
 {{#var home = $page.path === '/'}}
 {{#var title = home ? 'bongo · Static sites with a good beat' : $page.title + ' · bongo'}}
 {{#var summary = $page.summary || $site.description}}
@@ -27,7 +26,7 @@
 	<bongo:style src="style.css"></bongo:style>
 </head>
 <body{{#if home}} class="home"{{/if}}>
-{{#partial src="header" docs=docs version=$data.release.version}}
+{{#partial src="header"}}
 {{{ $page.content }}}
 {{#partial src="search"}}
 <bongo:client transitions prefetch />

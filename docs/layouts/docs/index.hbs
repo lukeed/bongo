@@ -1,1 +1,53 @@
-{{#partial src="doc" page=$page pages=$pages version=$data.release.version}}
+{{#var groups = $utils.nav($pages, $page.path)}}
+{{#var near = $utils.pager($pages, $page.path)}}
+{{#var heads = $page.headings.filter(heading => heading.level === 2)}}
+<div class="shell">
+	<aside class="side" id="side" aria-label="Docs">
+		{{#each groups as group}}
+		<div class="grp" style="--c:var(--{{ group.color }})">
+			<h4><i></i>{{ group.title }}</h4>
+			{{#each group.pages as link}}
+			<a href="{{ link.path }}"{{#if link.current}} aria-current="page"{{/if}}>{{#if link.title.startsWith('@')}}<code>{{ link.title }}</code>{{#else}}{{ link.title }}{{/if}}</a>
+			{{/each}}
+		</div>
+		{{/each}}
+	</aside>
+	<main class="doc">
+		<div class="subbar">
+			<button class="pill" type="button" data-menu aria-controls="side" aria-expanded="false">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>Menu
+			</button>
+			{{#if heads.length}}
+			<button class="pill otp" type="button" data-toc aria-controls="toc" aria-expanded="false">
+				On this page<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+			</button>
+			{{/if}}
+		</div>
+		<nav class="crumbs" aria-label="Breadcrumb"><a href="/docs/">Docs</a><span>/</span><span>{{ $page.params.group }}</span><span>/</span><b>{{ $page.title }}</b></nav>
+		<h1>{{ $page.title }}</h1>
+		<svg class="wave" viewBox="0 0 150 16" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" aria-hidden="true"><path d="M3 8c6-7 12-7 18 0s12 7 18 0 12-7 18 0 12 7 18 0 12-7 18 0 12 7 18 0 12-7 18 0 6 5 9 4"/></svg>
+		<article class="prose">
+{{{ $page.content }}}
+		</article>
+		<nav class="pager" aria-label="Pages">
+			{{#if near.prev}}<a class="card" href="{{ near.prev.path }}" rel="prev"><small>← Previous</small><b>{{ near.prev.title }}</b></a>{{/if}}
+			{{#if near.next}}<a class="card next" href="{{ near.next.path }}" rel="next"><small>Next →</small><b>{{ near.next.title }}</b></a>{{/if}}
+		</nav>
+		<div class="edit">
+			<a href="{{ $utils.source($page.path) }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></svg>Edit this page on GitHub</a>
+			<span>MIT license · bongo v{{ $data.release.version }}</span>
+		</div>
+	</main>
+	{{#if heads.length}}
+	<aside class="toc" id="toc" aria-label="On this page">
+		<div class="toc-box">
+			<h5>On this page</h5>
+			<ol>
+				{{#each heads as head}}
+				<li><a href="#{{ head.id }}">{{{ head.html }}}</a></li>
+				{{/each}}
+			</ol>
+		</div>
+	</aside>
+	{{/if}}
+</div>

@@ -1,4 +1,5 @@
-{{#expect docs, version}}
+{{#var docs = $page.section === 'docs'}}
+{{#var version = $data.release.version}}
 <header class="top">
 	<div class="top-in">
 		<a class="brand" href="/" aria-label="bongo home">{{#partial src="wordmark"}}</a>
