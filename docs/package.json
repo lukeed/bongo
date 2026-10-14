@@ -2,13 +2,17 @@
   "name": "docs",
   "private": true,
   "scripts": {
-    "dev": "bongo dev",
-    "build": "bongo build",
+    "dev": "bun og.ts && bongo dev",
+    "build": "bun og.ts && bongo build",
     "preview": "wrangler dev",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {
     "@bongo/markdown": "workspace:*",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource/space-grotesk": "^5.3.0",
+    "@fontsource/unbounded": "^5.3.0",
+    "@resvg/resvg-js": "^2.6.2",
     "@twinkleplop/bash": "^0.1.7",
     "@twinkleplop/core": "^0.3.1",
     "@twinkleplop/css": "^0.1.7",
@@ -20,6 +24,7 @@
     "@twinkleplop/typescript": "^0.1.7",
     "@twinkleplop/yaml": "^0.1.7",
     "bongo": "workspace:@lukeed/bongo@*",
+    "satori": "^0.57.2",
     "wrangler": "^4.151.0"
   }
 }

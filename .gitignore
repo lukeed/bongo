@@ -17,3 +17,4 @@ node_modules
 
 /docs/public
 /docs/.wrangler
+/docs/assets/og
