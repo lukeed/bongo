@@ -33,7 +33,19 @@ A page's URL path is its path in `content/` without the extension, with a traili
 | `content/blog/post.md` | `/blog/post/` | `public/blog/post/index.html` |
 | `content/404.md` | `/404/` | `public/404/index.html` |
 
-The [dev server](/docs/dev-server/#not-found-pages) uses `404/index.html` as the body of its 404 responses.
+### Custom URLs
+
+Set `url` in the frontmatter to give a page another path. bongo adds the trailing slash and writes `index.html` in that folder. A path that ends in `.html` writes that exact file.
+
+| Frontmatter | URL path | Output |
+| --- | --- | --- |
+| `url: /about-us/` | `/about-us/` | `public/about-us/index.html` |
+| `url: team` | `/team/` | `public/team/index.html` |
+| `url: /404.html` | `/404.html` | `public/404.html` |
+
+A custom `url` must be a path, not a full URL. [Output files](/docs/output-files/) cannot set `url`: rename the file to change its path.
+
+Most static hosts serve `404.html` for a path that does not exist. Give your 404 page `url: /404.html` so that the build writes that file. The [dev server](/docs/dev-server/#not-found-pages) uses `404.html` or `404/index.html` as the body of its 404 responses.
 
 `$page.path` is the URL path, such as `/blog/post/`. `$page.url` is the absolute URL, made from `$site.url` and the path. When `$site.url` has a subpath, `$page.url` includes it. For `https://example.com/blog/`, `content/post.md` is `https://example.com/blog/post/`. See [publicPath](/docs/config/#publicpath).
 

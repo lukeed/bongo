@@ -41,7 +41,7 @@ If the config or a data file fails to load, the error overlay shows the error, a
 
 ## Not found pages
 
-A path with no matching file gets a `404` status, the same as on a static host. Thus broken links show up during development. The response body is your own 404 page when the build has one: `404.html`, or `404/index.html`, which `content/404.md` produces.
+A path with no matching file gets a `404` status, the same as on a static host. Thus broken links show up during development. The response body is your own 404 page when the build has one: `404.html`, or `404/index.html`, which `content/404.md` produces. To write `404.html`, give the page `url: /404.html`. See [Custom URLs](/docs/content/#custom-urls).
 
 ## Reload messages
 

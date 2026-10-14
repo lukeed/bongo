@@ -46,14 +46,17 @@ A layout is a `.hbs` file in `layouts/`. It wraps the content of a page. `{{{ $p
 
 ### Find the layout
 
-For each page, bongo uses the first layout that exists in a fixed order. It looks in the folder of `layouts/` that has the name of the page's folder, then in `layouts/` itself. For `content/blog/post.md`, the order is:
+For each page, bongo uses the first layout that exists in a fixed order. It looks in the folder of `layouts/` that matches the page's folder first, then in each parent folder, then in `layouts/` itself. For `content/blog/2025/post.md`, the order is:
 
-1. `layouts/blog/post.hbs`
-2. `layouts/blog/single.hbs`
-3. `layouts/blog/html.hbs`
-4. `layouts/post.hbs`
-5. `layouts/single.hbs`
-6. `layouts/html.hbs`
+1. `layouts/blog/2025/post.hbs`
+2. `layouts/blog/2025/single.hbs`
+3. `layouts/blog/2025/html.hbs`
+4. `layouts/blog/post.hbs`
+5. `layouts/blog/single.hbs`
+6. `layouts/blog/html.hbs`
+7. `layouts/post.hbs`
+8. `layouts/single.hbs`
+9. `layouts/html.hbs`
 
 For an index page, bongo looks for `index.hbs` in place of the file name and `single.hbs`. For `content/blog/index.md`, the order is:
 

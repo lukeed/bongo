@@ -19,7 +19,7 @@ With `--minify`, LightningCSS minifies every stylesheet, inline ones included. S
 
 ## CSS modules
 
-`.module.css` files automatically enable CSS modules. Non-module files can opt in explicitly when registering the entry.
+`.module.css` files automatically enable CSS modules.
 
 To turn off the auto-detection for a `.module.css` file, add `global` to its element:
 

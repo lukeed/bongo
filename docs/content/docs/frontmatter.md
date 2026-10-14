@@ -33,6 +33,8 @@ bongo reads three keys into fields of `$page`:
 
 `$page.title` and `$page.summary` are always text, so `title: 2024` gives `"2024"`. All keys, these three included, stay in `$page.params` with their typed values.
 
+`url` sets a custom path for the page. See [Custom URLs](/docs/content/#custom-urls).
+
 ## The YAML subset
 
 bongo reads a small subset of YAML:
