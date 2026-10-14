@@ -323,6 +323,16 @@ describe('built-in utils', () => {
 		expect(url?.abs?.('a', 'https://cdn.example.com/x/')).toBe('https://cdn.example.com/x/a');
 	});
 
+	test('url.path resolves a path against $site.url, keeps the query and hash, and leaves a full site path alone', async () => {
+		let { url } = await builtins(`{ url: 'https://example.com/blog', lang: 'en', title: 'T' }`);
+		expect(url?.path?.('docs/')).toBe('/blog/docs/');
+		expect(url?.path?.('/about/')).toBe('/about/');
+		expect(url?.path?.('/blog/post/')).toBe('/blog/post/');
+		expect(url?.path?.('docs/?q=a b#top')).toBe('/blog/docs/?q=a%20b#top');
+		expect(url?.path?.('a', 'https://cdn.example.com/x/')).toBe('/x/a');
+		expect(url?.path?.('https://other.com/y')).toBe('/y');
+	});
+
 	test('date.format gives ISO 8601, or a date in $site.lang from Intl options, in UTC', async () => {
 		let { date } = await builtins(`{ url: 'https://example.com/', lang: 'fr', title: 'T' }`);
 		expect(date?.format?.('2024-05-01')).toBe('2024-05-01T00:00:00.000Z');

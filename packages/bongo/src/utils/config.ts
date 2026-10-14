@@ -281,6 +281,10 @@ export async function load(root: string): Promise<Loaded> {
 			url: {
 				abs(to: string, fro?: string): string {
 					return new URL(to, fro || output.$site.url.replace(/\/?$/, '/')).href;
+				},
+				path(to: string, fro?: string): string {
+					let url = new URL(to, fro || output.$site.url.replace(/\/?$/, '/'));
+					return url.pathname + url.search + url.hash;
 				}
 			},
 			date: {

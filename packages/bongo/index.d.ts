@@ -223,6 +223,7 @@ export interface Config {
 		countwords?(text: string): number;
 		url?: Helpers & {
 			abs?(to: string, fro?: string): string;
+			path?(to: string, fro?: string): string;
 		};
 		date?: Helpers & {
 			format?(value: string|number|Date, options?: Intl.DateTimeFormatOptions): string;
