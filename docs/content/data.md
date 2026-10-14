@@ -31,7 +31,7 @@ Use brackets for a key that is not a valid name: `$data.oss['arr-filter']`.
 
 - JSON files end in `.json`.
 - YAML files end in `.yaml` or `.yml`. They use the same subset as frontmatter. See [The YAML subset](/frontmatter/#the-yaml-subset).
-- A `.ts`, `.mts`, `.js`, `.mjs`, or `.cjs` file must have a default export. It can use top-level `await`, for example to fetch data at build time. bongo loads it as it loads the config. See [How a build works](/project-layout/#how-a-build-works).
+- A `.ts`, `.mts`, `.js`, `.mjs`, or `.cjs` file must have a default export. It can use top-level `await`, for example to fetch data at build time. bongo loads it as it loads the config. See [How a build works](/project/#how-a-build-works).
 
 ```ts [data/stats.ts]
 let res = await fetch('https://example.com/stats.json');

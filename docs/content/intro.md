@@ -11,7 +11,7 @@ bongo is a static site generator. It bundles scripts with Rolldown, builds style
 
 bongo passes your content files through a loader pipeline. It applies layouts and partials with a template engine based on [tempura](https://github.com/lukeed/tempura). It bundles client assets: Rolldown builds the JavaScript, and LightningCSS builds the CSS. Then it writes the site to `public/`.
 
-You write one config file, `bongo.config.ts`, and put your files in a small set of folders. [Project layout](/project-layout/) describes each folder and each step of a build.
+You write one config file, `bongo.config.ts`, and put your files in a small set of folders. [Project layout](/project/) describes each folder and each step of a build.
 
 ## Features
 
@@ -71,5 +71,5 @@ The package build uses Rolldown and writes the publishable package files in plac
 ## Next steps
 
 - [Quick start](/quick-start/): create a site and run it.
-- [Project layout](/project-layout/): learn what each folder does.
+- [Project layout](/project/): learn what each folder does.
 - [Config](/config/): see every config field.

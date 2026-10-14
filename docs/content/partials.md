@@ -75,7 +75,7 @@ See [Templates](/templates/#syntax) for the syntax.
 
 ## Module partials
 
-A `.js`, `.mjs`, `.cjs`, or `.ts` file in `partials/` is a module partial. bongo loads it as it loads the config: Rolldown bundles it with its local imports. See [How a build works](/project-layout/#how-a-build-works).
+A `.js`, `.mjs`, `.cjs`, or `.ts` file in `partials/` is a module partial. bongo loads it as it loads the config: Rolldown bundles it with its local imports. See [How a build works](/project/#how-a-build-works).
 
 Its default export must be a render function. The function gets the arguments, and returns the HTML as a string or a promise of a string:
 

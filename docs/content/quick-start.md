@@ -67,7 +67,7 @@ my-site/
 └── tsconfig.json
 ```
 
-The blog in `content/blog/` has more posts than this tree shows. [Project layout](/project-layout/) describes each folder.
+The blog in `content/blog/` has more posts than this tree shows. [Project layout](/project/) describes each folder.
 
 The `package.json` has two scripts, and installs `bongo`, `@bongo/markdown`, and `shiki` as dev dependencies:
 
@@ -186,6 +186,6 @@ To run them as `bun run dev` and `bun run build`, add the two scripts from the [
 
 ## Next steps
 
-- [Project layout](/project-layout/): learn what each folder does.
+- [Project layout](/project/): learn what each folder does.
 - [CLI](/cli/): see every command and option.
 - [Templates](/templates/): add styles, scripts, and assets to your layout.

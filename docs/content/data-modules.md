@@ -38,7 +38,7 @@ export default ({ $pages }: Build.Data) => $pages.map(page => ({
 }));
 ```
 
-bongo runs data modules once every page is known. See [How a build works](/project-layout/#how-a-build-works).
+bongo runs data modules once every page is known. See [How a build works](/project/#how-a-build-works).
 
 ## How it differs from a page
 
