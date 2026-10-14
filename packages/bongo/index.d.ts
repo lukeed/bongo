@@ -40,11 +40,16 @@ export namespace Loader {
 
 	type SourceMap = string | SourceMapObject;
 
+	/** A heading of the HTML that a loader writes. Without `html`, bongo uses the escaped `text`. */
+	type Heading = Omit<Template.Heading, 'html'> & { html?: string };
+
 	interface Result {
 		filename: string;
 		content: Uint8Array | string;
 		metadata?: Loader.Metadata;
 		sourcemap?: Loader.SourceMap | null;
+		/** The headings of `content`, in document order. They become `$page.headings`. */
+		headings?: Loader.Heading[];
 	}
 
 	interface Utilities {
@@ -90,6 +95,20 @@ export namespace Template {
 		};
 	}
 
+	/**
+	 * A heading of a page, as its loader reports it. `.html` and `.hbs` content has none.
+	 * @example { level: 2, id: 'install', text: 'Install bongo', html: 'Install <code>bongo</code>' }
+	 */
+	type Heading = {
+		level: number;
+		/** The anchor that the heading has in the page HTML. */
+		id: string;
+		/** Plain text, entities resolved. Escape it for HTML. */
+		text: string;
+		/** The inner HTML, such as inline code. */
+		html: string;
+	};
+
 	// TODO: lastmodified value
 	// TODO: file.abs path
 	// TODO: file.rel path
@@ -100,6 +119,7 @@ export namespace Template {
 		summary: string;
 		section: string;
 		tags: string[];
+		headings: Heading[];
 		params: Params;
 		content: string;
 		scripts: string;
@@ -113,6 +133,7 @@ export namespace Template {
 		summary: string;
 		section: string; // directory prefix (e.g. 'blog', '' for root)
 		tags: string[];  // parsed from frontmatter
+		headings: Heading[]; // from the page's loader; empty for .html and .hbs content
 		params: Params;  // full frontmatter
 	};
 

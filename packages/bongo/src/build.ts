@@ -89,6 +89,7 @@ type ScanItem = {
 	title: string;
 	summary: string;
 	tags: string[];          // parsed from frontmatter.tags
+	headings: Template.Heading[];
 	sig: string;             // sha256 of the raw frontmatter block (empty block ⇒ constant hash)
 };
 
@@ -96,6 +97,17 @@ type ScanItem = {
 function text(value: unknown): string {
 	let type = typeof value;
 	return type === 'string' || type === 'number' || type === 'boolean' ? String(value) : '';
+}
+
+const HTML_ESCAPE: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
+
+function headings(list: Loader.Heading[] | undefined): Template.Heading[] {
+	return (list || []).map(heading => ({
+		level: heading.level,
+		id: heading.id,
+		text: heading.text,
+		html: heading.html ?? heading.text.replace(/[&<>"]/g, char => HTML_ESCAPE[char]),
+	}));
 }
 
 function parseTags(value: unknown): string[] {
@@ -242,13 +254,14 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		let inner = extname(basename).substring(1);
 		let kind: ScanItem['kind'] = ext === 'hbs' && !/^html?$/i.test(inner) && mime.lookup(inner) ? 'output' : 'page';
 		let params: Template.Params = {};
+		let found: Loader.Heading[] | undefined;
 		let src = '';
 		let raw = '';
 
 		if (DATA_MODULE.test(name)) {
 			let file = rel.substring(0, rel.length - ext.length - 1);
 			let path = '/' + file.replace(/\\/g, '/');
-			scanned.push({ input, rel, name, kind: 'data', ext, body: '', params, path, url: new URL(path.substring(1), site).href, output: join(dest, file), section: deriveSection(rel), title: '', summary: '', tags: [], sig: frontmatterSig('') });
+			scanned.push({ input, rel, name, kind: 'data', ext, body: '', params, path, url: new URL(path.substring(1), site).href, output: join(dest, file), section: deriveSection(rel), title: '', summary: '', tags: [], headings: [], sig: frontmatterSig('') });
 			return;
 		}
 
@@ -280,6 +293,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			});
 
 			Object.assign(params, result.metadata);
+			found = result.headings;
 			ext = extname(result.filename).substring(1);
 
 			if (isPage.test(ext)) {
@@ -338,6 +352,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			title: text(params.title),
 			summary: text(params.summary),
 			tags: parseTags(params.tags),
+			headings: headings(found),
 			sig: frontmatterSig(raw),
 		});
 	}
@@ -381,6 +396,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			summary: item.summary,
 			section: item.section,
 			tags: item.tags,
+			headings: item.headings,
 			params: item.params,
 		};
 		Pages.push(info);
@@ -448,6 +464,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			title: item.title,
 			section: item.section,
 			tags: item.tags,
+			headings: item.headings,
 			scripts: '',
 			styles: '',
 		};

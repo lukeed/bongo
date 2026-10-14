@@ -12,6 +12,7 @@ export type RunResult = {
 	// across multiple steps produce intermediate maps that are not composed
 	// here — consumers get the most recent map (against the final output).
 	sourcemap?: Loader.SourceMap;
+	headings?: Loader.Heading[];
 };
 
 export type RunOptions = {
@@ -34,6 +35,7 @@ export async function run(
 ): Promise<RunResult> {
 	let metadata: Loader.Metadata = {};
 	let sourcemap: Loader.SourceMap | undefined;
+	let headings: Loader.Heading[] | undefined;
 	let ext = extname(filename).substring(1);
 	let prev: string | undefined;
 
@@ -49,12 +51,14 @@ export async function run(
 		content = result.content;
 		if (result.metadata) Object.assign(metadata, result.metadata);
 		if (result.sourcemap != null) sourcemap = result.sourcemap;
+		if (result.headings) headings = result.headings;
 
 		ext = extname(filename).substring(1);
 	}
 
 	let out: RunResult = { filename, content, metadata };
 	if (sourcemap != null) out.sourcemap = sourcemap;
+	if (headings) out.headings = headings;
 	return out;
 }
 

@@ -525,3 +525,38 @@ describe('$hooks.transform', () => {
 		}
 	});
 });
+
+describe('headings', () => {
+	test('a loader gives the headings of a page to $page, $pages, $section, and data modules', async () => {
+		let root = await site({
+			'bongo.config.ts': [
+				`export default {`,
+				`	$site: { url: 'https://example.com/', title: 'T', lang: 'en' },`,
+				`	$assets: {`,
+				`		txt: (file, content) => ({`,
+				`			filename: file + '.html',`,
+				`			content: '<h2 id="a">A</h2>',`,
+				`			headings: [{ level: 2, id: 'a', text: 'A', html: '<code>A</code>' }, { level: 3, id: 'b', text: 'B & <c>' }],`,
+				`		}),`,
+				`	},`,
+				`};`,
+			].join('\n'),
+			'layouts/html.hbs': '{{{ JSON.stringify([$page.headings, $section.map(p => p.headings.length), $pages.map(p => p.headings.length)]) }}}',
+			'content/docs/a.txt': '',
+			'content/docs/b.html': '<h2>Not parsed</h2>',
+			'content/docs/list.json.ts': 'export default ({ $pages }) => $pages.map(page => [page.path, page.headings.map(h => h.id)]);',
+		});
+		try {
+			await build({ cwd: root });
+			let headings = [
+				{ level: 2, id: 'a', text: 'A', html: '<code>A</code>' },
+				{ level: 3, id: 'b', text: 'B & <c>', html: 'B &amp; &lt;c&gt;' },
+			];
+			expect(JSON.parse(await read(root, 'docs/a/index.html'))).toEqual([headings, [2, 0], [2, 0]]);
+			expect(JSON.parse(await read(root, 'docs/b/index.html'))).toEqual([[], [2, 0], [2, 0]]);
+			expect(JSON.parse(await read(root, 'docs/list.json'))).toEqual([['/docs/a/', ['a', 'b']], ['/docs/b/', []]]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
