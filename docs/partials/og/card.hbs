@@ -1,0 +1,22 @@
+{{#var group = $page.params.group || 'Start'}}
+{{#var tone = ({ Start: '#FFD23F', Guides: '#FF5A36', Runtime: '#B8A6FF', Reference: '#7EE0B5', Plugins: '#7CC4FF' })[group] || '#FFD23F'}}
+{{#var long = $page.title.length > 12}}
+<style>
+	@font-face { font-family: Unbounded; src: url(fonts/unbounded-800.woff) format('woff'); font-weight: 800 }
+	@font-face { font-family: Space Grotesk; src: url(fonts/space-grotesk-500.woff) format('woff'); font-weight: 500 }
+	@font-face { font-family: Space Grotesk; src: url(fonts/space-grotesk-700.woff) format('woff'); font-weight: 700 }
+	@font-face { font-family: JetBrains Mono; src: url(fonts/jetbrains-mono-700.woff) format('woff'); font-weight: 700 }
+</style>
+<div style="display: flex; flex-direction: column; position: relative; width: 1200px; height: 630px; padding: 70px 80px; box-sizing: border-box; background: {{ tone }}">
+	<svg width="1200" height="630" style="position: absolute; left: 0; top: 0"><defs><pattern id="d" width="28" height="28" patternUnits="userSpaceOnUse"><circle cx="14" cy="14" r="1.7" fill="#141414" fill-opacity=".18"/></pattern></defs><rect width="1200" height="630" fill="url(#d)"/></svg>
+	<div style="display: flex; justify-content: space-between; align-items: center">
+		{{#partial src="wordmark" height=78}}
+		<div style="display: flex; padding: 12px 20px; border-radius: 999px; background: #141414; color: #FFFDF7; font-family: Space Grotesk; font-weight: 700; font-size: 24px; letter-spacing: 3px; text-transform: uppercase">{{ group }}</div>
+	</div>
+	<div style="display: flex; margin-top: auto; max-width: 1040px; color: #141414; font-family: Unbounded; font-weight: 800; font-size: {{ long ? 96 : 118 }}px; letter-spacing: {{ long ? -4 : -5 }}px; line-height: 1.02">{{ $page.title }}</div>
+	<div style="display: flex; margin-top: 22px; max-width: 960px; color: #141414CC; font-family: Space Grotesk; font-weight: 500; font-size: 28px; line-height: 1.4">{{ $utils.excerpt($page.summary, 120) }}</div>
+	<div style="display: flex; margin-top: 30px; justify-content: space-between; align-items: center">
+		<div style="display: flex; color: #141414; font-family: JetBrains Mono; font-weight: 700; font-size: 24px">{{ $page.url.replace(/^https?:\/\//, '') }}</div>
+		{{#partial src="mark" size=64}}
+	</div>
+</div>
