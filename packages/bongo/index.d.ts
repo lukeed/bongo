@@ -224,6 +224,7 @@ export interface Config {
 		slug?(text: string): string;
 		excerpt?(html: string, length: number): string;
 		minutes?(text: string, wpm?: number): number;
+		json?(value: unknown): string;
 		url?: Helpers & {
 			abs?(to: string, fro?: string): string;
 			path?(to: string, fro?: string): string;

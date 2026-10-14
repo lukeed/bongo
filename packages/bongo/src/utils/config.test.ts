@@ -366,6 +366,15 @@ describe('built-in utils', () => {
 		expect(minutes?.('<b>a</b><i>b</i> <script>let x = 1 2 3 4</script>c', 1)).toBe(2);
 	});
 
+	test('json gives JSON that is safe inside a <script> element', async () => {
+		let { json } = await builtins(`{ url: 'https://example.com/', lang: 'en', title: 'T' }`);
+		let value = { a: '</script><!--', b: 'x & y', c: 'line\u2028para\u2029', n: [1, null] };
+		let out = json?.(value) ?? '';
+		expect(out).toBe('{"a":"\\u003c/script\\u003e\\u003c!--","b":"x \\u0026 y","c":"line\\u2028para\\u2029","n":[1,null]}');
+		expect(JSON.parse(out)).toEqual(value);
+		expect(json?.(undefined)).toBe('null');
+	});
+
 	test('date.format gives ISO 8601, or a date in $site.lang from Intl options, in UTC', async () => {
 		let { date } = await builtins(`{ url: 'https://example.com/', lang: 'fr', title: 'T' }`);
 		expect(date?.format?.('2024-05-01')).toBe('2024-05-01T00:00:00.000Z');

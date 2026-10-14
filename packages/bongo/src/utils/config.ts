@@ -296,6 +296,9 @@ export async function load(root: string): Promise<Loaded> {
 				let words = (text || '').trim();
 				return words ? words.split(/\s+/g).length : 0;
 			},
+			json(value: unknown): string {
+				return (JSON.stringify(value) ?? 'null').replace(/[<>&\u2028\u2029]/g, char => '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0'));
+			},
 			minutes(text: string, wpm = 200): number {
 				let words = plain(text);
 				return words ? Math.ceil(words.split(' ').length / wpm) : 0;
