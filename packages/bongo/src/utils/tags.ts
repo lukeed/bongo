@@ -22,10 +22,28 @@ const BONGO_TAG = /<bongo:(script|style|client|asset|image|alternate)\b((?:"[^"]
 // Path to bongo's bundled browser runtime. Resolves relative to this module:
 // — bundled (prod): sibling to packages/bongo/index.js, i.e. ./client.js.
 // — source (tests/workspace): packages/bongo/src/utils/tags.ts → ../../client.js.
+let CLIENT: string | undefined;
 function resolveBongoClient(): string {
+	if (CLIENT) return CLIENT;
 	let bundled = resolve(__dirname, 'client.js');
-	if (fs.exists(bundled)) return bundled;
-	return resolve(__dirname, '..', '..', 'client.js');
+	return CLIENT = fs.exists(bundled) ? bundled : resolve(__dirname, '..', '..', 'client.js');
+}
+
+// Whether each file that a tag names exists, checked once in a build, since every page names the same few.
+let EXISTS: Map<string, boolean> = new Map();
+
+/**
+ * Forget which files exist, at the start of a build, so a file added or deleted since the last build counts.
+ * @example tags.reset()
+ */
+export function reset(): void {
+	EXISTS = new Map();
+}
+
+function exists(file: string): boolean {
+	let hit = EXISTS.get(file);
+	if (hit === undefined) EXISTS.set(file, hit = fs.exists(file));
+	return hit;
 }
 
 const JS_IDENT = /^[a-zA-Z_$][\w$]*$/;
@@ -285,7 +303,7 @@ export function scanBongoTags(
 				throw new Error(`Image "${src}" is outside ${relative(argv.src, root)}/ for ${match.trim()}${where}`);
 			}
 		}
-		if (!fs.exists(entry)) {
+		if (!exists(entry)) {
 			throw new Error(`Missing "${relative(argv.src, entry)}" for ${match.trim()}${where}`);
 		}
 
@@ -372,7 +390,7 @@ export function scanImages(
 		if (!file.startsWith(argv.content + sep)) {
 			throw new Error(`Image "${src}" is outside content/ for ${match}, rendering ${from}`);
 		}
-		if (!fs.exists(file)) {
+		if (!exists(file)) {
 			throw new Error(`Missing "${relative(argv.src, file)}" for ${match}, rendering ${from}`);
 		}
 
