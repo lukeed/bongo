@@ -859,6 +859,21 @@ describe('page writes', () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test('a failed bongo build waits for the writes it started, so none lands after it empties public/', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $loaders: { bad: () => { throw new Error('no thanks'); }, slow: async (file, content) => { await new Promise(r => setTimeout(r, 50)); return { filename: file + '.txt', content }; } } };`,
+			'content/a.bad': 'a',
+			'content/b.slow': 'b',
+		});
+		try {
+			await expect(build({ cwd: root })).rejects.toThrow('content/a.bad: no thanks');
+			await new Promise(r => setTimeout(r, 100));
+			expect(existsSync(join(root, 'public/b.slow'))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });
 
 describe('headings', () => {

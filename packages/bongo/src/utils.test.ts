@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { pool, throttle, debounce } from './utils/index';
+import { pool, settle, throttle, debounce } from './utils/index';
 
 describe('throttle', () => {
 	test('calls function immediately on first invocation', () => {
@@ -140,5 +140,25 @@ describe('pool', () => {
 
 		slow.resolve();
 		await expect(drain).rejects.toThrow('nope');
+	});
+});
+
+describe('settle', () => {
+	test('gives every value, in order, like Promise.all', async () => {
+		expect(await settle([Promise.resolve(1), Promise.resolve(2)])).toEqual([1, 2]);
+	});
+
+	test('waits for every promise, then throws the first failure', async () => {
+		let slow = Promise.withResolvers<number>();
+		let ended = false;
+		let all = settle([Promise.reject(new Error('first')), slow.promise.then(value => (ended = true, value)), Promise.reject(new Error('second'))]);
+		let failed = false;
+		all.catch(() => failed = true);
+		await new Promise(next => setImmediate(next));
+		expect(failed).toBe(false);
+
+		slow.resolve(3);
+		await expect(all).rejects.toThrow('first');
+		expect(ended).toBe(true);
 	});
 });

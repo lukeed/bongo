@@ -5,6 +5,8 @@ import { homedir } from 'node:os';
 import { basename, dirname, join, parse, relative, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 
+import * as utils from './index';
+
 import type { FSWatcher } from 'node:fs';
 
 export { exists };
@@ -137,8 +139,8 @@ export async function list(dir: string, callback: Caller, prefix='') {
 	let index: [string, string, string][] = [];
 	let files = await ls(dir, { withFileTypes: true });
 
-	await Promise.all(
-		files.map(dirent => {
+	await utils.settle(
+		files.map(async dirent => {
 			let item = join(dir, dirent.name);
 			let rel = join(prefix, dirent.name);
 			if (dirent.isDirectory()) {
@@ -152,7 +154,7 @@ export async function list(dir: string, callback: Caller, prefix='') {
 		})
 	);
 
-	await Promise.all(index.map(args => callback(...args)));
+	await utils.settle(index.map(async args => callback(...args)));
 }
 
 type Handler = (dir: string, type: string, filename: string | null) => any;

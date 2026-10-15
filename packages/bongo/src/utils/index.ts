@@ -76,3 +76,15 @@ export function pool(limit: number): Pool {
 	};
 }
 
+/**
+ * Like `Promise.all`, but it waits for every promise before it throws the first failure, so no work outlives the error.
+ * @example await settle(files.map(file => sink.write(file, text)))
+ */
+export async function settle<T>(list: Promise<T>[]): Promise<T[]> {
+	let values: T[] = [];
+	for (let result of await Promise.allSettled(list)) {
+		if (result.status === 'rejected') throw result.reason;
+		values.push(result.value);
+	}
+	return values;
+}

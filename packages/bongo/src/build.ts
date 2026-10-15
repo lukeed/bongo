@@ -730,7 +730,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	for (let [file, copy] of copies) {
 		if (taken.has(join(dest, file)) || renders.files.has(file)) throw new Error(`"${file}" is a Markdown copy of ${copy.from}, and a file of the site`);
 	}
-	await Promise.all([
+	await utils.settle([
 		...[...renders.files].map(([name, entry]) => sink.defer(join(dest, name), entry.make)),
 		...[...copies].map(([file, copy]) => sink.defer(join(dest, file), () => images.slot(() => markdown(copy.input)))),
 	]);
@@ -739,7 +739,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		for (let page of pages) await writes.add(async () => sink.write(...await substitute(page)));
 		await writes.drain();
 	}
-	await Promise.all(ready.map(([file, text]) => sink.write(file, text)));
+	await utils.settle(ready.map(([file, text]) => sink.write(file, text)));
 
 	if (argv.minify) watch.step('minifying html');
 	if (argv.minify && !await sink.minify(pages.map(page => page.output))) {
