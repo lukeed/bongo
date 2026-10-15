@@ -81,7 +81,7 @@ export type HmrMessage =
 // Internal registration shape
 type Registration = { entry: string; placeholder: Placeholder; cfg: BundleConfig };
 
-let REGISTRATIONS: Map<Placeholder, Registration> = new Map();
+let REGISTRATIONS: Map<string, Registration> = new Map();
 let GROUPS: Map<string, Registration[]> = new Map();
 let LAST_OUTPUTS: Map<Placeholder, OutputInfo> = new Map();
 
@@ -96,14 +96,22 @@ function cfgKey(cfg: BundleConfig): BundleConfig {
 	return sorted;
 }
 
+// The placeholder of each entry and its settings, so the many pages that register one asset hash it once.
+let PLACEHOLDERS: Map<string, Placeholder> = new Map();
+
 function toPlaceholder(entry: string, cfg: BundleConfig): Placeholder {
+	let key = entry + '\0' + JSON.stringify(cfg);
+	let hit = PLACEHOLDERS.get(key);
+	if (hit) return hit;
 	let hash = createHash('sha256')
 		.update(entry)
 		.update('\0')
 		.update(JSON.stringify(cfgKey(cfg)))
 		.digest('hex')
 		.slice(0, 16);
-	return `__BONGO_BUNDLE:${hash}__` as Placeholder;
+	let placeholder = `__BONGO_BUNDLE:${hash}__` as Placeholder;
+	PLACEHOLDERS.set(key, placeholder);
+	return placeholder;
 }
 
 function toGroupKey(entry: string, cfg: BundleConfig): string {
@@ -146,9 +154,8 @@ export function retain(keep: Set<string>): void {
  * @example let [entry, cfg] = registration(placeholder) ?? []; register(entry, cfg) //=> placeholder
  */
 export function registration(placeholder: string): [entry: string, cfg: BundleConfig] | undefined {
-	for (let [key, reg] of REGISTRATIONS) {
-		if (key === placeholder) return [reg.entry, reg.cfg];
-	}
+	let reg = REGISTRATIONS.get(placeholder);
+	return reg && [reg.entry, reg.cfg];
 }
 
 export function register(entry: string, cfg: BundleConfig): Placeholder {
