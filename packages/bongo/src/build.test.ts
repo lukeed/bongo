@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
 import { existsSync, realpathSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
@@ -875,6 +875,21 @@ describe('page writes', () => {
 			expect(existsSync(join(root, 'public/old'))).toBe(false);
 			expect(await read(root, 'new/index.html')).toBe('<html><p>new</p></html>');
 		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('bongo build collects the garbage of rendering once, before it writes the pages again; dev does not', async () => {
+		let root = await site({ 'content/index.html': '<p>home</p>' });
+		let gc = spyOn(Bun, 'gc');
+		try {
+			await build({ cwd: root });
+			expect(gc.mock.calls).toEqual([[true]]);
+			gc.mockClear();
+			await build({ cwd: root, dev: true });
+			expect(gc).not.toHaveBeenCalled();
+		} finally {
+			gc.mockRestore();
 			await rm(root, { recursive: true, force: true });
 		}
 	});
