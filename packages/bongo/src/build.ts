@@ -265,7 +265,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	let key = await memo.key(argv, inputs.files);
 	let previous = argv.fresh ? undefined : MEMOS.get(sink) ?? (writes ? await memo.load(argv) : undefined);
 	let last = previous?.key === key ? previous : undefined;
-	let next: memo.Memo = { key, registries: { pages: '', tags: '', sections: {} }, bundles: {}, assets: {}, loose: false, items: {}, files: {} };
+	let next: memo.Memo = { key, registries: { pages: '', tags: '', sections: {}, outputs: '' }, bundles: {}, assets: {}, loose: false, items: {}, files: {} };
 
 	// the hash of each file that a page loads or an asset is made from, read once in a build
 	let sums: Map<string, Promise<string>> = new Map();
@@ -525,6 +525,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	let joined = (list: Template.PageInfo[]) => list.map(info => records.get(info)).join('\n');
 	next.registries = {
 		pages: memo.hash(joined(Pages)),
+		outputs: memo.hash(JSON.stringify(Outputs)),
 		tags: memo.hash($tags.map(entry => entry.tag + '\n' + joined(entry.pages)).join('\n\n')),
 		sections: Object.fromEntries([...Sections].map(([name, list]) => [name, memo.hash(joined(list))])),
 	};
@@ -548,6 +549,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	// Nothing that the page read or links changed, and its file is as the last build left it.
 	async function clean(item: ScanItem, page: memo.Page): Promise<boolean> {
 		if (!last || links(page)) return false;
+		// `$hooks.transform` gets the output files, so with one, a page renders again when they change
+		if (config.$hooks.transform && last.registries.outputs !== next.registries.outputs) return false;
 		for (let read of page.reads) {
 			let was = read === 'section' ? last.registries.sections[item.section] : last.registries[read];
 			let now = read === 'section' ? next.registries.sections[item.section] : next.registries[read];
