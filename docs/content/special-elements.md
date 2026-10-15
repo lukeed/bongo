@@ -176,7 +176,7 @@ All other attributes, such as `alt`, `class`, and `fetchpriority`, go on the `<i
 
 ## `<bongo:alternate>`
 
-Writes a `<link rel="alternate">`, which names another version of the page. For `type="text/markdown"`, bongo also writes a Markdown copy of the page. See the [llms.txt guide](/llms-txt/).
+Writes a `<link rel="alternate">`, which names another version of the page. For `type="text/markdown"`, bongo also writes a Markdown copy of the page. See [Alternates](/alternates/) and [Markdown copies](/markdown-copies/).
 
 ```hbs
 <bongo:alternate type="text/markdown" />

@@ -29,7 +29,7 @@ An output file compiles with the same values as [`.hbs` content](/content/#hbs-c
 - It is not in `$pages`, `$section`, or `$tags`. Thus a sitemap or a feed never lists itself.
 - Its frontmatter cannot set `url`. To change its path, rename the file.
 - `bongo dev` serves it with the content type of its extension, such as `text/xml`. bongo renders it again after every change to a page, because it can read every page.
-- It renders after every page, so the entries of `$pages` have the `alternates` of each page. See the [llms.txt guide](/llms-txt/).
+- It renders after every page, so the entries of `$pages` have the `alternates` of each page. See [Create an llms.txt](/llms-txt/).
 
 [`$hooks.transform`](/hooks/) gets each output file, with `ctx.kind` set to `'output'`.
 

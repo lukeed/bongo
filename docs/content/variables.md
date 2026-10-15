@@ -103,7 +103,7 @@ Every page of the build, sorted by `path`. Each entry has the fields of `$page`,
 ]
 ```
 
-In output files and data modules, each entry also has `alternates`: the [`<bongo:alternate>`](/special-elements/#bongoalternate) elements of the page, by type, such as `{ 'text/markdown': '/about.md' }`. Pages render first, so these files see the elements of every page. See the [llms.txt guide](/llms-txt/).
+In output files and data modules, each entry also has `alternates`: the [`<bongo:alternate>`](/special-elements/#bongoalternate) elements of the page, by type, such as `{ 'text/markdown': '/about.md' }`. Pages render first, so these files see the elements of every page. See [Alternates](/alternates/#list-the-alternates-of-each-page).
 
 ## `$section`
 
