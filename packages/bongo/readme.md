@@ -28,6 +28,7 @@ bongo build -C site --minify
 bongo dev -C site --host --port 3000
 bongo dev --write
 bongo build --debug
+bongo build --fresh
 ```
 
 An unknown option, or a `--port` that is not a port number, stops the command with an error. A bare `--host`, with no value, exposes the dev server on your network.
@@ -49,6 +50,14 @@ bongo deletes a symlink in `public/`, but never the file or folder that it point
 - `assets/`, `content/`, `data/`, `layouts/`, or `partials/`, or a folder in one of them or that holds one of them,
 - the home folder, a folder above it, or `/`.
 
+### Incremental builds
+
+A build renders only the pages that a change reaches; the other pages keep their files from the last build. `bongo build` keeps a record of its last good build in `node_modules/.cache/bongo/memo.json`, and `bongo dev` keeps it in memory. Each build reads every source file and compares its hash with the record. A page renders again when its source changes; when it reads `$pages`, `$tags`, or `$section` through its source, layouts, or partials, and a page in that list changes its path, title, summary, section, tags, headings, or frontmatter; when a file that it reads with `$assets.load` changes; when an asset that it links changes, or a module or stylesheet that the asset imports; when the config has `$hooks.transform` and an output file is added, deleted, or changes its frontmatter; or when its file in `public/` changed or is gone.
+
+Every page renders again when the config changes, or a local file that it imports, `data/`, `layouts/`, `partials/`, the lockfile, the version of bongo, the runtime, or `--minify`. Output files and data modules render on every build. `bongo dev` names each script and stylesheet by its entry, not by its content, so an edit to one renders only the pages that inline it or use its CSS module classes.
+
+bongo cannot see what a template, a hook, or a loader reads by itself, such as the time, an environment variable, or a file that it opens. Use `--fresh` to render every page for such a build. A build that fails empties `public/`, so the next build renders every page.
+
 ### Minify
 
 `--minify` minifies every JavaScript bundle with Rolldown and every stylesheet with LightningCSS, including inline ones. It also minifies the HTML pages with [tdewolff/minify](https://github.com/tdewolff/minify) when its `minify` CLI is on your `$PATH`. If the CLI is missing, the build still succeeds: it prints one notice and leaves the HTML as it is. Without `--minify`, nothing is minified.
@@ -59,7 +68,7 @@ When you run `bongo build`:
 
 1. `bongo build` deletes each symlink in `public/`, and keeps the other files to write over them. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` in the project folder: `cwd`, or the folder that `-C` names. Rolldown bundles the config and the local files it imports into one temporary `.mjs` module, which bongo imports and then deletes. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual. A package linked into `node_modules` from outside it, such as a workspace package, is local code: it is bundled too, and the packages it imports resolve from its own folder. `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials, `data/` modules, and [data modules](#data-modules) load the same way.
 2. Files in `data/` are loaded as `$data`. Layouts and partials are collected from `layouts/` and `partials/`. Handlebars files (`.hbs`) are compiled with tempura. JavaScript and TypeScript partials are loaded as modules.
-3. Content files are passed through registered loaders, then rendered through their [layouts](#layouts). [Output files](#output-files), such as `sitemap.xml.hbs`, get no layout. [Data modules](#data-modules), such as `search.json.ts`, run once every page is known, and write JSON.
+3. Content files are passed through registered loaders, then rendered through their [layouts](#layouts). A page that no change reached since the last build keeps its file and skips its loaders; see [Incremental builds](#incremental-builds). [Output files](#output-files), such as `sitemap.xml.hbs`, get no layout. [Data modules](#data-modules), such as `search.json.ts`, run once every page is known, and write JSON.
 4. Rendered HTML is scanned for `<bongo:*>` elements, and each page's content for `<img>` elements with a relative `src`. Assets are registered and replaced with placeholder tokens.
 5. Asset groups are flushed. JavaScript goes through Rolldown; CSS goes through LightningCSS; images go through `Bun.Image`. Output filenames include content hashes.
 6. Placeholders are substituted with external asset URLs or inline asset contents.
@@ -183,8 +192,9 @@ await build({ cwd: 'site', minify: true });
 - `cwd` — the project folder. Required.
 - `minify` — the same as `--minify`.
 - `debug` — the same as `--debug`.
+- `fresh` — the same as `--fresh`.
 
-`dev(options)` starts the dev server, as `bongo dev` does. It resolves after the first build, and the server keeps running. It takes `cwd`, `debug`, `port`, `host`, and `write`, the same as the `bongo dev` options:
+`dev(options)` starts the dev server, as `bongo dev` does. It resolves after the first build, and the server keeps running. It takes `cwd`, `debug`, `fresh`, `port`, `host`, and `write`, the same as the `bongo dev` options:
 
 ```ts
 import { dev } from 'bongo';
