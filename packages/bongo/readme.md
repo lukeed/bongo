@@ -32,6 +32,8 @@ bongo build --debug
 
 An unknown option, or a `--port` that is not a port number, stops the command with an error. A bare `--host`, with no value, exposes the dev server on your network.
 
+When it is done, `bongo build` prints the size of each file in `public/`, and its gzip size. Above 50 files, it prints the total size of each kind of file instead, such as `.html` or `.png`, and lists only the scripts and stylesheets, with their gzip sizes.
+
 `--debug` logs each stage of a build, such as `loading the config and data/` or `bundling assets`, and how long it took. Without it, a stage that is still running after 15 seconds prints `still <stage>` every 15 seconds, so a build that waits on something, like a top-level `await` in your config, says what it waits on.
 
 ### Output folder

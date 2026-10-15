@@ -19,6 +19,8 @@ bongo dev
 | `bongo build` | Build the site into `public/`. |
 | `bongo dev` | Start the dev server, build the site behind it, and rebuild on each change. See [Dev server](/dev-server/). |
 
+When it is done, `bongo build` prints the size of each file in `public/`, and its gzip size. Above 50 files, it prints the total size of each kind of file instead, such as `.html` or `.png`, and lists only the scripts and stylesheets, with their gzip sizes.
+
 ## Options
 
 ```sh
