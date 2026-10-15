@@ -47,6 +47,9 @@ const DATA_MODULE = /\.json\.[jt]s$/;
 // The pages that `bongo build` writes at once.
 const WRITES = 64;
 
+// The content files that a build reads and loads at once.
+const READS = 16;
+
 function frontmatterSig(raw: string): string {
 	let { offset } = templates.frontmatter(raw);
 	let block = offset > 0 ? raw.substring(0, offset) : '';
@@ -309,7 +312,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		let params: Template.Params = {};
 		let found: Loader.Heading[] | undefined;
 		let src = '';
-		let raw = '';
+		let sig = '';
 
 		if (DATA_MODULE.test(name)) {
 			let file = rel.substring(0, rel.length - ext.length - 1);
@@ -320,7 +323,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 		if (isPage.test(ext)) {
 			src = await fs.read(input, 'utf8');
-			raw = src;
+			sig = frontmatterSig(src);
 			let { offset, value } = templates.frontmatter(src);
 
 			if (offset > 0) {
@@ -333,11 +336,12 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			// `.hbs` content is compiled in walk 2, once Pages/Sections/Tags
 			// registries exist. `ext` stays 'hbs' through walk 1.
 		} else if (LOADERS[ext]) {
-			let initial = new Uint8Array(await fs.read(input)) as Uint8Array | string;
+			let bytes = await fs.read(input);
+			let initial = new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 
 			// Capture raw file text before loaders transform it, so the
-			// frontmatter signature below is computed on the untouched source.
-			raw = new TextDecoder().decode(initial as Uint8Array);
+			// frontmatter signature is computed on the untouched source.
+			sig = frontmatterSig(new TextDecoder().decode(initial));
 
 			debug('[content.loader]', ext, '~> found');
 
@@ -406,12 +410,13 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			summary: text(params.summary),
 			tags: parseTags(params.tags),
 			headings: headings(found),
-			sig: frontmatterSig(raw),
+			sig,
 		});
 	}
 
 	watch.step('reading content/');
-	await fs.list(content, (input, rel, name) => scan(input, rel, name).catch(err => {
+	let reads = utils.limit(READS);
+	await fs.list(content, (input, rel, name) => reads(() => scan(input, rel, name)).catch(err => {
 		let reason = err instanceof Error ? err.message : String(err);
 		throw new Error(`${join('content', rel)}: ${reason}`, { cause: err });
 	}));
