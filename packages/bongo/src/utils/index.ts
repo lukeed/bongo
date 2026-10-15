@@ -88,3 +88,24 @@ export async function settle<T>(list: Promise<T>[]): Promise<T[]> {
 	}
 	return values;
 }
+
+/**
+ * Run each job once fewer than `size` jobs run, and give back its result.
+ * @example let slot = limit(16); await Promise.all(files.map(file => slot(() => read(file))));
+ */
+export function limit(size: number): <T>(job: () => Promise<T>) => Promise<T> {
+	if (!Number.isInteger(size) || size < 1) throw new Error(`Invalid limit "${size}"; use a whole number above 0`);
+	let active = 0;
+	let waiting: (() => void)[] = [];
+	return async job => {
+		if (active < size) active++;
+		else await new Promise<void>(next => waiting.push(next));
+		try {
+			return await job();
+		} finally {
+			let next = waiting.shift();
+			if (next) next();
+			else active--;
+		}
+	};
+}

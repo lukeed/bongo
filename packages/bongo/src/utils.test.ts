@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { pool, settle, throttle, debounce } from './utils/index';
+import { limit, pool, settle, throttle, debounce } from './utils/index';
 
 describe('throttle', () => {
 	test('calls function immediately on first invocation', () => {
@@ -160,5 +160,44 @@ describe('settle', () => {
 		slow.resolve(3);
 		await expect(all).rejects.toThrow('first');
 		expect(ended).toBe(true);
+	});
+});
+
+describe('limit', () => {
+	let tick = () => new Promise(next => setImmediate(next));
+
+	test('runs at most `size` jobs at once, and gives back the value of each', async () => {
+		let slot = limit(2);
+		let gates = [0, 1, 2].map(() => Promise.withResolvers<void>());
+		let started = 0;
+		let all = Promise.all(gates.map((gate, i) => slot(async () => {
+			started++;
+			await gate.promise;
+			return i;
+		})));
+		await tick();
+		expect(started).toBe(2);
+
+		gates[0].resolve();
+		await tick();
+		expect(started).toBe(3);
+
+		gates[1].resolve();
+		gates[2].resolve();
+		expect(await all).toEqual([0, 1, 2]);
+	});
+
+	test('a failed job frees its slot, and fails only its own call', async () => {
+		let slot = limit(1);
+		let failed = slot(async () => {
+			throw new Error('nope');
+		});
+		let next = slot(async () => 'next');
+		await expect(failed).rejects.toThrow('nope');
+		expect(await next).toBe('next');
+	});
+
+	test('refuses a size that is not a whole number above 0', () => {
+		expect(() => limit(0)).toThrow('Invalid limit "0"; use a whole number above 0');
 	});
 });
