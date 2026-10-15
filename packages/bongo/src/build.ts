@@ -865,6 +865,6 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	if (!argv.dev) {
 		log.info(`${green('done')} ${dim('in ' + log.elapsed(Date.now() - t0))}`);
 		watch.step('listing sizes');
-		await log.sizes(argv.dest, process.cwd());
+		await log.sizes(argv.dest, process.cwd(), files);
 	}
 }

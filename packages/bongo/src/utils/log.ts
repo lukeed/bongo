@@ -1,5 +1,5 @@
-import { readdir, readFile, stat } from 'node:fs/promises';
-import { extname, join, relative } from 'node:path';
+import { readFile, stat } from 'node:fs/promises';
+import { extname, join, relative, sep } from 'node:path';
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 import { cyan, dim, yellow } from 'kleur/colors';
@@ -116,22 +116,13 @@ function files(count: number): string {
 }
 
 /**
- * Print each output file with its size and gzip size. Above 50 files, print the size of each kind of file instead, and list only scripts and stylesheets.
- * Only the files it lists are read, a few at a time, so a large site costs one `stat` for each other file.
- * @example await sizes('/site/public', process.cwd());
+ * Print each of `paths`, the files of a build in `dest`, with its size and gzip size. Above 50 files, print the size of each kind of file instead, and list only scripts and stylesheets.
+ * Only the files it lists are read, a few at a time, so a large site costs one `stat` for each other file, and no walk of `dest`.
+ * @example await sizes('/site/public', process.cwd(), ['/site/public/index.html']);
  */
-export async function sizes(dest: string, cwd: string): Promise<void> {
-	let all: { rel: string; bytes: number }[] = [];
-	// every folder and file at once: a large site is mostly folders, one for each page
-	let walk = async (dir: string, prefix: string): Promise<void> => {
-		let entries = await readdir(dir, { withFileTypes: true });
-		await Promise.all(entries.map(async entry => {
-			let file = join(dir, entry.name);
-			if (entry.isDirectory()) return walk(file, prefix + entry.name + '/');
-			all.push({ rel: prefix + entry.name, bytes: (await stat(file)).size });
-		}));
-	};
-	await walk(dest, '');
+export async function sizes(dest: string, cwd: string, paths: Iterable<string>): Promise<void> {
+	let found = await Promise.all([...paths].map(file => stat(file).then(info => [{ rel: relative(dest, file).split(sep).join('/'), bytes: info.size }], () => [])));
+	let all = found.flat();
 	if (!all.length) return;
 
 	let table = all.length <= TABLE_MAX;
