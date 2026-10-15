@@ -40,6 +40,8 @@ The dev server serves a file that bongo only copies from `content/`, such as a P
 
 ## What each rebuild updates
 
+- Each rebuild renders only the pages that the change reaches. See [Incremental builds](/cli/#incremental-builds).
+- Scripts and stylesheets keep their file names, since `bongo dev` names them by their entry, not by their content. Thus an edit to one renders only the pages that inline it or use its CSS module classes. The other pages reload and get the new file.
 - Each rebuild drops only the files that the new build no longer writes.
 - [Output files](/output-files/) render again after every change to a page, because they can read every page.
 - [Data modules](/data-modules/) run again after every change to a page, to the module, or to a local file that it imports.

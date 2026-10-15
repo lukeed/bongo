@@ -1,6 +1,6 @@
 ---
 title: CLI
-summary: The bongo build and bongo dev commands, their options, debug logs, the output folder rules, and minification.
+summary: The bongo build and bongo dev commands, their options, debug logs, the output folder rules, incremental builds, and minification.
 group: Start
 order: 4
 ---
@@ -28,6 +28,7 @@ bongo build -C site --minify
 bongo dev -C site --host --port 3000
 bongo dev --write
 bongo build --debug
+bongo build --fresh
 ```
 
 | Option | Default | Description |
@@ -38,6 +39,7 @@ bongo build --debug
 | `-m`, `--minify` | off | Minify the output. See [Minify](#minify). |
 | `-d`, `--debug` | off | Log each build stage and its time. See [Debug](#debug). |
 | `-w`, `--write` | off | `bongo dev` only. Also write the output to `public/`. See [Output folder](#output-folder). |
+| `-f`, `--fresh` | off | Render every page, not only the pages that a change reaches. See [Incremental builds](#incremental-builds). |
 | `-v`, `--version` | | Show the version. |
 | `-h`, `--help` | | Show the help. |
 
@@ -67,6 +69,7 @@ See [Images](/images/#bun-runtime).
 - `bundling assets`
 - `writing pages`
 - `minifying html`, with `--minify`
+- `listing sizes`, for `bongo build`
 
 Without `--debug`, a stage that is still running after 15 seconds prints `still <stage>` every 15 seconds. Thus a build that waits on something, like a top-level `await` in your config, tells you what it waits on.
 
@@ -86,6 +89,29 @@ bongo deletes a symlink in `public/`, but never the file or folder that it point
 - the home folder, a folder above it, or `/`.
 
 The error starts with `Refusing to empty the output folder`, and gives the reason.
+
+## Incremental builds
+
+A build renders only the pages that a change reaches. The other pages keep their files from the last build. `bongo build` keeps a record of its last good build in `node_modules/.cache/bongo/memo.json`. `bongo dev` keeps the same record in memory, so each rebuild after a change renders only the pages that the change reaches.
+
+Each build reads every source file, and compares a hash of it with the record. A page renders again when:
+
+- its source file changes,
+- it reads `$pages`, `$tags`, or `$section`, and a page in that list changes its path, title, summary, section, tags, headings, or frontmatter. A page reads a list when its source, one of its layouts, or a partial that it calls names that list,
+- a file that it reads with `$assets.load` changes,
+- a script, a stylesheet, an image, or another asset that it links changes, or a module or stylesheet that one of them imports, since the name of the output file changes. `bongo dev` names each script and stylesheet by its entry, not by its content. There, an edit to one renders only the pages that inline it or use its CSS module classes. The other pages reload and get the new file,
+- the config has `$hooks.transform`, and an output file is added, deleted, or changes its frontmatter, since the hook gets the list of output files,
+- its file in `public/` changed or is gone since the last build.
+
+Every page renders again when the config changes, or a local file that it imports, a file in `data/`, `layouts/`, or `partials/`, the lockfile, the version of bongo, the runtime, or `--minify`. [Output files](/output-files/) and [data modules](/data-modules/) render on every build, since they can read every page.
+
+bongo cannot see what a template, a hook, or a loader reads by itself, such as the time, an environment variable, or a file that it opens. A page that uses one keeps its last file until something else makes it render. Use `--fresh` for such a build, as at the turn of a year for a footer that prints the year:
+
+```sh
+bongo build --fresh
+```
+
+A build that fails empties `public/`, so the next build renders every page. To start over, delete `node_modules/.cache/bongo/memo.json`, or use `--fresh`.
 
 ## Minify
 
@@ -108,8 +134,9 @@ await build({ cwd: 'site', minify: true });
 - `cwd` — the project folder. Required.
 - `minify` — the same as `--minify`.
 - `debug` — the same as `--debug`.
+- `fresh` — the same as `--fresh`.
 
-`dev(options)` starts the dev server, as `bongo dev` does. It resolves after the first build, and the server keeps running. It takes `cwd`, `debug`, `port`, `host`, and `write`, the same as the `bongo dev` options:
+`dev(options)` starts the dev server, as `bongo dev` does. It resolves after the first build, and the server keeps running. It takes `cwd`, `debug`, `fresh`, `port`, `host`, and `write`, the same as the `bongo dev` options:
 
 ```ts
 import { dev } from 'bongo';

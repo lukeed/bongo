@@ -19,6 +19,8 @@ export default {
 };
 ```
 
+The hook runs for each page that renders. A page that keeps its file from the last build skips it, so a hook that reads the time, as above, needs `bongo build --fresh` to reach every page. See [Incremental builds](/cli/#incremental-builds).
+
 ## Context
 
 `ctx` has:
