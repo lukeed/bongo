@@ -167,7 +167,7 @@ if (names.includes('incremental')) {
 		let median = (key: keyof Sample) => stat(samples.map(sample => sample[key]))[0];
 		console.log(row(name, [time(median('wall')), time(median('user')), time(median('sys')), size(median('rss')), String(written)]));
 	}
-	console.log('  Each value is the median of the runs. "written" counts the files whose mtime the build changed.');
+	console.log('  Each value is the median of the runs. "written" counts the files whose mtime is after the build started.');
 	console.log('');
 }
 

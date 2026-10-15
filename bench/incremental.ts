@@ -42,11 +42,11 @@ export async function apply(dir: string, edit: Edit): Promise<() => Promise<void
 export async function profile(dir: string, runs: number): Promise<Step[]> {
 	let out = join(dir, 'public');
 	let steps: Step[] = [];
+	// one listing after the build, since a listing before it would warm the cache of public/ for the build
 	let written = async (build: () => Promise<Sample>): Promise<[Sample, number]> => {
-		let before = await mtimes(out);
+		let t0 = Date.now();
 		let result = await build();
-		let after = await mtimes(out);
-		return [result, [...after].filter(([file, mtime]) => before.get(file) !== mtime).length];
+		return [result, [...(await mtimes(out)).values()].filter(mtime => mtime >= t0).length];
 	};
 
 	await sample(dir, ['--fresh']);
