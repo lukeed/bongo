@@ -739,6 +739,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	watch.step('bundling assets');
 	let flushResult = await bundler.flush({
 		outDir: dest,
+		cwd: argv.cwd,
 		sink,
 		publicPath,
 		assets: LOADERS,
