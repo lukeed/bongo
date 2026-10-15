@@ -175,11 +175,11 @@ describe('integration: site-css-modules', () => {
 			// bundle.
 			expect(css).not.toMatch(/\.red\s*\{/);
 			expect(css).not.toMatch(/\.blue\s*\{/);
-			// Two hashed selectors in the output, one per source class.
-			let selectors = css.match(/\.[a-zA-Z0-9_-]+_red\b/g);
+			// Two hashed selectors in the output, one per source class. A hash can start with "-" and a digit, which CSS escapes, as in `.-\31 kqhq_red`.
+			let selectors = css.match(/\.(?:[\w-]|\\[\da-f]{1,6} ?)+_red\b/gi);
 			expect(selectors).not.toBeNull();
 			expect(selectors!.length).toBeGreaterThan(0);
-			let blueSelectors = css.match(/\.[a-zA-Z0-9_-]+_blue\b/g);
+			let blueSelectors = css.match(/\.(?:[\w-]|\\[\da-f]{1,6} ?)+_blue\b/gi);
 			expect(blueSelectors).not.toBeNull();
 			// Font-weight rule is preserved verbatim (lightningcss may minify
 			// color values like `blue` → `#00f` so we don't check those).

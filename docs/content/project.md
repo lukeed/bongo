@@ -27,7 +27,7 @@ my-site/
 | `data/` | Holds JSON, YAML, and module files. Templates get them as `$data`. |
 | `layouts/` | Holds the `.hbs` layouts that wrap pages. |
 | `partials/` | Holds the `.hbs`, JavaScript, and TypeScript partials. |
-| `public/` | Receives the output of `bongo build`. bongo empties it at the start of each build. `bongo dev` keeps its output in memory. |
+| `public/` | Receives the output of `bongo build`. Each build writes over it, then deletes the files that it did not write. `bongo dev` keeps its output in memory. |
 | `bongo.config.ts` | The config. |
 
 ### `assets/`
@@ -50,7 +50,7 @@ A partial is a template that layouts, `.hbs` content, and Markdown can call by n
 
 ### `public/`
 
-`bongo build` empties `public/` when it starts. `bongo dev` keeps its output in memory and does not touch `public/`, unless you pass `--write`. bongo refuses to empty the folder when it is not a safe folder. See [Output folder](/cli/#output-folder).
+`bongo build` writes over `public/`, then deletes each file that it did not write. `bongo dev` keeps its output in memory and does not touch `public/`, unless you pass `--write`. bongo refuses to use the folder when it is not a safe folder. See [Output folder](/cli/#output-folder).
 
 ### `bongo.config.ts`
 
@@ -60,10 +60,10 @@ The config can also be `bongo.config.mjs`, `bongo.config.cjs`, or `bongo.config.
 
 When you run `bongo build`, bongo does these steps:
 
-1. `bongo build` empties `public/`. Then bongo loads the config, `bongo.config.{ts,mjs,cjs,js}`. Rolldown bundles the config and the local files that it imports into one temporary `.mjs` module. bongo imports that module, then deletes it. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual. A package linked into `node_modules` from outside it, such as a workspace package, is local code: bongo bundles it too, and the packages it imports resolve from its own folder. `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials, `data/` modules, and [data modules](/data-modules/) load the same way.
+1. `bongo build` deletes each symlink in `public/`, and keeps the other files to write over them. Then bongo loads the config, `bongo.config.{ts,mjs,cjs,js}`. Rolldown bundles the config and the local files that it imports into one temporary `.mjs` module. bongo imports that module, then deletes it. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual. A package linked into `node_modules` from outside it, such as a workspace package, is local code: bongo bundles it too, and the packages it imports resolve from its own folder. `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials, `data/` modules, and [data modules](/data-modules/) load the same way.
 2. It loads the files in `data/` as `$data`. It collects layouts from `layouts/` and partials from `partials/`. It compiles the Handlebars files (`.hbs`) with tempura, and loads the JavaScript and TypeScript partials as modules.
 3. It passes the content files through the registered [loaders](/loaders/), then renders each page through its matching [layout chain](/templates/#layouts). [Output files](/output-files/), such as `sitemap.xml.hbs`, get no layout. [Data modules](/data-modules/), such as `search.json.ts`, run when every page is known, and write JSON.
 4. It scans the rendered HTML for `<bongo:*>` elements, and the content of each page for `<img>` elements with a relative `src`. It registers each asset and replaces it with a placeholder token.
 5. It flushes the asset groups. JavaScript goes through Rolldown, CSS goes through LightningCSS, and images go through `Bun.Image`. Output file names include content hashes.
 6. It replaces the placeholders with external asset URLs or with inline asset contents.
-7. It passes each page and output file to [`$hooks.transform`](/hooks/), and writes the pages to `public/`. `bongo dev` keeps them in memory. So that a large site does not fill the memory, `bongo build` writes each page to `public/` as soon as it renders, then reads it again for steps 6 and 7. With `--minify`, it then minifies the pages when the `minify` CLI is available. See [Minify](/cli/#minify).
+7. It passes each page and output file to [`$hooks.transform`](/hooks/), and writes the pages to `public/`. `bongo dev` keeps them in memory. So that a large site does not fill the memory, `bongo build` writes each page to `public/` as soon as it renders, then reads it again for steps 6 and 7. Last, it deletes each file in `public/` that this build did not write. With `--minify`, it then minifies the pages when the `minify` CLI is available. See [Minify](/cli/#minify).

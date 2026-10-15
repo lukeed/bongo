@@ -89,6 +89,8 @@ describe('dev', () => {
 			await new Promise(r => setTimeout(r, 600));
 			await writeFile(join(root, 'content/index.html'), '<main>during</main>');
 			await until(async () => (await server.page()).includes('<main>during</main>'), 'the edit made during the first build', server);
+			// the page can change before dev logs that rebuild, which would then count as part of the burst
+			await until(() => server.output().includes('] content/index.html ('), 'the log line of that rebuild', server);
 
 			let before = server.output().split('\n').filter(line => line.startsWith('[')).length;
 			await Promise.all(Object.keys(files).filter(rel => rel.startsWith('content/p')).map(rel => writeFile(join(root, rel), '<p>v2</p>')));

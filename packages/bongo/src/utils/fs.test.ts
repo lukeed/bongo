@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import * as fs from './fs';
@@ -111,6 +111,94 @@ describe('empty', () => {
 
 		expect(readdirSync(join(root, 'content'))).toEqual(['source.txt']);
 		expect(readdirSync(elsewhere)).toEqual(['precious.txt']);
+	});
+});
+
+describe('reuse', () => {
+	function project(): { root: string; out: string; keep: string[] } {
+		let root = sandbox();
+		let keep = ['assets', 'content'].map(name => join(root, name));
+		for (let dir of keep) mkdirSync(dir);
+		return { root, out: join(root, 'public'), keep };
+	}
+
+	function put(file: string, text: string): void {
+		mkdirSync(dirname(file), { recursive: true });
+		writeFileSync(file, text);
+	}
+
+	async function rewrite(old: fs.Reuse, file: string, text: string): Promise<void> {
+		await old.fit(file);
+		await fs.write(file, text);
+	}
+
+	test('writes over the files it keeps, deletes each symlink but never its target, and sweeps each file that no write claimed', async () => {
+		let { root, out, keep } = project();
+		let outside = sandbox();
+		writeFileSync(join(outside, 'precious.txt'), 'x');
+		put(join(out, 'index.html'), 'old');
+		put(join(out, 'blog/post/index.html'), 'old');
+		put(join(out, 'gone/stale.html'), 'old');
+		symlinkSync(outside, join(out, 'link'));
+		symlinkSync(join(outside, 'precious.txt'), join(out, 'blog/file'));
+		let inode = statSync(join(out, 'index.html')).ino;
+
+		let old = await fs.reuse(out, root, keep);
+		expect(readdirSync(out).sort()).toEqual(['blog', 'gone', 'index.html']);
+		await rewrite(old, join(out, 'index.html'), 'new');
+		await rewrite(old, join(out, 'blog/post/index.html'), 'new');
+		await old.sweep();
+
+		expect(readdirSync(out).sort()).toEqual(['blog', 'index.html']);
+		expect(readdirSync(join(out, 'blog'))).toEqual(['post']);
+		expect(readFileSync(join(out, 'index.html'), 'utf8')).toBe('new');
+		expect(statSync(join(out, 'index.html')).ino).toBe(inode);
+		expect(readdirSync(outside)).toEqual(['precious.txt']);
+	});
+
+	test('makes room for a folder where a file was, and for a file where a folder was', async () => {
+		let { root, out, keep } = project();
+		put(join(out, 'feed'), 'old');
+		put(join(out, 'about/index.html'), 'old');
+		let old = await fs.reuse(out, root, keep);
+		await rewrite(old, join(out, 'feed/index.html'), 'new');
+		await rewrite(old, join(out, 'about'), 'new');
+		await old.sweep();
+		expect(readFileSync(join(out, 'feed/index.html'), 'utf8')).toBe('new');
+		expect(readFileSync(join(out, 'about'), 'utf8')).toBe('new');
+	});
+
+	test('replaces a path that differs in case only, even when several writes need it at once, and the sweep keeps them', async () => {
+		let { root, out, keep } = project();
+		put(join(out, 'About/index.html'), 'old');
+		put(join(out, 'About/team.html'), 'old');
+		let old = await fs.reuse(out, root, keep);
+		await Promise.all(['index.html', 'team.html', 'more/index.html'].map(name => rewrite(old, join(out, 'about', name), 'new')));
+		await old.sweep();
+		expect(readdirSync(out)).toEqual(['about']);
+		expect(readdirSync(join(out, 'about')).sort()).toEqual(['index.html', 'more', 'team.html']);
+		expect(readFileSync(join(out, 'about/team.html'), 'utf8')).toBe('new');
+	});
+
+	test('keeps a path that a write already claimed, and does nothing for a folder that does not exist yet', async () => {
+		let { root, out, keep } = project();
+		put(join(out, 'Docs/a.html'), 'old');
+		let old = await fs.reuse(out, root, keep);
+		await rewrite(old, join(out, 'Docs/a.html'), 'new');
+		await old.fit(join(out, 'docs/b.html'));
+		expect(readFileSync(join(out, 'Docs/a.html'), 'utf8')).toBe('new');
+
+		let empty = project();
+		let none = await fs.reuse(empty.out, empty.root, empty.keep);
+		await none.sweep();
+		expect(existsSync(empty.out)).toBe(false);
+	});
+
+	test('refuses an unsafe folder, as empty does, and deletes nothing', async () => {
+		let { root, keep } = project();
+		writeFileSync(join(root, 'content/source.txt'), 'keep me');
+		await expect(fs.reuse(join(root, 'content'), root, keep)).rejects.toThrow(`Refusing to empty the output folder "${join(root, 'content')}": it is content/`);
+		expect(readdirSync(join(root, 'content'))).toEqual(['source.txt']);
 	});
 });
 
