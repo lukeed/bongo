@@ -39,11 +39,11 @@ When it is done, `bongo build` prints the size of each file in `public/`, and it
 
 ### Output folder
 
-`bongo build` writes over the files that an earlier run left in `public/`, which is much faster than making them again. When it is done, it deletes each file that it did not write, so no file from an earlier run stays. When the build fails, it empties `public/`, so no part of the failed build stays.
+`bongo build` writes over the files that an earlier run left in `public/`, which is much faster than making them again. When it is done, it deletes each file of the last build that it did not write, so no file from an earlier run stays. The record of the last build lists those files, so `bongo build` does not list `public/`. Thus a file that something else put in `public/` stays, until a build without the record, such as `bongo build --fresh`, lists the folder and deletes it. When the build fails, it empties `public/` and deletes the record, so no part of the failed build stays.
 
 `bongo dev` does not use `public/`. It keeps its output in memory and serves it from there, so a `bongo build` that runs at the same time never changes what dev serves, and dev never changes what the build writes. With `--write`, `bongo dev` also writes its output to `public/`: it empties the folder before the first build, and each rebuild then deletes only the files that the new build no longer writes.
 
-bongo deletes a symlink in `public/`, but never the file or folder that it points to. It refuses to empty or write over `public/`, and the build fails, when the folder resolves through symlinks to:
+bongo never follows a symlink in `public/`. It deletes a symlink that a write or a deletion goes through, and a build that lists the folder deletes each symlink in it. It never deletes the file or folder that a symlink points to. It refuses to empty or write over `public/`, and the build fails, when the folder resolves through symlinks to:
 
 - the project root, or a folder above it,
 - a folder outside the project,
@@ -52,11 +52,11 @@ bongo deletes a symlink in `public/`, but never the file or folder that it point
 
 ### Incremental builds
 
-A build renders only the pages that a change reaches; the other pages keep their files from the last build. `bongo build` keeps a record of its last good build in `node_modules/.cache/bongo/memo.json`, and `bongo dev` keeps it in memory. Each build reads every source file and compares its hash with the record. A page renders again when its source changes; when it reads `$pages`, `$tags`, or `$section` through its source, layouts, or partials, and a page in that list changes its path, title, summary, section, tags, headings, or frontmatter; when a file that it reads with `$assets.load` changes; when an asset that it links changes, or a module or stylesheet that the asset imports; when the config has `$hooks.transform` and an output file is added, deleted, or changes its frontmatter; or when its file in `public/` changed or is gone.
+A build renders only the pages that a change reaches; the other pages keep their files from the last build. `bongo build` keeps a record of its last good build in `node_modules/.cache/bongo/memo.json`, and `bongo dev` keeps it in memory. Each build reads and hashes only the source files whose size or mtime changed since the record, and compares those hashes with it; a file that changed less than 2 seconds before a build is read again by the next. A page renders again when its source changes; when it reads `$pages`, `$tags`, or `$section` through its source, layouts, or partials, and a page in that list changes its path, title, summary, section, tags, headings, or frontmatter; when a file that it reads with `$assets.load` changes; when an asset that it links changes, or a module or stylesheet that the asset imports; when the config has `$hooks.transform` and an output file is added, deleted, or changes its frontmatter; or when its file in `public/` changed or is gone.
 
 Every page renders again when the config changes, or a local file that it imports, `data/`, `layouts/`, `partials/`, the lockfile, the version of bongo, the runtime, or `--minify`. Output files and data modules render on every build. `bongo dev` names each script and stylesheet by its entry, not by its content, so an edit to one renders only the pages that inline it or use its CSS module classes.
 
-bongo cannot see what a template, a hook, or a loader reads by itself, such as the time, an environment variable, or a file that it opens. Use `--fresh` to render every page for such a build. A build that fails empties `public/`, so the next build renders every page.
+bongo cannot see a change that keeps the size and the mtime of a source file, as `cp -p` or `rsync -t` can make, or what a template, a hook, or a loader reads by itself, such as the time, an environment variable, or a file that it opens. Use `--fresh` to render every page for such a build. A build that fails empties `public/`, so the next build renders every page.
 
 ### Minify
 
@@ -66,13 +66,13 @@ bongo cannot see what a template, a hook, or a loader reads by itself, such as t
 
 When you run `bongo build`:
 
-1. `bongo build` deletes each symlink in `public/`, and keeps the other files to write over them. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` in the project folder: `cwd`, or the folder that `-C` names. Rolldown bundles the config and the local files it imports into one temporary `.mjs` module, which bongo imports and then deletes. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual. A package linked into `node_modules` from outside it, such as a workspace package, is local code: it is bundled too, and the packages it imports resolve from its own folder. `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials, `data/` modules, and [data modules](#data-modules) load the same way.
+1. `bongo build` keeps the files of the last build in `public/` to write over them. The record of the last build lists them; without it, bongo lists the folder and deletes each symlink in it. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` in the project folder: `cwd`, or the folder that `-C` names. Rolldown bundles the config and the local files it imports into one temporary `.mjs` module, which bongo imports and then deletes. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual. A package linked into `node_modules` from outside it, such as a workspace package, is local code: it is bundled too, and the packages it imports resolve from its own folder. `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials, `data/` modules, and [data modules](#data-modules) load the same way.
 2. Files in `data/` are loaded as `$data`. Layouts and partials are collected from `layouts/` and `partials/`. Handlebars files (`.hbs`) are compiled with tempura. JavaScript and TypeScript partials are loaded as modules.
 3. Content files are passed through registered loaders, then rendered through their [layouts](#layouts). A page that no change reached since the last build keeps its file and skips its loaders; see [Incremental builds](#incremental-builds). [Output files](#output-files), such as `sitemap.xml.hbs`, get no layout. [Data modules](#data-modules), such as `search.json.ts`, run once every page is known, and write JSON.
 4. Rendered HTML is scanned for `<bongo:*>` elements, and each page's content for `<img>` elements with a relative `src`. Assets are registered and replaced with placeholder tokens.
 5. Asset groups are flushed. JavaScript goes through Rolldown; CSS goes through LightningCSS; images go through `Bun.Image`. Output filenames include content hashes.
 6. Placeholders are substituted with external asset URLs or inline asset contents.
-7. Pages are written to `public/`, or kept in memory by `bongo dev`. So that a large site does not fill the memory, `bongo build` writes each page to `public/` as soon as it renders, then reads it again for steps 6 and 7. Last, it deletes each file in `public/` that this build did not write. With `--minify`, they are then minified when the `minify` CLI is available.
+7. Pages are written to `public/`, or kept in memory by `bongo dev`. So that a large site does not fill the memory, `bongo build` writes each page to `public/` as soon as it renders, then reads it again for steps 6 and 7. Last, it deletes each file of the last build that this build did not write. With `--minify`, they are then minified when the `minify` CLI is available.
 
 ## Config
 
