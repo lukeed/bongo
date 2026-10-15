@@ -18,7 +18,7 @@ Each run builds over the output of the run before it, as a repeat build does. Th
 | #65 cache date formatters | 4.29 s | 3.26 s | 16.48 s | 576 MB |
 | #67 write over public/ | 2.82 s | 3.31 s | 6.60 s | 540 MB |
 | #68 free the last build | 2.82 s | 3.35 s | 6.68 s | 519 MB |
-| #66 incremental builds | 2.56 s | 3.35 s | 3.42 s | 549 MB |
+| #66 incremental builds | 2.63 s | 3.34 s | 3.40 s | 549 MB |
 
 ## docs/
 
@@ -32,7 +32,7 @@ The output hash of the docs site changes with its content, such as the docs edit
 | #65 cache date formatters | 229 ms | 334 ms | 177 ms | 188 MB |
 | #67 write over public/ | 230 ms | 348 ms | 135 ms | 186 MB |
 | #68 free the last build | 227 ms | 348 ms | 120 ms | 185 MB |
-| #66 incremental builds | 216 ms | 336 ms | 112 ms | 184 MB |
+| #66 incremental builds | 226 ms | 342 ms | 111 ms | 188 MB |
 
 ## bongo build after an edit, on bench/site/
 
@@ -43,16 +43,30 @@ Wall time:
 | stage | fresh | no change | body edit | title edit | new page | stylesheet edit | layout edit |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | #68 free the last build | 2.82 s | 2.82 s | 2.82 s | 2.82 s | 2.82 s | 2.82 s | 2.82 s |
-| #66 incremental builds | 2.52 s | 286 ms | 291 ms | 395 ms | 393 ms | 2.61 s | 2.60 s |
+| #66 incremental builds | 2.59 s | 247 ms | 253 ms | 356 ms | 356 ms | 2.71 s | 2.62 s |
 
 Peak RSS, and the files that the build wrote, of 10,105:
 
 | stage | fresh | no change | body edit | title edit | new page | stylesheet edit | layout edit |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | #68 free the last build | 519 MB · all | 519 MB · all | 519 MB · all | 519 MB · all | 519 MB · all | 519 MB · all | 519 MB · all |
-| #66 incremental builds | 608 MB · all | 223 MB · 4 | 228 MB · 5 | 287 MB · 205 | 291 MB · 206 | 607 MB · all | 709 MB · all |
+| #66 incremental builds | 646 MB · all | 210 MB · 4 | 217 MB · 5 | 303 MB · 205 | 296 MB · 206 | 589 MB · all | 626 MB · all |
 
-The fresh step peaks at 608 MB here, and at 549 MB in the first table, for the same build: the peak RSS of a full build swings from run to run, here up to 709 MB. A build with no memo lists `public/`; a build with one reads the list from it, and reads only the sources whose size or mtime changed. The bench lists `public/` once after each build, to count the files that it wrote, so that no listing warms the cache of the folder before a build. A build with no change still writes the 3 bundles and the sitemap: output files render on every build. A title edit renders the 100 pages of its section, since each links its neighbours through `$section`, and each section index and the sitemap, since they read `$pages`.
+The fresh step peaks at 646 MB here, and at 549 MB in the first table, for the same build: the peak RSS of a full build swings from run to run. A build with no memo lists `public/`; a build with one reads the list from it, and reads only the sources whose size or mtime changed. The bench lists `public/` once after each build, to count the files that it wrote, so that no listing warms the cache of the folder before a build. A build with no change still writes the 3 bundles and the sitemap: output files render on every build. A title edit renders the 100 pages of its section, since each links its neighbours through `$section`, and each section index and the sitemap, since they read `$pages`.
+
+### Steps within #66
+
+Runs of the whole bench swing by about 15 ms for a build with no change, as much as one step gains. So each step of #66 was also measured against the others in one session: each bundle builds its own copy of the site, the bundles take turns, and each row is the median of 12 rounds.
+
+| step | no change | body edit |
+| --- | --- | --- |
+| before the steps | 309 ms | 315 ms |
+| a full GC only after 1,000 pages render | 294 ms | 301 ms |
+| the memo keeps each page's registry digest | 280 ms | 287 ms |
+| the size report takes the sizes that the build knows | 266 ms | 273 ms |
+| a mark for each asset, not a signature for each page | 261 ms | 267 ms |
+| kept pages replay in bulk | 246 ms | 257 ms |
+| a smaller memo, 12.5 MB to 7.1 MB | 243 ms | 251 ms |
 
 ## bongo dev on bench/site/
 
@@ -67,8 +81,8 @@ Steps: the first build, 3 full rebuilds from an edit to `layouts/html.hbs`, then
 | #67 write over public/ | 2.00 s | 1.80 s | 0.83 s | 811 MB | 1146 MB | 517 MB | 251 MB | 2810 MB |
 | #68 free the last build | 2.00 s | 1.80 s | 0.83 s | 259 MB | 162 MB | 159 MB | 174 MB | 1441 MB |
 | #68, with the steps of #66 | 2.00 s | 1.80 s | 0.82 s | 259 MB | 184 MB | 139 MB | 131 MB | 1554 MB |
-| #66 incremental builds | 1.90 s | 1.80 s | 0.11–0.12 s | 312 MB | 168 MB | 167 MB | 173 MB | 1640 MB |
+| #66 incremental builds | 2.00 s | 1.90 s | 0.08–0.09 s | 291 MB | 181 MB | 177 MB | 177 MB | 1619 MB |
 
 Before #68, the footprint of dev depends on when the garbage collector runs, so those rows swing from run to run.
 
-With the steps of #66, a stylesheet edit and a new page each take 1.80 s on #68. On #66, a stylesheet edit takes 0.11 s and a new page 0.19 s: dev names each stylesheet by its entry, so the edit renders no page. Against #68, dev holds about 40 MB more JS heap, the memo of 10,000 pages.
+With the steps of #66, a stylesheet edit and a new page each take 1.80 s on #68. On #66, a stylesheet edit takes 0.08 s and a new page 0.16 s: dev names each stylesheet by its entry, so the edit renders no page. Against #68, dev holds about 45 MB more JS heap, the memo of 10,000 pages.
