@@ -294,10 +294,10 @@ describe('output files', () => {
 		try {
 			await until(async () => (await feed()).includes('<t>First</t>'), 'the first build', server);
 			let res = await fetch(server.url + '/blog/index.xml');
-			expect(res.headers.get('content-type')).toBe('text/xml');
+			expect(res.headers.get('content-type')).toBe('text/xml; charset=utf-8');
 			expect(await res.text()).toBe('<?xml version="1.0"?>\n<list><t>First</t></list>');
 			let txt = await fetch(server.url + '/robots.txt');
-			expect(txt.headers.get('content-type')).toBe('text/plain');
+			expect(txt.headers.get('content-type')).toBe('text/plain; charset=utf-8');
 			expect(await txt.text()).toBe('Sitemap: https://example.com/sitemap.xml');
 
 			await writeFile(post, '---\ntitle: Second\n---\n<p>post</p>');

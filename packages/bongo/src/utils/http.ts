@@ -157,6 +157,9 @@ function listen(server: Server, port: number, host: string): Promise<void> {
 
 const ETAGS: WeakMap<Buffer, string> = new WeakMap();
 
+// bongo writes text as UTF-8; without a charset, browsers read it as Windows-1252.
+const TEXT = /^text\/|[/+](json|xml|javascript)$/;
+
 // sirv's lookup: the path as it is, then with .html or .htm, then as a folder with an index file
 function candidates(path: string): string[] {
 	if (path.endsWith('/')) return [path + 'index.html', path + 'index.htm'];
@@ -189,8 +192,9 @@ async function deliver(req: IncomingMessage, res: ServerResponse, sink: Memory, 
 		etag = `W/"${size}-${info.mtimeMs}"`;
 	}
 
+	let type = mime.lookup(file) || 'application/octet-stream';
 	let headers: Record<string, string | number> = {
-		'content-type': mime.lookup(file) || 'application/octet-stream',
+		'content-type': TEXT.test(type) ? type + '; charset=utf-8' : type,
 		'cache-control': 'no-cache',
 		'accept-ranges': 'bytes',
 		'etag': etag,

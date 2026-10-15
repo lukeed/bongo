@@ -187,6 +187,31 @@ describe('subpath', () => {
 });
 
 describe('memory', () => {
+	test('serves text in UTF-8, and other files as they are', async () => {
+		let opts = argv();
+		let server = await http.start(opts, opts.sink);
+		let url = `http://127.0.0.1:${opts.port}`;
+		try {
+			let files: [string, string, string][] = [
+				['notes.md', '# Notes — ü', 'text/markdown; charset=utf-8'],
+				['feed.xml', '<feed/>', 'text/xml; charset=utf-8'],
+				['data.json', '{}', 'application/json; charset=utf-8'],
+				['app.js', '1', 'text/javascript; charset=utf-8'],
+				['icon.svg', '<svg/>', 'image/svg+xml; charset=utf-8'],
+				['font.woff2', 'x', 'font/woff2'],
+				['blob.bin', 'x', 'application/octet-stream'],
+			];
+			for (let [name, body, type] of files) {
+				await opts.sink.write(join(opts.dest, name), body);
+				let res = await fetch(`${url}/${name}`);
+				expect(res.headers.get('content-type')).toBe(type);
+				expect(await res.text()).toBe(body);
+			}
+		} finally {
+			server.close();
+		}
+	});
+
 	test('serves files from the sink with their content type, an etag, HEAD, and ranges', async () => {
 		let opts = argv();
 		let server = await http.start(opts, opts.sink);
@@ -195,7 +220,7 @@ describe('memory', () => {
 			await opts.sink.write(join(opts.dest, 'app.css'), 'body{}');
 			let res = await fetch(url + '/app.css');
 			expect(res.status).toBe(200);
-			expect(res.headers.get('content-type')).toBe('text/css');
+			expect(res.headers.get('content-type')).toBe('text/css; charset=utf-8');
 			expect(res.headers.get('content-length')).toBe('6');
 			expect(res.headers.get('cache-control')).toBe('no-cache');
 			expect(await res.text()).toBe('body{}');
