@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -411,5 +411,34 @@ describe('built-in utils', () => {
 		expect(date?.format?.('2024-05-01T23:30:00Z', { day: 'numeric' })).toBe('1');
 		expect(date?.format?.('2024-05-01', { dateStyle: 'medium', timeZone: 'America/Los_Angeles' })).toBe('30 avr. 2024');
 		expect(() => date?.format?.('nope')).toThrow('Invalid date: "nope"');
+	});
+
+	test('date.format makes one Intl.DateTimeFormat for each locale and set of options, in any key order', async () => {
+		let { date } = await builtins(`{ url: 'https://example.com/', lang: 'de', title: 'T' }`);
+		let made = spyOn(Intl, 'DateTimeFormat');
+		try {
+			expect(date?.format?.('2024-05-01', { month: 'long', year: 'numeric' })).toBe('Mai 2024');
+			expect(date?.format?.('2024-06-01', { year: 'numeric', month: 'long' })).toBe('Juni 2024');
+			expect(date?.format?.('2024-06-01', { year: 'numeric', month: 'short' })).toBe('Juni 2024');
+			expect(made).toHaveBeenCalledTimes(2);
+		} finally {
+			made.mockRestore();
+		}
+	});
+
+	test('date.format keeps at most 100 formatters, and drops the oldest first', async () => {
+		let { date } = await builtins(`{ url: 'https://example.com/', lang: 'en', title: 'T' }`);
+		let zones = Intl.supportedValuesOf('timeZone').slice(0, 101);
+		let made = spyOn(Intl, 'DateTimeFormat');
+		try {
+			for (let zone of zones) date?.format?.('2024-05-01', { timeZone: zone, hour: 'numeric' });
+			expect(made).toHaveBeenCalledTimes(101);
+			date?.format?.('2024-05-01', { timeZone: zones[100], hour: 'numeric' });
+			expect(made).toHaveBeenCalledTimes(101);
+			expect(date?.format?.('2024-05-01', { timeZone: zones[0], hour: 'numeric' })).toBe(new Date('2024-05-01').toLocaleString('en', { timeZone: zones[0], hour: 'numeric' }));
+			expect(made).toHaveBeenCalledTimes(102);
+		} finally {
+			made.mockRestore();
+		}
 	});
 });
