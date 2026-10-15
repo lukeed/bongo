@@ -154,7 +154,13 @@ document.addEventListener('click', event => {
 		root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
 		return localStorage.setItem('theme', root.dataset.theme);
 	}
-	if (button?.matches('[data-menu]')) return toggle('nav-open', button);
+	if (button?.matches('[data-menu]')) {
+		toggle('nav-open', button);
+		let side = document.querySelector<HTMLElement>('.side');
+		let link = side?.querySelector<HTMLElement>('a[aria-current]');
+		if (side && link && document.body.classList.contains('nav-open')) side.scrollTop = link.offsetTop - side.clientHeight / 2;
+		return;
+	}
 	if (button?.matches('[data-toc]')) return toggle('toc-open', button);
 	if (button?.matches('[data-search]')) return open();
 	if (button?.matches('[data-close]')) return dialog()?.close();
@@ -214,6 +220,14 @@ document.addEventListener('keydown', event => {
 
 document.addEventListener('input', event => {
 	if (event.target instanceof HTMLInputElement && event.target.closest('#find')) render(event.target.value);
+});
+
+// The sidebar stays across navigations, so it marks the new page itself.
+on('bongo:replaced', () => {
+	for (let link of document.querySelectorAll<HTMLAnchorElement>('.side a')) {
+		if (link.pathname === location.pathname) link.setAttribute('aria-current', 'page');
+		else link.removeAttribute('aria-current');
+	}
 });
 
 addEventListener('scroll', () => requestAnimationFrame(spy), { passive: true });
