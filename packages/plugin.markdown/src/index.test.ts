@@ -169,6 +169,13 @@ describe('partials', () => {
 		expect(html).not.toContain('&lt;bongo');
 	});
 
+	test('passes <bongo:alternate> through for bongo to handle', async () => {
+		let { calls, run } = setup();
+		let html = await run('<bongo:alternate type="text/markdown" />\n');
+		expect(calls).toEqual([]);
+		expect(html).toContain('<bongo:alternate type="text/markdown" />');
+	});
+
 	test('passes <bongo:image> through, alone, inline, and inside html blocks', async () => {
 		let { calls, run } = setup();
 		let html = await run([

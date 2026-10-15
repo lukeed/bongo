@@ -534,6 +534,94 @@ describe('template errors', () => {
 	});
 });
 
+describe('alternates', () => {
+	const CONFIG = (url = 'https://example.com/') => [
+		`export default {`,
+		`	$site: { url: '${url}', title: 'T', lang: 'en' },`,
+		`	$loaders: {`,
+		`		md(file, content, utils) {`,
+		`			let text = typeof content === 'string' ? content : utils.decode(content);`,
+		`			let { offset, value } = utils.frontmatter(text);`,
+		`			return { filename: file + '.html', content: '<p>' + text.slice(offset).trim() + '</p>', metadata: value };`,
+		`		},`,
+		`	},`,
+		`};`,
+	].join('\n');
+
+	test('writes a Markdown copy of each page whose layout has <bongo:alternate type="text/markdown">, from its source', async () => {
+		let root = await site({
+			'bongo.config.ts': CONFIG('https://example.com/sub/'),
+			'layouts/html.hbs': '<bongo:alternate type="text/markdown" />{{{ $page.content }}}',
+			'content/index.md': '---\ntitle: Home\nsummary: Welcome.\n---\n\nHi — there.\n',
+			'content/about.md': '---\ntitle: About\n---\nText',
+			'content/blog/post.md': 'Body\n',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'index.md')).toBe('# Home\n\n> Welcome.\n\nHi — there.\n');
+			expect(await read(root, 'about.md')).toBe('# About\n\nText\n');
+			expect(await read(root, 'blog/post.md')).toBe('Body\n');
+			expect(await read(root, 'index.html')).toBe('<link rel="alternate" type="text/markdown" href="/sub/index.md"/><p>Hi — there.</p>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('output files and data modules see the alternates of each page, as they render after every page', async () => {
+		let root = await site({
+			'bongo.config.ts': CONFIG(),
+			'layouts/html.hbs': '<bongo:alternate type="text/markdown" />{{{ $page.content }}}',
+			'layouts/blog/html.hbs': '<bongo:alternate type="text/markdown" /><bongo:alternate type="application/rss+xml" href="/blog/feed.xml" />{{{ $page.content }}}',
+			'content/a.md': 'A',
+			'content/blog/b.md': 'B',
+			'layouts/misc/html.hbs': '{{{ $page.content }}}',
+			'content/misc/plain.html': '<p>plain</p>',
+			'content/llms.txt.hbs': `# Pages\n{{#each $pages as p}}\n- {{{ p.path }}} {{{ p.alternates['text/markdown'] ?? '-' }}}{{/each}}\n`,
+			'content/list.json.ts': 'export default ({ $pages }) => $pages.map(page => page.alternates);',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'llms.txt')).toBe('# Pages\n- /a/ /a.md\n- /blog/b/ /blog/b.md\n- /misc/plain/ -');
+			expect(JSON.parse(await read(root, 'list.json'))).toEqual([
+				{ 'text/markdown': '/a.md' },
+				{ 'text/markdown': '/blog/b.md', 'application/rss+xml': '/blog/feed.xml' },
+				{},
+			]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('one page may name its copy twice, but two pages may not write one file, and a copy needs Markdown', async () => {
+		let twice = await site({
+			'bongo.config.ts': CONFIG(),
+			'layouts/html.hbs': '<bongo:alternate type="text/markdown" /><bongo:alternate type="text/markdown" />{{{ $page.content }}}',
+			'content/a.md': 'A',
+		});
+		try {
+			await build({ cwd: twice });
+			expect(await read(twice, 'a.md')).toBe('A\n');
+		} finally {
+			await rm(twice, { recursive: true, force: true });
+		}
+
+		let cases: [Record<string, string>, string][] = [
+			[{ 'content/a.md': 'A', 'content/b.md': 'B', 'layouts/html.hbs': '<bongo:alternate type="text/markdown" href="/same.md" />' }, '"same.md" is a Markdown copy of content/a.md and of content/b.md'],
+			[{ 'content/a.md': 'A', 'content/notes.txt': 'mine', 'layouts/html.hbs': '<bongo:alternate type="text/markdown" href="/notes.txt" />' }, '"notes.txt" is a Markdown copy of content/a.md, and a file of the site'],
+			[{ 'content/plain.html': '<p>plain</p>' }, 'content/plain.html has no Markdown source for its <bongo:alternate type="text/markdown">'],
+		];
+		for (let [files, message] of cases) {
+			let root = await site({ 'bongo.config.ts': CONFIG(), 'layouts/html.hbs': '<bongo:alternate type="text/markdown" />', ...files });
+			try {
+				let err = await build({ cwd: root }).then(() => undefined, (err: Error) => err);
+				expect(err?.message).toContain(message);
+			} finally {
+				await rm(root, { recursive: true, force: true });
+			}
+		}
+	});
+});
+
 describe('layouts', () => {
 	test('a page uses the layouts of its nearest folder first', async () => {
 		let root = await site({

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 
 import { parseAttrs, scanBongoTags, scanImages, rewriteTransitionAttrs } from './tags';
+import type { Alternate } from './tags';
 import * as bundler from './bundler';
 
 import type { Argv, Config, Images } from 'bongo';
@@ -340,6 +341,55 @@ describe('scanBongoTags', () => {
 // ---------------------------------------------------------------------------
 // rewriteTransitionAttrs tests
 // ---------------------------------------------------------------------------
+
+describe('scanBongoTags — <bongo:alternate>', () => {
+	function scan(html: string, path = '/config/', url = 'https://example.com/') {
+		let found: Alternate[] = [];
+		let config = { ...makeConfig(), $site: { ...makeConfig().$site, url } };
+		let out = scanBongoTags(html, makeArgv(tmpdir()), config, 'layouts/html.hbs', path, found);
+		return { out, found };
+	}
+
+	test('becomes a <link>, and a Markdown copy at the route plus .md by default', () => {
+		expect(scan('<bongo:alternate type="text/markdown" />')).toEqual({
+			out: '<link rel="alternate" type="text/markdown" href="/config.md"/>',
+			found: [{ type: 'text/markdown', href: '/config.md', file: 'config.md' }],
+		});
+		expect(scan('<bongo:alternate type="text/markdown"></bongo:alternate>', '/').found).toEqual([{ type: 'text/markdown', href: '/index.md', file: 'index.md' }]);
+		expect(scan('<bongo:alternate type="text/markdown" />', '/docs/', 'https://example.com/docs/')).toEqual({
+			out: '<link rel="alternate" type="text/markdown" href="/docs/index.md"/>',
+			found: [{ type: 'text/markdown', href: '/docs/index.md', file: 'index.md' }],
+		});
+	});
+
+	test('an href resolves as a browser resolves it, the <link> keeps it as written, and bongo writes a file only inside the site', () => {
+		expect(scan('<bongo:alternate type="text/markdown" href="page.md" />', '/blog/post/')).toEqual({
+			out: '<link rel="alternate" type="text/markdown" href="page.md"/>',
+			found: [{ type: 'text/markdown', href: '/blog/post/page.md', file: 'blog/post/page.md' }],
+		});
+		expect(scan('<bongo:alternate type="text/markdown" href="https://example.com/a.md" />').found).toEqual([{ type: 'text/markdown', href: '/a.md', file: 'a.md' }]);
+		expect(scan('<bongo:alternate type="text/markdown" href="https://other.dev/a.md" />').found).toEqual([{ type: 'text/markdown', href: 'https://other.dev/a.md' }]);
+		expect(scan('<bongo:alternate type="text/markdown" href="/elsewhere/a.md" />', '/docs/x/', 'https://example.com/docs/').found).toEqual([{ type: 'text/markdown', href: '/elsewhere/a.md' }]);
+	});
+
+	test('another type is a plain <link>, and other attributes go on it', () => {
+		let { out, found } = scan(`<bongo:alternate type="application/rss+xml" href="/feed.xml" title='My "feed"' hreflang="en" />`);
+		expect(out).toBe('<link rel="alternate" type="application/rss+xml" href="/feed.xml" title="My &quot;feed&quot;" hreflang="en"/>');
+		expect(found).toEqual([{ type: 'application/rss+xml', href: '/feed.xml' }]);
+	});
+
+	test('reads character references and URL escapes as a browser does, and escapes each value once', () => {
+		let { out, found } = scan('<bongo:alternate type="text/markdown" href="/my%20page.md?a=1&amp;b=2" title="A &amp; B" />');
+		expect(out).toBe('<link rel="alternate" type="text/markdown" href="/my%20page.md?a=1&amp;b=2" title="A &amp; B"/>');
+		expect(found).toEqual([{ type: 'text/markdown', href: '/my%20page.md?a=1&b=2', file: 'my page.md' }]);
+	});
+
+	test('fails without a type, without an href that bongo cannot make, or with an href that names no file', () => {
+		expect(() => scan('<bongo:alternate href="/a.md" />')).toThrow('<bongo:alternate href="/a.md" /> needs a type, rendering layouts/html.hbs');
+		expect(() => scan('<bongo:alternate type="application/rss+xml" />')).toThrow('<bongo:alternate type="application/rss+xml" /> needs an href, rendering layouts/html.hbs');
+		expect(() => scan('<bongo:alternate type="text/markdown" href="/blog/" />')).toThrow('<bongo:alternate type="text/markdown" href="/blog/" /> needs an href that names a file, rendering layouts/html.hbs');
+	});
+});
 
 describe('scanBongoTags — <bongo:asset>', () => {
 	const TOKEN = /__BONGO_BUNDLE:[a-f0-9]{16}__/;

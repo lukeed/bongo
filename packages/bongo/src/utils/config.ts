@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 
 import { summary, toBuildError } from './bundler';
 import * as fs from './fs';
+import { publicPath, withExtension } from './tags';
 
 import type { Config } from 'bongo';
 import type { ImportKind, Plugin, PluginContext, RolldownBuild } from 'rolldown';
@@ -322,6 +323,9 @@ export async function load(root: string): Promise<Loaded> {
 				path(to: string, fro?: string): string {
 					let url = new URL(to, fro || output.$site.url.replace(/\/?$/, '/'));
 					return url.pathname + url.search + url.hash;
+				},
+				ext(path: string, ext: string): string {
+					return withExtension(path, ext, publicPath(output.$site.url));
 				}
 			},
 			date: {

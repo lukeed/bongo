@@ -137,6 +137,8 @@ export namespace Template {
 		tags: string[];  // parsed from frontmatter
 		headings: Heading[]; // from the page's loader; empty for .html and .hbs content
 		params: Params;  // full frontmatter
+		/** The `<bongo:alternate>` elements of the page, as `{ type: href }`, such as `{ 'text/markdown': '/config.md' }`. Only output files and data modules see it, since a page's elements are found after its layouts render. */
+		alternates?: Record<string, string>;
 	};
 
 	type TagEntry = {
@@ -253,6 +255,11 @@ export interface Config {
 		url?: Helpers & {
 			abs?(to: string, fro?: string): string;
 			path?(to: string, fro?: string): string;
+			/**
+			 * The path of a page plus an extension, as `<bongo:alternate>` names its file.
+			 * @example $utils.url.ext('/config/', 'md') //=> '/config.md'
+			 */
+			ext?(path: string, ext: string): string;
 		};
 		date?: Helpers & {
 			format?(value: string|number|Date, options?: Intl.DateTimeFormatOptions): string;

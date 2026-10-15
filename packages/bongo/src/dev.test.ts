@@ -342,6 +342,41 @@ describe('$assets.render', () => {
 	}, 30_000);
 });
 
+describe('<bongo:alternate>', () => {
+	test('serves each Markdown copy, keeps the others on a narrow rebuild, and drops one that no layout names', async () => {
+		let root = await site({
+			'bongo.config.ts': [
+				`export default {`,
+				`	$site: { url: 'https://example.com/', title: 'T', lang: 'en' },`,
+				`	$loaders: { md: (file, content, utils) => ({ filename: file + '.html', content: '<p>page</p>', metadata: utils.frontmatter(utils.decode(content)).value }) },`,
+				`};`,
+			].join('\n'),
+			'layouts/html.hbs': '<bongo:alternate type="text/markdown" />{{{ $page.content }}}',
+			'content/a.md': '---\ntitle: A\n---\nOne — 1',
+			'content/b.md': 'Bee',
+		});
+		let server = await serve(root);
+		let md = (name: string) => fetch(`${server.url}/${name}.md`);
+		try {
+			await until(async () => (await md('a')).status === 200, 'the first build', server);
+			let res = await md('a');
+			expect(res.headers.get('content-type')).toBe('text/markdown; charset=utf-8');
+			expect(await res.text()).toBe('# A\n\nOne — 1\n');
+
+			await writeFile(join(root, 'content/a.md'), '---\ntitle: A\n---\nTwo — 2');
+			await until(async () => (await (await md('a')).text()).includes('Two'), 'the edit', server);
+			expect(await (await md('b')).text()).toBe('Bee\n');
+
+			await writeFile(join(root, 'layouts/html.hbs'), '{{{ $page.content }}}');
+			await until(async () => (await md('a')).status === 404, 'the layout without the element', server);
+			expect(server.messages.filter(m => m.type === 'error')).toEqual([]);
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+});
+
 describe('output folder', () => {
 	test('holds requests made during the first build until it ends', async () => {
 		let root = await site({

@@ -350,6 +350,18 @@ describe('built-in utils', () => {
 		expect(url?.path?.('https://other.com/y')).toBe('/y');
 	});
 
+	test('url.ext gives the path of a page plus an extension, as <bongo:alternate> writes it', async () => {
+		let { url } = await builtins(`{ url: 'https://example.com/', lang: 'en', title: 'T' }`);
+		expect(url?.ext?.('/config/', 'md')).toBe('/config.md');
+		expect(url?.ext?.('/', 'md')).toBe('/index.md');
+		expect(url?.ext?.('/blog/post/', '.md')).toBe('/blog/post.md');
+		expect(url?.ext?.('/404.html', 'md')).toBe('/404.md');
+		expect(url?.ext?.('/about', 'txt')).toBe('/about.txt');
+		let sub = (await builtins(`{ url: 'https://example.com/docs/', lang: 'en', title: 'T' }`)).url;
+		expect(sub?.ext?.('/docs/', 'md')).toBe('/docs/index.md');
+		expect(sub?.ext?.('/docs/config/', 'md')).toBe('/docs/config.md');
+	});
+
 	test('slug makes a GitHub-style anchor slug, as md4x does for heading ids', async () => {
 		let { slug } = await builtins(`{ url: 'https://example.com/', lang: 'en', title: 'T' }`);
 		expect(slug?.('Hello, world!')).toBe('hello-world');

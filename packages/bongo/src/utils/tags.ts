@@ -13,10 +13,11 @@ import type { Argv, Config } from 'bongo';
 // `<bongo:style …/>`, `<bongo:style …></bongo:style>`,
 // `<bongo:client …/>`, `<bongo:client …></bongo:client>`,
 // `<bongo:asset …/>`, `<bongo:asset …></bongo:asset>`,
-// `<bongo:image …/>`, `<bongo:image …></bongo:image>`.
+// `<bongo:image …/>`, `<bongo:image …></bongo:image>`,
+// `<bongo:alternate …/>`, `<bongo:alternate …></bongo:alternate>`.
 // Tolerant of inner text (for forward-compat with elements that allow children).
 // Quoted attribute values may contain `>` and `/>`, eg `media="(width >= 600px)"`.
-const BONGO_TAG = /<bongo:(script|style|client|asset|image)\b((?:"[^"]*"|'[^']*'|[^>"'\/]|\/(?!>))*?)\s*(?:\/>|>([\s\S]*?)<\/bongo:\1\s*>)/g;
+const BONGO_TAG = /<bongo:(script|style|client|asset|image|alternate)\b((?:"[^"]*"|'[^']*'|[^>"'\/]|\/(?!>))*?)\s*(?:\/>|>([\s\S]*?)<\/bongo:\1\s*>)/g;
 
 // Path to bongo's bundled browser runtime. Resolves relative to this module:
 // — bundled (prod): sibling to packages/bongo/index.js, i.e. ./client.js.
@@ -95,7 +96,14 @@ const ATTR_ESCAPE: Record<string, string> = { '&': '&amp;', '"': '&quot;' };
 const OWN = {
 	script: new Set(['src', 'inline', 'async', 'defer', 'format', 'target', 'type']),
 	style: new Set(['src', 'inline', 'global', 'rel', 'href']),
+	alternate: new Set(['type', 'href', 'rel']),
 };
+
+// The alternate types that bongo writes a file for, with the extension of their default href.
+const WRITES: Record<string, string> = { 'text/markdown': 'md' };
+
+/** A `<bongo:alternate>` of a page: its type, its href resolved to a URL path (or a full URL elsewhere), and the file that bongo writes, as a path in the output folder. */
+export type Alternate = { type: string; href: string; file?: string };
 
 type Format = NonNullable<bundler.BundleConfig['format']>;
 
@@ -107,7 +115,7 @@ function rest(props: attrs.Attrs, own: Set<string>): string {
 	let out = '';
 	for (let [name, value] of Object.entries(forward(props))) {
 		if (own.has(name)) continue;
-		out += value === true ? ` ${name}` : ` ${name}="${value.replace(/[&"]/g, c => ATTR_ESCAPE[c])}"`;
+		out += value === true ? ` ${name}` : ` ${name}="${unescape(value).replace(/[&"]/g, c => ATTR_ESCAPE[c])}"`;
 	}
 	return out;
 }
@@ -142,6 +150,17 @@ function unescape(value: string): string {
  * The URL path that a site lives under, from its `$site.url`, such as `/blog/` for `https://example.com/blog`.
  * @example publicPath('https://example.com/blog') //=> '/blog/'
  */
+/**
+ * The path of a page plus an extension: a folder page gives its route, and the root of the site gives `index`.
+ * @example tags.withExtension('/config/', 'md', '/') //=> '/config.md'
+ */
+export function withExtension(path: string, ext: string, base: string): string {
+	let suffix = '.' + ext.replace(/^\./, '');
+	let clean = path.replace(/[?#].*$/, '');
+	if (!clean.endsWith('/')) return clean.replace(/\.[^/.]*$/, '') + suffix;
+	return (clean === base || clean === '/' ? clean + 'index' : clean.slice(0, -1)) + suffix;
+}
+
 export function publicPath(siteUrl: string): string {
 	try {
 		let { pathname } = new URL(siteUrl);
@@ -195,11 +214,41 @@ export function scanBongoTags(
 	config: Pick<Required<Config>, '$build' | '$images'> & Partial<Pick<Config, '$site'>>,
 	from?: string,
 	path = '/',
+	found?: Alternate[],
 ): string {
 	let base = publicPath(config.$site?.url ?? '');
 	let where = from ? `, rendering ${from}` : '';
-	return html.replace(BONGO_TAG, (match, kind: 'script' | 'style' | 'client' | 'asset' | 'image', rawAttrs: string) => {
+	return html.replace(BONGO_TAG, (match, kind: 'script' | 'style' | 'client' | 'asset' | 'image' | 'alternate', rawAttrs: string) => {
 		let props = attrs.parse(rawAttrs);
+
+		if (kind === 'alternate') {
+			let type = str(props.type);
+			if (!type) throw new Error(`${match.trim()} needs a type${where}`);
+			type = unescape(type);
+			let ext = WRITES[type];
+			let given = str(props.href);
+			if (given === undefined && !ext) throw new Error(`${match.trim()} needs an href${where}`);
+			let href = given === undefined ? withExtension(path, ext, base) : unescape(given);
+
+			let site = new URL(config.$site?.url || 'http://localhost/');
+			let url = new URL(href, new URL(path, site));
+			let local = url.origin === site.origin;
+			let file: string | undefined;
+			if (ext && local && url.pathname.startsWith(base)) {
+				if (url.pathname.endsWith('/')) throw new Error(`${match.trim()} needs an href that names a file${where}`);
+				let name = url.pathname.slice(base.length);
+				try {
+					file = decodeURIComponent(name);
+				} catch {
+					file = name;
+				}
+			}
+			let resolved = local ? url.pathname + url.search + url.hash : url.href;
+			found?.push(file === undefined ? { type, href: resolved } : { type, href: resolved, file });
+
+			let escaped = (value: string) => value.replace(/[&"]/g, c => ATTR_ESCAPE[c]);
+			return `<link rel="alternate" type="${escaped(type)}" href="${escaped(href)}"${rest(props, OWN.alternate)}/>`;
+		}
 
 		if (kind === 'client') {
 			// No `src` — bongo wires in its own bundled runtime.

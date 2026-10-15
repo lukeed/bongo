@@ -31,7 +31,10 @@ import type { Blocks } from './utils/tempura/index';
 let FRONTMATTER_SIG: Map<string, string> = new Map();
 
 // Per sink, the last good build's files, and each page's assets and renders, to keep or delete on the next build.
-type Output = { assets: Map<string, string[]>; renders: Map<string, string[]>; keys: Map<string, { key: string; from: string }>; files: Set<string>; dev: boolean };
+type Output = { assets: Map<string, string[]>; renders: Map<string, string[]>; keys: Map<string, { key: string; from: string }>; alternates: Map<string, Named>; files: Set<string>; dev: boolean };
+
+// The `<bongo:alternate>` elements that one page names, and the source that its Markdown copy comes from.
+type Named = { path: string; input: string; from: string; found: tags.Alternate[] };
 let OUTPUT: Map<output.Sink, Output> = new Map();
 
 // Local files outside content/ that the last build's data modules read.
@@ -109,6 +112,32 @@ async function rendering<T>(from: string, work: () => Promise<T>): Promise<T> {
 		let reason = err instanceof Error ? err.message : String(err);
 		throw new Error(`${reason}, rendering ${from}`, { cause: err });
 	}
+}
+
+function pageOf(item: ScanItem): Template.Page {
+	return {
+		path: item.path,
+		params: item.params,
+		content: '',
+		url: item.url,
+		summary: item.summary,
+		title: item.title,
+		section: item.section,
+		tags: item.tags,
+		headings: item.headings,
+		scripts: '',
+		styles: '',
+	};
+}
+
+// A Markdown copy of a page: the title and summary of its frontmatter, then its body as written.
+async function markdown(file: string): Promise<string> {
+	let source = await fs.read(file, 'utf8');
+	let { offset, value } = templates.frontmatter(source);
+	let title = text(value.title);
+	let summary = text(value.summary).replace(/\n/g, '\n> ');
+	let body = source.slice(offset).replace(/^\s*\n/, '').trimEnd();
+	return [title && `# ${title}`, summary && `> ${summary}`, body].filter(Boolean).join('\n\n') + '\n';
 }
 
 function parseTags(value: unknown): string[] {
@@ -457,6 +486,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	let pages: CollectedPage[] = [];
 	let outputs: CollectedPage[] = [];
 	let modules: ScanItem[] = [];
+	let later: ScanItem[] = [];
+	let alternates: Map<string, Named> = new Map(narrowOnly && last ? last.alternates : []);
 	let bundles: Map<string, string[]> = new Map(narrowOnly && last ? last.assets : []);
 	let rendered: Map<string, string[]> = new Map(narrowOnly && last ? last.renders : []);
 	rendered.set('', loose);
@@ -474,20 +505,12 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			modules.push(item);
 			continue;
 		}
+		if (item.kind === 'output') {
+			later.push(item);
+			continue;
+		}
 
-		let $page: Template.Page = {
-			path: item.path,
-			params: item.params,
-			content: '',                       // filled below (and again after layout)
-			url: item.url,
-			summary: item.summary,
-			title: item.title,
-			section: item.section,
-			tags: item.tags,
-			headings: item.headings,
-			scripts: '',
-			styles: '',
-		};
+		let $page = pageOf(item);
 
 		let $section = Sections.get(item.section) || [];
 		let made: string[] = [];
@@ -503,11 +526,6 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 				scope.blocks,
 			))
 			: item.body;
-
-		if (item.kind === 'output') {
-			outputs.push({ output: item.output, html: rendered_content, path: item.path, params: item.params, from: `content/${item.rel}` });
-			continue;
-		}
 
 		rendered_content = tags.scanImages(rendered_content, argv as Required<Argv>, config, `content/${item.rel}`, item.path);
 		$page.content = rendered_content;
@@ -558,11 +576,44 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 		if (argv.dev) rendered_content += SCRIPT;
 
-		rendered_content = tags.scanBongoTags(rendered_content, argv as Required<Argv>, config, chain.join(' → '), item.path);
+		let found: tags.Alternate[] = [];
+		rendered_content = tags.scanBongoTags(rendered_content, argv as Required<Argv>, config, chain.join(' → '), item.path, found);
 		rendered_content = tags.rewriteTransitionAttrs(rendered_content);
+		alternates.set(item.rel, { path: item.path, input: item.input, from: `content/${item.rel}`, found });
 
 		bundles.set(item.rel, bundler.placeholders(rendered_content));
 		pages.push({ output: item.output, html: rendered_content, path: item.path, params: item.params, from: chain.join(' → ') });
+	}
+
+	let copies: Map<string, { from: string; input: string }> = new Map();
+	let ordered = [...alternates.values()].sort((a, b) => a.path.localeCompare(b.path));
+	for (let named of ordered) {
+		for (let alt of named.found) {
+			if (alt.file === undefined) continue;
+			if (!/\.(md|markdown)$/i.test(named.input)) throw new Error(`${named.from} has no Markdown source for its <bongo:alternate type="${alt.type}">`);
+			let prev = copies.get(alt.file);
+			if (prev && prev.from !== named.from) throw new Error(`"${alt.file}" is a Markdown copy of ${prev.from} and of ${named.from}`);
+			copies.set(alt.file, { from: named.from, input: named.input });
+		}
+	}
+
+	// Output files and data modules come after every page, so they see the alternates that each page names.
+	let listed = new Map([...alternates.values()].map(named => [named.path, Object.fromEntries(named.found.map(alt => [alt.type, alt.href]))]));
+	let final = new Map(Pages.map(info => [info, { ...info, alternates: listed.get(info.path) ?? {} }]));
+	let swap = (list: Template.PageInfo[]) => list.map(info => final.get(info) ?? info);
+	let $pages = swap(Pages);
+	let $sections = new Map([...Sections].map(([name, list]) => [name, swap(list)]));
+	let $tagged = $tags.map(entry => ({ tag: entry.tag, pages: swap(entry.pages) }));
+
+	for (let item of later) {
+		let made: string[] = [];
+		rendered.set(item.rel, made);
+		let scope = templates.scope({ $page: pageOf(item), $pages, $section: $sections.get(item.section) || [], $tags: $tagged }, page => assets(item.path, made, page));
+		let html = await rendering(`content/${item.rel}`, async () => (await templates.compileContent(item.body))(
+			{ ...context, ...scope.values, params: item.params },
+			scope.blocks,
+		));
+		outputs.push({ output: item.output, html, path: item.path, params: item.params, from: `content/${item.rel}` });
 	}
 
 	bundler.retain(new Set([...bundles.values()].flat()));
@@ -579,7 +630,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 				note(mod.files);
 				if (!('default' in mod.exports)) throw new Error('needs a default export');
 				let value = mod.exports.default;
-				if (typeof value === 'function') value = await value({ $site, $pages: Pages, $section: Sections.get(item.section) || [], $tags, $data, $utils: context.$utils });
+				if (typeof value === 'function') value = await value({ $site, $pages, $section: $sections.get(item.section) || [], $tags: $tagged, $data, $utils: context.$utils });
 				var serialized = JSON.stringify(value);
 				if (serialized === undefined) throw new Error(`its default export is not JSON: ${typeof value}`);
 			} catch (err) {
@@ -659,7 +710,13 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	for (let name of renders.files.keys()) {
 		if (taken.has(join(dest, name))) throw new Error(`"${name}" is a file of the site; render to another path`);
 	}
-	await Promise.all([...renders.files].map(([name, entry]) => sink.defer(join(dest, name), entry.make)));
+	for (let [file, copy] of copies) {
+		if (taken.has(join(dest, file)) || renders.files.has(file)) throw new Error(`"${file}" is a Markdown copy of ${copy.from}, and a file of the site`);
+	}
+	await Promise.all([
+		...[...renders.files].map(([name, entry]) => sink.defer(join(dest, name), entry.make)),
+		...[...copies].map(([file, copy]) => sink.defer(join(dest, file), () => images.slot(() => markdown(copy.input)))),
+	]);
 	await Promise.all(ready.map(([file, text]) => sink.write(file, text)));
 
 	if (argv.minify) watch.step('minifying html');
@@ -667,10 +724,10 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		log.info(`${dim('--minify:')} HTML left as-is; install tdewolff/minify to minify it`);
 	}
 
-	let files = new Set([...taken, ...[...rendered.values()].flat().map(name => join(dest, name))]);
+	let files = new Set([...taken, ...[...rendered.values()].flat().map(name => join(dest, name)), ...[...copies.keys()].map(file => join(dest, file))]);
 	await Promise.all([...last?.files ?? []].filter(file => !files.has(file)).map(file => sink.remove(file)));
 	let keys = new Map([...renders.seen, ...[...renders.files].map(([name, { key, from }]) => [name, { key, from }] as const)]);
-	OUTPUT.set(sink, { assets: bundles, renders: rendered, keys, files, dev: argv.dev });
+	OUTPUT.set(sink, { assets: bundles, renders: rendered, keys, alternates, files, dev: argv.dev });
 
 	// Refresh the frontmatter-sig snapshot for the next narrow rebuild. Only
 	// pages actually scanned in this build are updated; narrow builds don't

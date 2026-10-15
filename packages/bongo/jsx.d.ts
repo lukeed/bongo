@@ -43,6 +43,13 @@ type BongoAssetAttrs = {
 	fetchpriority?: 'high' | 'low' | 'auto';
 };
 
+type BongoAlternateAttrs = {
+	type: 'text/markdown' | (string & {});
+	href?: string;
+	hreflang?: string;
+	title?: string;
+};
+
 type BongoImageAttrs = {
 	src: string;
 	alt?: string;
@@ -74,6 +81,7 @@ declare global {
 		// bongo-provided custom elements. Accept the standard HTML attribute
 		// surface plus their own flags.
 		interface IntrinsicElements {
+			'bongo:alternate': HTMLAttributes<HTMLElement> & BongoAlternateAttrs;
 			'bongo:asset': HTMLAttributes<HTMLElement> & BongoAssetAttrs;
 			'bongo:client': HTMLAttributes<HTMLElement> & BongoClientAttrs;
 			'bongo:image': HTMLAttributes<HTMLElement> & BongoImageAttrs;

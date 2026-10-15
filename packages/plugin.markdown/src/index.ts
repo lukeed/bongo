@@ -27,7 +27,7 @@ const TAG = /<bongo:(\w+)((?:"[^"]*"|'[^']*'|`[^`]*`|{[^}]*}|[^>"'`{/]|\/(?!>))*
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 
 // Elements bongo itself replaces after layouts render; they are kept verbatim, not rendered as partials.
-const BUILTIN = new Set(['asset', 'client', 'image', 'script', 'style']);
+const BUILTIN = new Set(['alternate', 'asset', 'client', 'image', 'script', 'style']);
 
 // Partial output is stashed behind private-use tokens so markdown never re-parses its HTML.
 const TOKEN = (idx: number) => `\uE000${idx}\uE001`;

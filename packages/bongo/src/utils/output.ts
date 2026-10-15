@@ -18,8 +18,8 @@ export type Sink = {
 	dir: string;
 	write(file: string, data: string | Uint8Array): Promise<void>;
 	copy(source: string, file: string): Promise<void>;
-	/** Write the bytes that `make` gives; a memory sink calls it on the first read of the file. */
-	defer(file: string, make: () => Promise<Uint8Array>): Promise<void>;
+	/** Write what `make` gives; a memory sink calls it on the first read of the file. */
+	defer(file: string, make: () => Promise<Uint8Array | string>): Promise<void>;
 	read(file: string): Promise<Buffer>;
 	remove(file: string): Promise<void>;
 	clear(): Promise<void>;
