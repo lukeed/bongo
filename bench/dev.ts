@@ -1,7 +1,10 @@
-import { utimes } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
+
+import { apply, EDITS } from './incremental';
+
+import type { Edit } from './incremental';
 
 export type Step = { name: string; ms: number; max: number; after: number; footprint: number; heap: number };
 
@@ -19,7 +22,8 @@ function duration(text: string): number {
 }
 
 /**
- * Run `bongo dev` on the site at `dir`, through devrun.ts: the first build, then `rounds` full rebuilds from a layout edit, then `rounds` page rebuilds from content edits.
+ * Run `bongo dev` on the site at `dir`, through devrun.ts: the first build, then `rounds` each of layout edits, page edits, and stylesheet edits, then a new page.
+ * A layout edit renders every page again; a stylesheet edit renders none, since dev gives assets stable names.
  * Each step gives the time that dev logs for it, the RSS of dev during it and once it settles, and then its footprint and js heap.
  * On macOS, RSS also counts the pages that the allocator has freed until the system takes them back; the footprint, as Activity Monitor shows it, does not.
  * @example let steps = await dev.profile('bench/site', 3);
@@ -83,20 +87,36 @@ export async function profile(dir: string, rounds: number): Promise<Step[]> {
 		steps.push({ name, ms, max: Math.max(0, ...rss), after: rss.at(-1) ?? 0, ...memory });
 	};
 
+	// each edit to a file undoes the last one, so a layout or stylesheet edit is a real change every round
+	let undos: Map<string, () => Promise<void>> = new Map();
+	let toggle = async (edit: Edit) => {
+		let file = edit.file ?? '';
+		let undo = undos.get(file);
+		undos.delete(file);
+		if (undo) await undo();
+		else undos.set(file, await apply(dir, edit));
+	};
+
 	try {
 		await step('first build', Date.now(), /building \((\S+)\)$/);
 		for (let i = 1; i <= rounds; i++) {
 			let from = Date.now();
-			let now = new Date();
-			await utimes(join(dir, 'layouts/html.hbs'), now, now);
-			await step(`full rebuild ${i}`, from, rebuild);
+			await toggle(EDITS['layout edit']);
+			await step(`layout edit ${i}`, from, rebuild);
 		}
 		for (let i = 1; i <= rounds; i++) {
 			let from = Date.now();
-			let now = new Date();
-			await utimes(join(dir, `content/s0/p${i}.md`), now, now);
+			await toggle({ ...EDITS['body edit'], file: `content/s0/p${i}.md` });
 			await step(`page edit ${i}`, from, rebuild);
 		}
+		for (let i = 1; i <= rounds; i++) {
+			let from = Date.now();
+			await toggle(EDITS['stylesheet edit']);
+			await step(`stylesheet edit ${i}`, from, rebuild);
+		}
+		let from = Date.now();
+		await toggle(EDITS['new page']);
+		await step('new page', from, rebuild);
 	} catch (err) {
 		child.kill();
 		let reason = err instanceof Error ? err.message : String(err);
@@ -105,6 +125,7 @@ export async function profile(dir: string, rounds: number): Promise<Step[]> {
 		done = true;
 		child.kill();
 		await Promise.all([child.exited, reading, sampling]);
+		for (let undo of undos.values()) await undo();
 	}
 	return steps;
 }
