@@ -144,6 +144,7 @@ describe('integration: --debug', () => {
 				'rendering pages',
 				'bundling assets',
 				'writing pages',
+				'listing sizes',
 			]);
 		} finally {
 			spy.mockRestore();
