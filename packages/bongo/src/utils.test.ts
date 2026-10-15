@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { throttle, debounce } from './utils/index';
+import { pool, throttle, debounce } from './utils/index';
 
 describe('throttle', () => {
 	test('calls function immediately on first invocation', () => {
@@ -62,5 +62,51 @@ describe('debounce', () => {
 
 		await new Promise(r => setTimeout(r, 80));
 		expect(count).toBe(1);
+	});
+});
+
+describe('pool', () => {
+	let tick = () => new Promise(next => setImmediate(next));
+
+	test('runs at most `limit` jobs at once, and starts the next one when a job ends', async () => {
+		let jobs = pool(2);
+		let gates = [0, 1, 2].map(() => Promise.withResolvers<void>());
+		let started = 0;
+		let job = (gate: PromiseWithResolvers<void>) => () => {
+			started++;
+			return gate.promise;
+		};
+		await jobs.add(job(gates[0]));
+		await jobs.add(job(gates[1]));
+		let third = jobs.add(job(gates[2]));
+		await tick();
+		expect(started).toBe(2);
+
+		gates[0].resolve();
+		await third;
+		expect(started).toBe(3);
+
+		gates[1].resolve();
+		gates[2].resolve();
+		await jobs.drain();
+	});
+
+	test('a failed job makes the next add throw, and drain throws it once every job has ended', async () => {
+		let jobs = pool(2);
+		let failing = Promise.withResolvers<void>();
+		let slow = Promise.withResolvers<void>();
+		await jobs.add(() => failing.promise);
+		await jobs.add(() => slow.promise);
+		let third = jobs.add(async () => {});
+		failing.reject(new Error('nope'));
+		await expect(third).rejects.toThrow('nope');
+
+		let drained = false;
+		let drain = jobs.drain().finally(() => drained = true);
+		await tick();
+		expect(drained).toBe(false);
+
+		slow.resolve();
+		await expect(drain).rejects.toThrow('nope');
 	});
 });
