@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rename } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import * as fs from './fs';
@@ -17,8 +17,6 @@ export type Page = {
 	reads: Read[];
 	/** Each file that `$assets.load` read, and a hash of it. */
 	loads: [file: string, hash: string][];
-	/** The bundler registration of each placeholder in the page. */
-	registrations: [entry: string, cfg: BundleConfig][];
 	placeholders: string[];
 	/** The placeholders that the page inlines, whose content is in the page itself. */
 	inline: string[];
@@ -31,7 +29,7 @@ export type Page = {
 	stat: [size: number, mtime: number];
 };
 
-/** What walk 1 found for one content file. */
+/** What walk 1 found for one content file; its title, summary, and tags come from its params. */
 export type Item = {
 	hash: string;
 	kind: 'page' | 'output' | 'data';
@@ -41,9 +39,6 @@ export type Item = {
 	url: string;
 	output: string;
 	section: string;
-	title: string;
-	summary: string;
-	tags: string[];
 	headings: Template.Heading[];
 	page?: Page;
 };
@@ -52,6 +47,10 @@ export type Item = {
 export type Memo = {
 	key: string;
 	registries: { pages: string; tags: string; sections: Record<string, string> };
+	/** The bundler registration of each placeholder that a page of the memo has. */
+	bundles: Record<string, [entry: string, cfg: BundleConfig]>;
+	/** The source files of each placeholder's output in `bongo build`, and their hashes, from the last flush. */
+	assets: Record<string, [file: string, hash: string][]>;
 	/** A loader rendered an image, which a skipped loader would not register, so every loader runs. */
 	loose: boolean;
 	items: Record<string, Item>;
@@ -59,7 +58,10 @@ export type Memo = {
 	files: Record<string, [hash: string, output: string, size: number, mtime: number]>;
 };
 
-const FORMAT = '1';
+const FORMAT = '2';
+
+// the items of the memo that one write holds
+const LINES = 1000;
 
 /**
  * A short hash of `data`, to compare sources and outputs between builds.
@@ -112,25 +114,43 @@ function where(argv: Required<Argv>): string {
 }
 
 /**
- * The memo that the last `bongo build` of this site saved, if any.
+ * The memo that the last `bongo build` of this site saved, if any: one line for all but its items, then one line for each item.
  * @example let last = await memo.load(argv);
  */
 export async function load(argv: Required<Argv>): Promise<Memo | undefined> {
 	try {
-		return JSON.parse(await readFile(where(argv), 'utf8'));
+		let [head, ...lines] = (await readFile(where(argv), 'utf8')).split('\n');
+		let memo: Memo = { ...JSON.parse(head), items: {} };
+		for (let line of lines) {
+			if (!line) continue;
+			let [rel, item]: [string, Item] = JSON.parse(line);
+			memo.items[rel] = item;
+		}
+		return memo;
 	} catch {
 		return;
 	}
 }
 
 /**
- * Save the memo of a good `bongo build`, through a temporary file, so a crash never leaves half of it.
+ * Save the memo of a good `bongo build` a few items at a time, since it grows with the site and the build is at its largest here.
+ * It goes through a temporary file, so a crash never leaves half of it.
  * @example await memo.save(argv, next);
  */
 export async function save(argv: Required<Argv>, memo: Memo): Promise<void> {
 	let file = where(argv);
 	await mkdir(dirname(file), { recursive: true });
 	let temp = `${file}.${process.pid}.tmp`;
-	await writeFile(temp, JSON.stringify(memo));
+	let { items, ...head } = memo;
+	let handle = await open(temp, 'w');
+	try {
+		await handle.write(JSON.stringify(head) + '\n');
+		let entries = Object.entries(items);
+		for (let i = 0; i < entries.length; i += LINES) {
+			await handle.write(entries.slice(i, i + LINES).map(entry => JSON.stringify(entry) + '\n').join(''));
+		}
+	} finally {
+		await handle.close();
+	}
 	await rename(temp, file);
 }

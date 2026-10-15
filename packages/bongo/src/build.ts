@@ -265,7 +265,24 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	let key = await memo.key(argv, inputs.files);
 	let previous = argv.fresh ? undefined : MEMOS.get(sink) ?? (writes ? await memo.load(argv) : undefined);
 	let last = previous?.key === key ? previous : undefined;
-	let next: memo.Memo = { key, registries: { pages: '', tags: '', sections: {} }, loose: false, items: {}, files: {} };
+	let next: memo.Memo = { key, registries: { pages: '', tags: '', sections: {} }, bundles: {}, assets: {}, loose: false, items: {}, files: {} };
+
+	// the hash of each file that a page loads or an asset is made from, read once in a build
+	let sums: Map<string, Promise<string>> = new Map();
+	function sum(file: string): Promise<string> {
+		let hit = sums.get(file);
+		if (!hit) sums.set(file, hit = fs.read(file).then(memo.hash, () => ''));
+		return hit;
+	}
+
+	// `bongo build` names an asset by its content, so each page that links an asset whose sources changed renders in full; dev names it by its entry, so no page does
+	let moved = new Set(last && !argv.dev ? (await Promise.all(Object.entries(last.assets).map(async ([placeholder, files]) => {
+		for (let [file, hash] of files) {
+			if (await sum(file) !== hash) return [placeholder];
+		}
+		return [];
+	}))).flat() : []);
+	let links = (page: memo.Page | undefined) => !!page?.placeholders.some(placeholder => moved.has(placeholder));
 
 	const isPage = /(hbs|html?)$/;
 	const { Layouts, Partials } = templates;
@@ -412,8 +429,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		let hash = memo.hash(bytes);
 		// a page whose source the memo has runs no loader: its record goes into the registries, and its body loads only if it renders
 		let hit = last?.loose ? undefined : last?.items[rel];
-		if (hit?.hash === hash) {
-			scanned.push({ input, rel, name, kind: hit.kind, ext: hit.ext, params: hit.params, path: hit.path, url: hit.url, output: hit.output, section: hit.section, title: hit.title, summary: hit.summary, tags: hit.tags, headings: hit.headings, hash });
+		if (hit?.hash === hash && !links(hit.page)) {
+			scanned.push({ input, rel, name, kind: hit.kind, ext: hit.ext, params: hit.params, path: hit.path, url: hit.url, output: hit.output, section: hit.section, title: text(hit.params.title), summary: text(hit.params.summary), tags: parseTags(hit.params.tags), headings: hit.headings, hash });
 			return;
 		}
 		let file = last?.files[rel];
@@ -428,9 +445,11 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		if (item) scanned.push(item);
 	}
 
-	// The body of a page whose source the memo had, loaded as walk 1 would have.
+	// The body of a page: from walk 1, or for a page whose source the memo had, loaded as walk 1 would have.
 	async function bodyOf(item: ScanItem): Promise<string> {
-		return (await parse(item.input, item.rel, item.name, await fs.read(item.input), item.hash))?.body ?? '';
+		let body = item.body;
+		item.body = undefined;
+		return body ?? (await parse(item.input, item.rel, item.name, await fs.read(item.input), item.hash))?.body ?? '';
 	}
 
 	watch.step('reading content/');
@@ -501,11 +520,13 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	}
 
 	// a hash of each registry, so a page that read one renders again when it changes
-	let record = (info: Template.PageInfo) => JSON.stringify([info.path, info.url, info.title, info.summary, info.section, info.tags, info.headings, info.params]);
+	// a short hash of each page, so the three registries join 40 bytes for a page, not its whole record
+	let records = new Map(Pages.map(info => [info, memo.hash(JSON.stringify([info.path, info.url, info.title, info.summary, info.section, info.tags, info.headings, info.params]))]));
+	let joined = (list: Template.PageInfo[]) => list.map(info => records.get(info)).join('\n');
 	next.registries = {
-		pages: memo.hash(Pages.map(record).join('\n')),
-		tags: memo.hash($tags.map(entry => entry.tag + '\n' + entry.pages.map(record).join('\n')).join('\n\n')),
-		sections: Object.fromEntries([...Sections].map(([name, list]) => [name, memo.hash(list.map(record).join('\n'))])),
+		pages: memo.hash(joined(Pages)),
+		tags: memo.hash($tags.map(entry => entry.tag + '\n' + joined(entry.pages)).join('\n\n')),
+		sections: Object.fromEntries([...Sections].map(([name, list]) => [name, memo.hash(joined(list))])),
 	};
 
 	watch.step('rendering pages');
@@ -524,16 +545,9 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	let rendered: Map<string, string[]> = new Map();
 	rendered.set('', loose);
 
-	let sums: Map<string, Promise<string | undefined>> = new Map();
-	function sum(file: string): Promise<string | undefined> {
-		let hit = sums.get(file);
-		if (!hit) sums.set(file, hit = fs.read(file).then(memo.hash, () => undefined));
-		return hit;
-	}
-
-	// Nothing that the page read changed, and its file is as the last build left it.
+	// Nothing that the page read or links changed, and its file is as the last build left it.
 	async function clean(item: ScanItem, page: memo.Page): Promise<boolean> {
-		if (!last) return false;
+		if (!last || links(page)) return false;
 		for (let read of page.reads) {
 			let was = read === 'section' ? last.registries.sections[item.section] : last.registries[read];
 			let now = read === 'section' ? next.registries.sections[item.section] : next.registries[read];
@@ -548,7 +562,12 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	// A page that keeps its file still registers its assets, renders, and alternates, for the bundler, output files, and the sweep.
 	async function replay(item: ScanItem, old: memo.Item, page: memo.Page): Promise<void> {
-		for (let [entry, cfg] of page.registrations) bundler.register(entry, cfg);
+		for (let placeholder of page.placeholders) {
+			let registration = last?.bundles[placeholder];
+			if (!registration) continue;
+			bundler.register(...registration);
+			next.bundles[placeholder] = registration;
+		}
 		bundles.set(item.rel, page.placeholders);
 		rendered.set(item.rel, page.renders.map(([name]) => name));
 		for (let [name, key] of page.renders) {
@@ -561,9 +580,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		kept.push({ item, page });
 	}
 
-	async function renderPage(item: ScanItem): Promise<void> {
-		let body = item.body ?? await bodyOf(item);
-		item.body = undefined;
+	async function renderPage(item: ScanItem, body: string): Promise<void> {
 		let $page = pageOf(item);
 		let $section = Sections.get(item.section) || [];
 		let made: string[] = [];
@@ -647,18 +664,38 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 		let placeholders = bundler.placeholders(rendered_content);
 		bundles.set(item.rel, placeholders);
-		let registrations = placeholders.flatMap(placeholder => {
+		for (let placeholder of placeholders) {
 			let registration = bundler.registration(placeholder);
-			return registration ? [registration] : [];
-		});
+			if (registration) next.bundles[placeholder] = registration;
+		}
 		let inline = placeholders.filter(placeholder => rendered_content.includes(`data-bongo-inline="${placeholder}"`));
-		let page: memo.Page = { reads: [...reads], loads, registrations, placeholders, inline, renders: [], found, signature: '', stat: [0, 0] };
-		next.items[item.rel] = { hash: item.hash, kind: item.kind, ext: item.ext, params: item.params, path: item.path, url: item.url, output: item.output, section: item.section, title: item.title, summary: item.summary, tags: item.tags, headings: item.headings, page };
+		let page: memo.Page = { reads: [...reads], loads, placeholders, inline, renders: [], found, signature: '', stat: [0, 0] };
+		next.items[item.rel] = { hash: item.hash, kind: item.kind, ext: item.ext, params: item.params, path: item.path, url: item.url, output: item.output, section: item.section, headings: item.headings, page };
 		pages.push({ output: item.output, html: writes ? undefined : rendered_content, path: item.path, params: item.params, from: chain.join(' → '), rel: item.rel });
 		await writes?.add(() => sink.write(item.output, rendered_content));
 	}
 
-	for (let item of scanned) {
+	// Render `items` in order, while the bodies of the next few load, as walk 1 would read them.
+	async function renderAll(items: ScanItem[]): Promise<void> {
+		let bodies: Map<ScanItem, Promise<string>> = new Map();
+		let ahead = 0;
+		for (let item of items) {
+			for (; ahead < items.length && bodies.size < READS; ahead++) {
+				let body = bodyOf(items[ahead]);
+				body.catch(() => {});
+				bodies.set(items[ahead], body);
+			}
+			let body = await bodies.get(item) ?? '';
+			bodies.delete(item);
+			await renderPage(item, body);
+		}
+	}
+
+	let cleans = await Promise.all(scanned.map(item => {
+		let old = last?.items[item.rel];
+		return item.kind === 'page' && old?.page && old.hash === item.hash ? clean(item, old.page) : false;
+	}));
+	for (let [i, item] of scanned.entries()) {
 		if (item.kind === 'data') {
 			modules.push(item);
 			continue;
@@ -668,12 +705,12 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			continue;
 		}
 		let old = last?.items[item.rel];
-		if (old?.page && old.hash === item.hash && await clean(item, old.page)) await replay(item, old, old.page);
+		if (cleans[i] && old?.page) await replay(item, old, old.page);
 		else dirty.push(item);
 	}
 
 	// after every replay, so a page that renders sees the renders of each page that did not, as a full build would
-	for (let item of dirty) await renderPage(item);
+	await renderAll(dirty);
 
 	let copies: Map<string, { from: string; input: string }> = new Map();
 	let ordered = [...alternates.values()].sort((a, b) => a.path.localeCompare(b.path));
@@ -774,14 +811,20 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		if (!hit) contents.set(file, hit = sink.read(join(dest, file)).then(memo.hash, () => ''));
 		return hit;
 	};
-	let sign = async (page: memo.Page) => memo.hash(JSON.stringify(await Promise.all(page.placeholders.map(async placeholder => {
-		let out = outs.get(placeholder);
-		let sum = out && page.inline.includes(placeholder) ? await inlined(out.filename) : '';
-		return [placeholder, out?.filename, out?.exports, out?.image, sum];
-	}))));
-	for (let { item, page } of kept) {
-		if (await sign(page) !== page.signature) await renderPage(item);
-	}
+	// by the placeholders and inlined ones of a page, which most pages share
+	let signatures: Map<string, Promise<string>> = new Map();
+	let sign = (page: memo.Page) => {
+		let key = page.placeholders.join() + '|' + page.inline.join();
+		let hit = signatures.get(key);
+		if (!hit) signatures.set(key, hit = Promise.all(page.placeholders.map(async placeholder => {
+			let out = outs.get(placeholder);
+			let sum = out && page.inline.includes(placeholder) ? await inlined(out.filename) : '';
+			return [placeholder, out?.filename, out?.exports, out?.image, sum];
+		})).then(list => memo.hash(JSON.stringify(list))));
+		return hit;
+	};
+	let stale = await Promise.all(kept.map(async ({ item, page }) => await sign(page) !== page.signature ? [item] : []));
+	await renderAll(stale.flat());
 
 	watch.step('writing pages');
 	// a streamed build outruns the GC, so rendering leaves much garbage; one full collection here lowers peak RSS by ~120 MB on 10k pages
@@ -847,14 +890,26 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	OUTPUT.set(sink, { files, dev: argv.dev });
 
 	// each page that rendered: its file as written, its assets, and its renders
-	for (let page of pages) {
+	await Promise.all(pages.map(async page => {
 		let entry = page.rel ? next.items[page.rel]?.page : undefined;
-		if (!entry || !page.rel) continue;
-		entry.stat = await sink.stat(page.output) ?? [0, 0];
-		entry.signature = await sign(entry);
+		if (!entry || !page.rel) return;
+		let [stat, signature] = await Promise.all([sink.stat(page.output), sign(entry)]);
+		entry.stat = stat ?? [0, 0];
+		entry.signature = signature;
 		entry.renders = (rendered.get(page.rel) ?? []).map(name => [name, keys.get(name)?.key ?? '']);
+	}));
+	await Promise.all(Object.entries(next.files).map(async ([rel, [hash, output]]) => {
+		next.files[rel] = [hash, output, ...await sink.stat(output) ?? [0, 0]];
+	}));
+	if (!argv.dev) {
+		// a stylesheet without imports lists no dependencies, so the entry counts too
+		let sources = (placeholder: string, out: bundler.OutputInfo) => {
+			let entry = bundler.registration(placeholder)?.[0];
+			let files = new Set([...entry ? [entry] : [], ...out.dependencies]);
+			return Promise.all([...files].map(async (file): Promise<[string, string]> => [file, await sum(file)]));
+		};
+		next.assets = Object.fromEntries(await Promise.all([...outs].map(async ([placeholder, out]) => [placeholder, await sources(placeholder, out)])));
 	}
-	for (let [rel, [hash, output]] of Object.entries(next.files)) next.files[rel] = [hash, output, ...await sink.stat(output) ?? [0, 0]];
 	next.loose = loose.length > 0;
 	MEMOS.set(sink, next);
 	if (writes) await memo.save(argv, next);

@@ -1038,7 +1038,8 @@ describe('incremental builds', () => {
 		'bongo.config.ts': config('Site'),
 		'data/meta.json': '{ "motto": "hello" }',
 		'assets/style.css': 'body { color: red }',
-		'assets/main.ts': 'console.log(1);',
+		'assets/main.ts': 'import { n } from "./util";\nconsole.log(n);',
+		'assets/util.ts': 'export let n = 1;',
 		'assets/icon.svg': '<svg id="v1"/>',
 		'layouts/html.hbs': '<html><title>{{ $page.title }} · {{ $site.title }}</title><bongo:alternate type="text/markdown" /><bongo:style src="style.css" />{{{ $page.content }}}{{#partial src="foot"}}<bongo:script src="main.ts" /></html>',
 		'layouts/blog/single.hbs': '{{#var at = $section.findIndex(p => p.path === $page.path)}}<article>{{{ $page.content }}}<a href="{{ $section[at + 1]?.path }}">next</a></article>',
@@ -1076,6 +1077,7 @@ describe('incremental builds', () => {
 		{ name: 'a data file', change: edit('data/meta.json', 'hello', 'hi'), build: ['/', '/about/', '/blog/a/', '/blog/c/', '/notes/n/', '/tags/'] },
 		{ name: 'a loaded asset', change: edit('assets/icon.svg', 'v1', 'v2'), build: ['/', '/about/', '/blog/a/', '/blog/c/', '/notes/n/', '/tags/'] },
 		{ name: 'a stylesheet', change: edit('assets/style.css', 'red', 'blue'), build: ['/', '/about/', '/blog/a/', '/blog/c/', '/notes/n/', '/tags/'], dev: [] },
+		{ name: 'a module that a script imports', change: edit('assets/util.ts', '1', '2'), build: ['/', '/about/', '/blog/a/', '/blog/c/', '/notes/n/', '/tags/'], dev: [] },
 		{ name: 'the config', change: edit('bongo.config.ts', '"Site"', '"Site 2"'), build: ['/', '/about/', '/blog/a/', '/blog/c/', '/notes/n/', '/tags/'] },
 	];
 
@@ -1126,6 +1128,30 @@ describe('incremental builds', () => {
 			}
 		}, 60_000);
 	}
+
+	test('bongo build saves its memo, so a build in a new process renders only what changed', async () => {
+		let root = await site(sources());
+		let script = [
+			`import { build } from ${JSON.stringify(join(import.meta.dirname, 'build.ts'))};`,
+			`console.log = () => {};`,
+			`await build({ cwd: ${JSON.stringify(root)} });`,
+			`process.stdout.write(JSON.stringify(globalThis.__rendered ?? []));`,
+		].join('\n');
+		let run = async (): Promise<string[]> => {
+			let child = Bun.spawn([process.execPath, '-e', script], { stdout: 'pipe', stderr: 'pipe' });
+			let [out, err, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+			if (code !== 0) throw new Error(err || out);
+			return [...new Set<string>(JSON.parse(out))].sort();
+		};
+		try {
+			expect(await run()).toEqual(all);
+			expect(await run()).toEqual([]);
+			await edit('content/about.html', '<p>about</p>', '<p>about us</p>')(root);
+			expect(await run()).toEqual(['/about/']);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 
 	test('--fresh renders every page', async () => {
 		let root = await site(sources());
