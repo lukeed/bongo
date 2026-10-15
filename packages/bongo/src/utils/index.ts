@@ -37,22 +37,42 @@ export type Pool = {
  * @example let writes = pool(64); for (let page of pages) await writes.add(() => write(page)); await writes.drain();
  */
 export function pool(limit: number): Pool {
-	let running: Set<Promise<void>> = new Set();
+	if (!Number.isInteger(limit) || limit < 1) throw new Error(`Invalid pool limit "${limit}"; use a whole number above 0`);
+	let active = 0;
+	let waiting: (() => void)[] = [];
+	let idle: (() => void)[] = [];
 	let failure: { error: unknown } | undefined;
 
-	async function wait(most: number): Promise<void> {
-		while (running.size > most) await Promise.race(running);
-		if (failure) throw failure.error;
+	// a waiting add takes over the slot; else the slot frees, and the last one wakes `drain`
+	function release(): void {
+		let next = waiting.shift();
+		if (next) return next();
+		if (--active === 0) idle.splice(0).forEach(done => done());
 	}
 
 	return {
 		async add(job) {
-			await wait(limit - 1);
-			let task: Promise<void> = job().then(() => {}, error => {
+			if (active < limit) active++;
+			else await new Promise<void>(next => waiting.push(next));
+			if (failure) {
+				release();
+				throw failure.error;
+			}
+			try {
+				var task = job();
+			} catch (error) {
 				failure ??= { error };
-			}).finally(() => running.delete(task));
-			running.add(task);
+				release();
+				throw error;
+			}
+			task.then(() => {}, error => {
+				failure ??= { error };
+			}).finally(release);
 		},
-		drain: () => wait(0),
+		async drain() {
+			if (active) await new Promise<void>(done => idle.push(done));
+			if (failure) throw failure.error;
+		},
 	};
 }
+

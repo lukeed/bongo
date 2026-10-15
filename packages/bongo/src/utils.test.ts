@@ -91,6 +91,38 @@ describe('pool', () => {
 		await jobs.drain();
 	});
 
+	test('keeps its limit when many adds wait at once', async () => {
+		let jobs = pool(1);
+		let running = 0;
+		let most = 0;
+		let gates = [0, 1, 2, 3].map(() => Promise.withResolvers<void>());
+		let adds = gates.map(gate => jobs.add(async () => {
+			most = Math.max(most, ++running);
+			await gate.promise;
+			running--;
+		}));
+		for (let gate of gates) {
+			await tick();
+			gate.resolve();
+		}
+		await Promise.all(adds);
+		await jobs.drain();
+		expect(most).toBe(1);
+	});
+
+	test('a job that throws at once fails the pool like one that rejects', async () => {
+		let jobs = pool(2);
+		await expect(jobs.add(() => {
+			throw new Error('nope');
+		})).rejects.toThrow('nope');
+		await expect(jobs.drain()).rejects.toThrow('nope');
+	});
+
+	test('refuses a limit that is not a whole number above 0', () => {
+		expect(() => pool(0)).toThrow('Invalid pool limit "0"; use a whole number above 0');
+		expect(() => pool(1.5)).toThrow('Invalid pool limit "1.5"; use a whole number above 0');
+	});
+
 	test('a failed job makes the next add throw, and drain throws it once every job has ended', async () => {
 		let jobs = pool(2);
 		let failing = Promise.withResolvers<void>();
