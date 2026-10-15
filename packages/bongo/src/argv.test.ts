@@ -32,11 +32,14 @@ describe('normalize', () => {
 		expect(argv.content).toBe(resolve(cwd, 'site', 'content'));
 	});
 
-	test('defaults debug and dev to false', () => {
+	test('defaults each flag to false, so the CLI and the API give one memo key', () => {
 		let argv: any = { cwd: '/tmp' };
 		normalize(argv);
 		expect(argv.debug).toBe(false);
 		expect(argv.dev).toBe(false);
+		expect(argv.fresh).toBe(false);
+		expect(argv.minify).toBe(false);
+		expect(argv.write).toBe(false);
 	});
 
 	test('preserves truthy debug and dev', () => {

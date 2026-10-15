@@ -6,6 +6,7 @@ export function normalize(argv: Argv): asserts argv is Required<Argv> {
 	argv.debug = !!argv.debug;
 	argv.dev = !!argv.dev;
 	argv.fresh = !!argv.fresh;
+	argv.minify = !!argv.minify;
 	argv.write = !!argv.write;
 
 	// attach path directories
