@@ -42,8 +42,14 @@ async function banner(args: string[]): Promise<string> {
 	return out;
 }
 
-function port(): number {
-	return 6000 + Math.floor(Math.random() * 3000);
+// A port that is free now, from the OS, so a test never guesses one that another program holds.
+async function port(): Promise<number> {
+	let server = createServer();
+	await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+	let address = server.address();
+	await new Promise(resolve => server.close(resolve));
+	if (!address || typeof address === 'string') throw new Error('no free port');
+	return address.port;
 }
 
 describe('bongo cli', () => {
@@ -85,12 +91,12 @@ describe('bongo cli', () => {
 	test('dev takes a host and a port, and a bare --host exposes the server', async () => {
 		let root = await site();
 		try {
-			let local = port();
+			let local = await port();
 			let out = await banner(['-C', root, '-H', '127.0.0.1', '-p', String(local)]);
 			expect(out).toContain(`http://127.0.0.1:${local}/`);
 			expect(out).toContain('use `--host` to expose');
 
-			let open = port();
+			let open = await port();
 			for (let args of [['--host', '--port', String(open)], ['--port', String(open), '--host']]) {
 				out = await banner(['-C', root, ...args]);
 				expect(out).toContain(`http://localhost:${open}/`);
@@ -103,9 +109,11 @@ describe('bongo cli', () => {
 
 	test('dev moves to the next free port when its port is taken', async () => {
 		let root = await site();
-		let taken = port();
 		let blocker = createServer();
-		await new Promise<void>(resolve => blocker.listen(taken, '127.0.0.1', resolve));
+		await new Promise<void>(resolve => blocker.listen(0, '127.0.0.1', resolve));
+		let address = blocker.address();
+		if (!address || typeof address === 'string') throw new Error('no free port');
+		let taken = address.port;
 		try {
 			let out = await banner(['-C', root, '-H', '127.0.0.1', '--port', String(taken)]);
 			expect(out).toContain(`http://127.0.0.1:${taken + 1}/`);
