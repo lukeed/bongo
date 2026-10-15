@@ -124,6 +124,11 @@ function isCompiler(input: unknown): input is Template.Compiler {
 export async function collect(argv: Required<Argv>, config: Context): Promise<void> {
 	let made = makeBlocks(argv, config);
 
+	// start from empty caches, so a deleted partial or layout keeps nothing alive
+	for (let key in blocks) if (key !== 'partial') delete blocks[key];
+	Partials.clear();
+	Layouts.clear();
+
 	// Re-assign onto the exported const so ESM consumers see the new closures.
 	Object.assign(blocks, made);
 
