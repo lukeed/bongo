@@ -23,8 +23,6 @@ export type Page = {
 	/** The images that `$assets.render` made for the page. */
 	renders: [name: string, key: string][];
 	found: Alternate[];
-	/** A hash of the outputs of the page's placeholders, after the flush. */
-	signature: string;
 	/** The size and mtime of the page's file, or its version in memory. */
 	stat: [size: number, mtime: number];
 };
@@ -55,6 +53,8 @@ export type Memo = {
 	bundles: Record<string, [entry: string, cfg: BundleConfig]>;
 	/** The source files of each placeholder's output in `bongo build`, and their hashes, from the last flush. */
 	assets: Record<string, [file: string, hash: string][]>;
+	/** What each placeholder put in a page: a hash of the name, exports, and image of its output, and of its content when a page inlines it. */
+	marks: Record<string, [link: string, inline: string]>;
 	/** A loader rendered an image, which a skipped loader would not register, so every loader runs. */
 	loose: boolean;
 	items: Record<string, Item>;
@@ -66,7 +66,7 @@ export type Memo = {
 	made: string[];
 };
 
-const FORMAT = '4';
+const FORMAT = '5';
 
 // the items of the memo that one write holds
 const LINES = 1000;
