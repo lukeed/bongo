@@ -413,6 +413,9 @@ export function scanImages(
 // Matches transition:name="VALUE" or transition:animate="VALUE" (double or single quotes).
 const TRANSITION_ATTR = /\btransition:(name|animate)=(?:"([^"]*)"|'([^']*)')/g;
 
+// One search for what TRANSITION_ATTR needs, so a page without it skips the scan of each tag.
+const TRANSITION_HINT = /transition:(?:name|animate)/;
+
 // Matches a tag opening up to (and not including) the closing > or />.
 // Captures: [1] tag name, [2] attrs string, [3] '/' if self-closing.
 const OPEN_TAG = /<([\w-]+)(\s[^>]*?)?\s*(\/?)>/g;
@@ -466,6 +469,8 @@ function mergeStyle(existing: string | null, extra: string): string {
  *   (`bongo-auto-<hash>`) is generated.
  */
 export function rewriteTransitionAttrs(html: string): string {
+	if (!TRANSITION_HINT.test(html)) return html;
+
 	let cssRules: string[] = [];
 
 	// Reset regex state (stateful via lastIndex).
