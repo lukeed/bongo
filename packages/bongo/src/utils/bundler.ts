@@ -264,9 +264,10 @@ async function flushJsGroup(
 	let cfg = regs[0].cfg;
 
 	// Deduplicate entries; build name→reg map for output matching.
+	// in path order, so two entries with one name get the same suffixes whatever order the pages registered them in
 	let input: Record<string, string> = {};
 	let entryByName: Map<string, Registration> = new Map();
-	for (let reg of regs) {
+	for (let reg of regs.toSorted((a, b) => a.entry < b.entry ? -1 : a.entry > b.entry ? 1 : 0)) {
 		let base = path.basename(reg.entry).replace(/\.[^.]+$/, '');
 		let name = base;
 		let i = 1;
