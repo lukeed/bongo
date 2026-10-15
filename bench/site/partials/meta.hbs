@@ -1,6 +1,6 @@
 {{#expect date, tags }}
 <p class="meta">
-	<time datetime="{{ date }}">{{ $utils.humanDate(date) }}</time>
+	<time datetime="{{ date }}">{{ $utils.date.format(date, { dateStyle: 'long' }) }}</time>
 	{{#if tags.length}}
 	<span class="tags">{{#each tags as tag}}<span class="tag">{{ tag }}</span>{{/each}}</span>
 	{{/if}}

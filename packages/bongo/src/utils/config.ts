@@ -275,6 +275,23 @@ function plain(html: string): string {
 		.trim();
 }
 
+// An Intl.DateTimeFormat is slow to make, so `$utils.date.format` keeps the ones it made; content can choose the options, so it keeps at most this many.
+const FORMATS_MAX = 100;
+const FORMATS: Map<string, Intl.DateTimeFormat> = new Map();
+
+function formatter(lang: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+	let key = JSON.stringify([lang, Object.entries(options).sort(([a], [b]) => a < b ? -1 : 1)]);
+	let hit = FORMATS.get(key);
+	if (hit) return hit;
+	let made = new Intl.DateTimeFormat(lang, { timeZone: 'UTC', ...options });
+	if (FORMATS.size >= FORMATS_MAX) {
+		let [oldest] = FORMATS.keys();
+		FORMATS.delete(oldest);
+	}
+	FORMATS.set(key, made);
+	return made;
+}
+
 /**
  * Find and load the config above `root`, merged over bongo's defaults.
  * @example let { config, files } = await load('/site');
@@ -333,7 +350,7 @@ export async function load(root: string): Promise<Loaded> {
 					let d = new Date(value);
 					if (isNaN(d.getTime())) throw new Error(`Invalid date: ${JSON.stringify(value)}`);
 					if (!options) return d.toISOString();
-					return new Intl.DateTimeFormat(output.$site.lang || 'en', { timeZone: 'UTC', ...options }).format(d);
+					return formatter(output.$site.lang || 'en', options).format(d);
 				}
 			}
 		},
