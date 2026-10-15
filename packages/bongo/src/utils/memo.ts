@@ -41,6 +41,8 @@ export type Item = {
 	section: string;
 	tags: string[];
 	headings: Template.Heading[];
+	/** A hash of its entry in the registries. */
+	record: string;
 	page?: Page;
 };
 
@@ -64,7 +66,7 @@ export type Memo = {
 	made: string[];
 };
 
-const FORMAT = '3';
+const FORMAT = '4';
 
 // the items of the memo that one write holds
 const LINES = 1000;

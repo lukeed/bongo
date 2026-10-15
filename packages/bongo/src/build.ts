@@ -88,6 +88,7 @@ type ScanItem = {
 	tags: string[];          // parsed from frontmatter.tags
 	headings: Template.Heading[];
 	hash: string;            // of the source file, to compare with the memo
+	record?: string;         // a hash of its entry in the registries; from the memo for a page whose source it had
 };
 
 // Frontmatter is typed, so `title: 2024` is a number; page text fields take any scalar as text.
@@ -437,7 +438,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	async function recall(input: string, rel: string, name: string, hash: string): Promise<boolean> {
 		let hit = last?.loose ? undefined : last?.items[rel];
 		if (hit?.hash === hash && !links(hit.page)) {
-			scanned.push({ input, rel, name, kind: hit.kind, ext: hit.ext, params: hit.params, path: hit.path, url: hit.url, output: hit.output, section: hit.section, title: text(hit.params.title), summary: text(hit.params.summary), tags: hit.tags, headings: hit.headings, hash });
+			scanned.push({ input, rel, name, kind: hit.kind, ext: hit.ext, params: hit.params, path: hit.path, url: hit.url, output: hit.output, section: hit.section, title: text(hit.params.title), summary: text(hit.params.summary), tags: hit.tags, headings: hit.headings, hash, record: hit.record });
 			return true;
 		}
 		let file = last?.files[rel];
@@ -486,6 +487,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	// Between walks — build Pages and Sections registries.
 	let Pages: Template.PageInfo[] = [];
+	// a short hash of each page, which the memo keeps, so the three registries join 40 bytes for a page, not its whole record
+	let records: Map<Template.PageInfo, string> = new Map();
 	let Sections: Map<string, Template.PageInfo[]> = new Map();
 	let Outputs: Build.File[] = [];
 
@@ -507,6 +510,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			params: item.params,
 		};
 		Pages.push(info);
+		item.record ??= memo.hash(JSON.stringify([info.path, info.url, info.title, info.summary, info.section, info.tags, info.headings, info.params]));
+		records.set(info, item.record);
 
 		let list = Sections.get(item.section);
 		if (!list) {
@@ -545,8 +550,6 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	}
 
 	// a hash of each registry, so a page that read one renders again when it changes
-	// a short hash of each page, so the three registries join 40 bytes for a page, not its whole record
-	let records = new Map(Pages.map(info => [info, memo.hash(JSON.stringify([info.path, info.url, info.title, info.summary, info.section, info.tags, info.headings, info.params]))]));
 	let joined = (list: Template.PageInfo[]) => list.map(info => records.get(info)).join('\n');
 	next.registries = {
 		pages: memo.hash(joined(Pages)),
@@ -698,7 +701,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		}
 		let inline = placeholders.filter(placeholder => rendered_content.includes(`data-bongo-inline="${placeholder}"`));
 		let page: memo.Page = { reads: [...reads], loads, placeholders, inline, renders: [], found, signature: '', stat: [0, 0] };
-		next.items[item.rel] = { hash: item.hash, kind: item.kind, ext: item.ext, params: item.params, path: item.path, url: item.url, output: item.output, section: item.section, tags: item.tags, headings: item.headings, page };
+		next.items[item.rel] = { hash: item.hash, kind: item.kind, ext: item.ext, params: item.params, path: item.path, url: item.url, output: item.output, section: item.section, tags: item.tags, headings: item.headings, record: item.record ?? '', page };
 		pages.push({ output: item.output, html: writes ? undefined : rendered_content, path: item.path, params: item.params, from: chain.join(' → '), rel: item.rel });
 		await writes?.add(() => sink.write(item.output, rendered_content));
 	}
