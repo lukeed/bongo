@@ -227,7 +227,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	// A dev rebuild writes over its last good build, so a failed one leaves that build serving.
 	let sink = opts.sink ?? output.disk(argv);
 	if (!opts.only && !(argv.dev && OUTPUT.get(sink)?.dev)) {
-		await sink.clear();
+		// `bongo build` writes over the files of the last build, which is much faster than making them again, then sweeps the rest
+		await (writes ? sink.reuse() : sink.clear());
 		OUTPUT.delete(sink);
 	}
 
@@ -753,6 +754,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	let files = new Set([...taken, ...[...rendered.values()].flat().map(name => join(dest, name)), ...[...copies.keys()].map(file => join(dest, file))]);
 	await Promise.all([...last?.files ?? []].filter(file => !files.has(file)).map(file => sink.remove(file)));
+	if (writes) await sink.sweep();
 	let keys = new Map([...renders.seen, ...[...renders.files].map(([name, { key, from }]) => [name, { key, from }] as const)]);
 	OUTPUT.set(sink, { assets: bundles, renders: rendered, keys, alternates, files, dev: argv.dev });
 

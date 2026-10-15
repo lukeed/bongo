@@ -23,6 +23,10 @@ export type Sink = {
 	read(file: string): Promise<Buffer>;
 	remove(file: string): Promise<void>;
 	clear(): Promise<void>;
+	/** Keep the files of the last build, to write over them; refuses where `clear` refuses. A sink that gains nothing from it empties itself instead. */
+	reuse(): Promise<void>;
+	/** After `reuse`, delete each kept file that no write since then replaced. */
+	sweep(): Promise<void>;
 	minify(files: string[]): Promise<boolean>;
 };
 
@@ -47,6 +51,8 @@ export function folder(dir: string): Sink {
 		read: file => fs.read(file),
 		remove: file => fs.prune(file, dir),
 		clear: () => Promise.reject(new Error(`Refusing to empty "${dir}": it is not an output folder`)),
+		reuse: () => Promise.reject(new Error(`Refusing to empty "${dir}": it is not an output folder`)),
+		sweep: async () => {},
 		minify: minify.html,
 	};
 }
@@ -58,9 +64,36 @@ export function folder(dir: string): Sink {
 export function disk(argv: Required<Argv>): Sink {
 	let hit = DISKS.get(argv.dest);
 	if (hit) return hit;
+	let keep = [argv.assets, argv.content, argv.data, argv.layouts, argv.partials];
+	let old: fs.Reuse | undefined;
 	let sink: Sink = {
 		...folder(argv.dest),
-		clear: () => fs.empty(argv.dest, argv.cwd, [argv.assets, argv.content, argv.data, argv.layouts, argv.partials]),
+		async write(file, data) {
+			await old?.fit(file);
+			await fs.write(file, data);
+		},
+		async copy(source, file) {
+			await old?.fit(file);
+			await fs.copy(source, file);
+		},
+		async defer(file, make) {
+			let data = await make();
+			await old?.fit(file);
+			await fs.write(file, data);
+		},
+		clear() {
+			old = undefined;
+			return fs.empty(argv.dest, argv.cwd, keep);
+		},
+		async reuse() {
+			old = undefined;
+			old = await fs.reuse(argv.dest, argv.cwd, keep);
+		},
+		async sweep() {
+			let done = old;
+			old = undefined;
+			await done?.sweep();
+		},
 	};
 	DISKS.set(argv.dest, sink);
 	return sink;
@@ -115,6 +148,8 @@ export function memory(dir: string, mirror?: Sink): Memory {
 			files.clear();
 			await mirror?.clear();
 		},
+		reuse: () => sink.clear(),
+		sweep: async () => {},
 		async minify(list) {
 			let temp = await mkdtemp(join(tmpdir(), 'bongo-minify-'));
 			try {

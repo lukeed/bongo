@@ -860,6 +860,25 @@ describe('page writes', () => {
 		}
 	});
 
+	test('bongo build writes over the files of the last build, and deletes each one that it no longer writes', async () => {
+		let root = await site({
+			'content/index.html': '<p>home</p>',
+			'content/old.html': '<p>old</p>',
+		});
+		try {
+			await build({ cwd: root });
+			let inode = (await stat(join(root, 'public/index.html'))).ino;
+			await rm(join(root, 'content/old.html'));
+			await writeFile(join(root, 'content/new.html'), '<p>new</p>');
+			await build({ cwd: root });
+			expect((await stat(join(root, 'public/index.html'))).ino).toBe(inode);
+			expect(existsSync(join(root, 'public/old'))).toBe(false);
+			expect(await read(root, 'new/index.html')).toBe('<html><p>new</p></html>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('a failed bongo build waits for the writes it started, so none lands after it empties public/', async () => {
 		let root = await site({
 			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $loaders: { bad: () => { throw new Error('no thanks'); }, slow: async (file, content) => { await new Promise(r => setTimeout(r, 50)); return { filename: file + '.txt', content }; } } };`,

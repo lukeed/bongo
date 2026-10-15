@@ -72,13 +72,13 @@ Without `--debug`, a stage that is still running after 15 seconds prints `still 
 
 ## Output folder
 
-`bongo build` empties `public/` when it starts, before it loads the config. Thus no file from an earlier run stays. When the build fails, it empties `public/` again, so no part of the failed build stays.
+`bongo build` writes over the files that an earlier run left in `public/`, which is much faster than making them again. When it is done, it deletes each file that it did not write, so no file from an earlier run stays. When the build fails, it empties `public/`, so no part of the failed build stays.
 
 `bongo dev` does not use `public/`. It keeps its output in memory and serves it from there. Thus a `bongo build` that runs at the same time never changes what dev serves, and dev never changes what the build writes.
 
 With `--write`, `bongo dev` also writes its output to `public/`. It empties the folder before the first build. After that, each rebuild deletes only the files that the new build no longer writes.
 
-bongo deletes a symlink in `public/`, but never the file or folder that it points to. bongo refuses to empty `public/`, and the build fails, when the folder resolves through symlinks to:
+bongo deletes a symlink in `public/`, but never the file or folder that it points to. bongo refuses to empty or write over `public/`, and the build fails, when the folder resolves through symlinks to:
 
 - the project root, or a folder above it,
 - a folder outside the project,
