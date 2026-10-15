@@ -1,0 +1,12 @@
+# {{{ $site.title }}}
+
+> {{{ $site.description }}}
+
+bongo turns Markdown, templates, and assets into static HTML. Each page below links to its Markdown copy.
+{{#each $utils.nav($pages, '') as group}}
+
+## {{{ group.title }}}
+{{#each group.pages as link}}
+{{#var page = $pages.find(p => p.path === link.path)}}
+- [{{{ link.title }}}]({{{ $utils.url.abs(page.alternates['text/markdown']) }}}): {{{ page.summary }}}{{/each}}{{/each}}
+

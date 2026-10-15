@@ -85,12 +85,152 @@
 	padding: 30px 0 96px;
 }
 
+.doc-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px 16px;
+	margin-bottom: 22px;
+}
+
 .crumbs {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	margin-bottom: 22px;
 	font: 600 13px/1 var(--sans);
+	color: var(--muted);
+}
+
+.copy-page {
+	position: relative;
+	display: flex;
+	border: var(--bw) solid var(--line);
+	border-radius: 999px;
+	background: var(--panel);
+	box-shadow: 2px 2px 0 var(--s4);
+}
+
+.copy-page > button {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	height: 34px;
+	padding: 0 12px;
+	background: none;
+	border: 0;
+	border-radius: 999px;
+	font: 700 13px/1 var(--sans);
+	color: var(--ink);
+	cursor: pointer;
+}
+
+.copy-page > button:hover {
+	background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+
+.copy-page .cp-more {
+	padding: 0 10px 0 9px;
+	border-left: var(--bw) solid var(--line);
+	border-radius: 0 999px 999px 0;
+}
+
+.copy-page .cp-main {
+	border-radius: 999px 0 0 999px;
+}
+
+.copy-page svg {
+	width: 15px;
+	height: 15px;
+	flex: none;
+}
+
+.cp-done,
+.cp-main.done .cp-copy {
+	display: none;
+}
+
+.cp-main.done .cp-done {
+	display: block;
+}
+
+.cp-label {
+	display: grid;
+}
+
+.cp-label > span {
+	grid-area: 1 / 1;
+}
+
+.cp-label > span:last-child,
+.cp-main.done .cp-label > span:first-child {
+	visibility: hidden;
+}
+
+.cp-main.done .cp-label > span:last-child {
+	visibility: visible;
+}
+
+.cp-more[aria-expanded=true] svg {
+	transform: rotate(180deg);
+}
+
+.cp-menu {
+	position: absolute;
+	top: calc(100% + 8px);
+	right: -2px;
+	z-index: 20;
+	display: grid;
+	gap: 2px;
+	width: 268px;
+	padding: 6px;
+	background: var(--panel);
+	border: var(--bw) solid var(--line);
+	border-radius: 16px;
+	box-shadow: 4px 4px 0 var(--s4);
+}
+
+.cp-menu[hidden] {
+	display: none;
+}
+
+.cp-menu > * {
+	display: flex;
+	align-items: flex-start;
+	gap: 11px;
+	padding: 10px;
+	background: none;
+	border: 0;
+	border-radius: 10px;
+	text-align: left;
+	text-decoration: none;
+	color: var(--ink);
+	cursor: pointer;
+}
+
+.cp-menu > *:hover,
+.cp-menu > *:focus-visible {
+	background: color-mix(in srgb, var(--mint) 45%, transparent);
+	outline: none;
+}
+
+.cp-menu svg {
+	width: 18px;
+	height: 18px;
+	margin-top: 1px;
+}
+
+.cp-menu span {
+	display: grid;
+	gap: 4px;
+}
+
+.cp-menu b {
+	font: 700 14px/1.2 var(--sans);
+}
+
+.cp-menu small {
+	font: 500 12.5px/1.3 var(--sans);
 	color: var(--muted);
 }
 
@@ -369,8 +509,17 @@
 		padding-top: 0;
 	}
 
-	.crumbs {
+	.doc-head {
 		margin: 20px 0 16px;
+	}
+
+	.doc-head .crumbs {
+		flex-basis: 100%;
+	}
+
+	.cp-menu {
+		right: auto;
+		left: -2px;
 	}
 
 	.toc-open .toc {

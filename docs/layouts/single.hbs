@@ -1,6 +1,7 @@
 {{#var groups = $utils.nav($pages, $page.path)}}
 {{#var near = $utils.pager($pages, $page.path)}}
 {{#var heads = $page.headings.filter(heading => heading.level === 2)}}
+{{#var md = $utils.url.ext($page.path, 'md')}}
 <div class="shell">
 	<aside class="side" id="side" aria-label="Docs">
 		{{#each groups as group}}
@@ -23,7 +24,10 @@
 			</button>
 			{{/if}}
 		</div>
-		<nav class="crumbs" aria-label="Breadcrumb"><a href="/intro/">Docs</a><span>/</span><span>{{ $page.params.group }}</span><span>/</span><b>{{ $page.title }}</b></nav>
+		<div class="doc-head">
+			<nav class="crumbs" aria-label="Breadcrumb"><a href="/intro/">Docs</a><span>/</span><span>{{ $page.params.group }}</span><span>/</span><b>{{ $page.title }}</b></nav>
+			{{#partial src="copy-page" href=md}}
+		</div>
 		<h1>{{ $page.title }}</h1>
 		<svg class="wave" viewBox="0 0 150 16" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" aria-hidden="true"><path d="M3 8c6-7 12-7 18 0s12 7 18 0 12-7 18 0 12 7 18 0 12-7 18 0 12 7 18 0 12-7 18 0 6 5 9 4"/></svg>
 		<article class="prose">

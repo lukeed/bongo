@@ -18,6 +18,9 @@
 	{{#else}}
 	<link rel="canonical" href="{{ $page.url }}"/>
 	{{/if}}
+	{{#if docs}}
+	<bongo:alternate type="text/markdown" />
+	{{/if}}
 	<meta property="og:type" content="website"/>
 	<meta property="og:site_name" content="bongo"/>
 	<meta property="og:title" content="{{ title }}"/>

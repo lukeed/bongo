@@ -101,6 +101,35 @@ function copy(button: HTMLElement, text: string): void {
 	}, 1200);
 }
 
+function menu(open: boolean, focus = open): void {
+	let toggle = document.querySelector<HTMLElement>('[data-copy-menu]');
+	let list = document.getElementById('cp-menu');
+	if (!toggle || !list || list.hidden === !open) return;
+	toggle.setAttribute('aria-expanded', String(open));
+	list.hidden = !open;
+	if (focus) (open ? list.querySelector<HTMLElement>('[role=menuitem]') : toggle)?.focus();
+}
+
+function markdown(href: string): Promise<Blob> {
+	return fetch(href).then(res => {
+		if (!res.ok) throw new Error(`Cannot read ${href}: ${res.status}`);
+		return res.text();
+	}).then(text => new Blob([text], { type: 'text/plain' }));
+}
+
+function copyPage(href: string): void {
+	let main = document.querySelector<HTMLElement>('.cp-main');
+	// Safari allows a clipboard write only while the click is current, so the fetch goes inside the write.
+	let write = typeof ClipboardItem === 'undefined'
+		? markdown(href).then(blob => blob.text()).then(text => navigator.clipboard.writeText(text))
+		: navigator.clipboard.write([new ClipboardItem({ 'text/plain': markdown(href) })]);
+	menu(false);
+	write.then(() => {
+		main?.classList.add('done');
+		setTimeout(() => main?.classList.remove('done'), 1600);
+	}, err => console.error(err));
+}
+
 function spy(): void {
 	let links = Array.from(document.querySelectorAll<HTMLAnchorElement>('.toc a'));
 	let current = links[0];
@@ -118,7 +147,9 @@ document.addEventListener('click', event => {
 	let target = event.target instanceof Element ? event.target : null;
 	if (!target) return;
 
-	let button = target.closest<HTMLElement>('[data-theme-toggle], [data-menu], [data-toc], [data-copy], [data-copy-code], [data-search], [data-close], [role=tab]');
+	if (!target.closest('.copy-page') || target.closest('.cp-menu a')) menu(false, false);
+
+	let button = target.closest<HTMLElement>('[data-theme-toggle], [data-menu], [data-toc], [data-copy], [data-copy-code], [data-copy-page], [data-copy-menu], [data-search], [data-close], [role=tab]');
 	if (button?.matches('[data-theme-toggle]')) {
 		root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
 		return localStorage.setItem('theme', root.dataset.theme);
@@ -128,6 +159,8 @@ document.addEventListener('click', event => {
 	if (button?.matches('[data-search]')) return open();
 	if (button?.matches('[data-close]')) return dialog()?.close();
 	if (button?.dataset.copy) return copy(button, button.dataset.copy);
+	if (button?.dataset.copyPage) return copyPage(button.dataset.copyPage);
+	if (button?.matches('[data-copy-menu]')) return menu(button.getAttribute('aria-expanded') !== 'true');
 	if (button?.matches('[data-copy-code]')) return copy(button, button.closest('.code')?.querySelector('pre')?.textContent ?? '');
 	if (button?.matches('[role=tab]')) {
 		let box = button.closest('[data-tabs]');
@@ -159,6 +192,13 @@ document.addEventListener('keydown', event => {
 	}
 	if (event.key === 'Escape') {
 		document.body.classList.remove('nav-open', 'toc-open');
+		menu(false, !!document.activeElement?.closest('.cp-menu'));
+	}
+	let items = [...document.querySelectorAll<HTMLElement>('.cp-menu:not([hidden]) [role=menuitem]')];
+	let at = items.indexOf(document.activeElement as HTMLElement);
+	if (at !== -1 && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+		event.preventDefault();
+		return items[(at + (event.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
 	}
 	if (!box?.open) return;
 	if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
