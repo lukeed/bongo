@@ -132,6 +132,9 @@ export async function dev(argv: Argv) {
 				report([{ message }]);
 			}
 			// Don't reload — the overlay stays until the next successful build.
+		} finally {
+			// the heap kept ~400 MB of garbage from each rebuild of 10k pages; collect it in a new task, so no frame of the build pins it
+			if (typeof Bun !== 'undefined') setTimeout(() => Bun.gc(true));
 		}
 	}
 
