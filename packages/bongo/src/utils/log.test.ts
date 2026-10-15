@@ -58,7 +58,7 @@ describe('sizes', () => {
 				await mkdir(dirname(join(root, 'public', rel)), { recursive: true });
 				await writeFile(join(root, 'public', rel), data);
 			}
-			await log.sizes(join(root, 'public'), root);
+			await log.sizes(join(root, 'public'), root, Object.keys(files).map(rel => join(root, 'public', rel)));
 			return lines();
 		} finally {
 			await rm(root, { recursive: true, force: true });
