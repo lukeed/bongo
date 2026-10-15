@@ -2,7 +2,6 @@ import { dirname, relative, sep } from 'node:path';
 import { networkInterfaces } from 'node:os';
 import { bold, cyan, dim, green } from 'kleur/colors';
 import * as bundler from './utils/bundler';
-import * as templates from './utils/templates';
 import * as http from './utils/http';
 import * as log from './utils/log';
 import * as fs from './utils/fs';
@@ -166,23 +165,8 @@ export async function dev(argv: Argv) {
 
 		if ((changes.has('inputs') || !inputs) && !await reload()) return done();
 
-		// Layout/partial changes: blow away the compiled-template caches and run
-		// a full rebuild. A layout or partial edit can affect every page, so
-		// narrowing isn't safe here.
-		// Deleted files fall back to full rebuild since their removal affects
-		// registries (siblings can reference gone pages via $pages/$section/$tags).
-		let deleted = files.some(file => !fs.exists(file));
-		if (deleted || changes.has('inputs') || changes.has('templates')) {
-			templates.Partials.clear();
-			templates.Layouts.clear();
-		}
-
-		// Content changes: rebuild only the affected page. Layouts/partials caches
-		// stay hot, the registries get re-walked (cheap) so sibling awareness is
-		// preserved, and only the changed page is re-rendered + rewritten. Other
-		// pages in `public/` are left alone.
-		let narrow = files.length === 1 && changes.has('content') && !deleted;
-		await rebuild({ only: narrow ? relative(flags.content, files[0]) : undefined });
+		// the memo of the last build tells which pages this change reaches; a layout, a partial, the config, or data reaches them all
+		await rebuild();
 		await track();
 		done();
 	}

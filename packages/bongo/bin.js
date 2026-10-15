@@ -16,6 +16,7 @@ try {
 			minify: { type: 'boolean', short: 'm', default: false },
 			debug: { type: 'boolean', short: 'd', default: false },
 			write: { type: 'boolean', short: 'w', default: false },
+			fresh: { type: 'boolean', short: 'f', default: false },
 			version: { type: 'boolean', short: 'v' },
 			help: { type: 'boolean', short: 'h' },
 		},
@@ -51,6 +52,7 @@ if (values.help) {
 	output += '\n    -m, --minify     Compress built assets  (default false)';
 	output += '\n    -d, --debug      Log each build stage and its time  (default false)';
 	output += '\n    -w, --write      Dev only: also write the output to public/  (default false)';
+	output += '\n    -f, --fresh      Render every page, not only what changed  (default false)';
 	output += '\n    -v, --version    Displays current version';
 	output += '\n    -h, --help       Displays this message';
 	output += '\n';
@@ -67,8 +69,8 @@ if (values.help) {
 		let command = require('.')[name];
 		if (!command) throw new Error(`Unknown "${name}" command`);
 
-		let { cwd, host, minify, debug, write } = values;
-		await command({ cwd, host, port, minify, debug, write });
+		let { cwd, host, minify, debug, write, fresh } = values;
+		await command({ cwd, host, port, minify, debug, write, fresh });
 	} catch (err) {
 		console.error('ERROR', err.stack);
 		process.exit(1);

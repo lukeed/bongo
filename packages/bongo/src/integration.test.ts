@@ -493,8 +493,8 @@ describe('integration: site-tags', () => {
 	});
 });
 
-describe('build({ only })', () => {
-	test('rewrites only the target page and preserves siblings', async () => {
+describe('repeat builds', () => {
+	test('rewrite only the edited page and keep its siblings', async () => {
 		let root = await copyFixture('site-sections');
 		try {
 			// Full build populates public/ with every page.
@@ -519,8 +519,7 @@ describe('build({ only })', () => {
 			// Wait a tick so mtime resolution doesn't lie about "same second" writes.
 			await new Promise(r => setTimeout(r, 20));
 
-			// Narrow rebuild.
-			await build({ cwd: root }, { only: 'blog/post-1.html' });
+			await build({ cwd: root });
 
 			let targetAfter = await readFile(join(out, targetRel), 'utf8');
 			let siblingAfter = await readFile(join(out, siblingRel), 'utf8');
@@ -535,7 +534,7 @@ describe('build({ only })', () => {
 		}
 	});
 
-	test('promotes to full rebuild when target frontmatter changed', async () => {
+	test('render again each page that reads a registry that a frontmatter edit changed, and only those', async () => {
 		let root = await copyFixture('site-sections');
 		try {
 			await build({ cwd: root });
@@ -544,11 +543,9 @@ describe('build({ only })', () => {
 
 			let siblingRel = 'blog/post-2/index.html';
 			let siblingMtimeBefore = (await stat(join(out, siblingRel))).mtimeMs;
+			let indexMtimeBefore = (await stat(join(out, 'blog/index.html'))).mtimeMs;
 
-			// Edit the target's FRONTMATTER (change title). A body-only edit
-			// would stay narrow; changing `title` shifts what sibling
-			// $pages/$section iterations would render, so the frontmatter-sig
-			// diff should force a full rebuild.
+			// A new title changes `$section` and `$pages`: the blog index lists its section, and the sibling post reads neither.
 			let contentFile = join(root, 'content', 'blog', 'post-1.html');
 			let src = await readFile(contentFile, 'utf8');
 			await writeFile(
@@ -557,29 +554,30 @@ describe('build({ only })', () => {
 			);
 
 			await new Promise(r => setTimeout(r, 20));
-			await build({ cwd: root }, { only: 'blog/post-1.html' });
+			await build({ cwd: root });
 
-			let siblingMtimeAfter = (await stat(join(out, siblingRel))).mtimeMs;
-			// Promoted to full ⇒ every page re-rendered ⇒ sibling mtime changed.
-			expect(siblingMtimeAfter).toBeGreaterThan(siblingMtimeBefore);
+			expect((await stat(join(out, 'blog/index.html'))).mtimeMs).toBeGreaterThan(indexMtimeBefore);
+			expect(await readFile(join(out, 'blog/index.html'), 'utf8')).toContain('Renamed Post One');
+			expect((await stat(join(out, siblingRel))).mtimeMs).toBe(siblingMtimeBefore);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
 
-	test('unknown `only` paths produce no output and do not clobber public/', async () => {
+	test('keep every page when nothing changed', async () => {
 		let root = await copyFixture('site-sections');
 		try {
 			await build({ cwd: root });
 			let out = join(root, 'public');
+			let { stat } = await import('node:fs/promises');
 
 			let before = await readFile(join(out, 'index.html'), 'utf8');
+			let mtime = (await stat(join(out, 'index.html'))).mtimeMs;
 
-			// Nonexistent rel — nothing should render, nothing should be nuked.
-			await build({ cwd: root }, { only: 'content-that-does-not-exist.md' });
+			await build({ cwd: root });
 
-			let after = await readFile(join(out, 'index.html'), 'utf8');
-			expect(after).toBe(before);
+			expect(await readFile(join(out, 'index.html'), 'utf8')).toBe(before);
+			expect((await stat(join(out, 'index.html'))).mtimeMs).toBe(mtime);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -607,7 +605,7 @@ describe('dev rebuilds', () => {
 			expect((await files(root)).filter(f => f.endsWith('.css'))).toEqual([expect.stringMatching(/^extra\./), expect.stringMatching(/^style\./)]);
 
 			await writeFile(join(root, 'content/index.html'), '<p>home</p>');
-			await build({ cwd: root, dev: true }, { only: 'index.html' });
+			await build({ cwd: root, dev: true });
 			expect((await files(root)).filter(f => f.endsWith('.css'))).toEqual([expect.stringMatching(/^style\./)]);
 
 			await build({ cwd: root, dev: true });
@@ -625,7 +623,7 @@ describe('dev rebuilds', () => {
 			expect(before).toHaveLength(1);
 
 			await writeFile(join(root, 'content/index.html'), '<bongo:script src="main.ts" format="cjs" /><p>home</p>');
-			await build({ cwd: root, dev: true }, { only: 'index.html' });
+			await build({ cwd: root, dev: true });
 			let after = (await files(root)).filter(f => f.endsWith('.js'));
 			expect(after).toHaveLength(1);
 			expect(after).not.toEqual(before);
@@ -635,13 +633,13 @@ describe('dev rebuilds', () => {
 		}
 	});
 
-	test('keeps assets that other pages still use during a narrow rebuild', async () => {
+	test('keeps assets that other pages still use when only one page renders', async () => {
 		let root = await devSite('<p>home</p>');
 		try {
 			await writeFile(join(root, 'content/about.html'), '<bongo:style src="extra.css" /><p>about</p>');
 			await build({ cwd: root, dev: true });
 			await writeFile(join(root, 'content/index.html'), '<p>home, edited</p>');
-			await build({ cwd: root, dev: true }, { only: 'index.html' });
+			await build({ cwd: root, dev: true });
 			let css = (await files(root)).filter(f => f.endsWith('.css'));
 			expect(css).toEqual([expect.stringMatching(/^extra\./), expect.stringMatching(/^style\./)]);
 			expect(await readFile(join(root, 'public/about/index.html'), 'utf8')).toContain(`href="/${css[0]}"`);
@@ -655,7 +653,7 @@ describe('dev rebuilds', () => {
 		try {
 			await expect(build({ cwd: root, dev: true })).rejects.toThrow(/Unknown browser query/);
 			await writeFile(join(root, 'content/index.html'), '<bongo:script src="main.ts" target="chrome 60" /><p>home</p>');
-			await build({ cwd: root, dev: true }, { only: 'index.html' });
+			await build({ cwd: root, dev: true });
 			expect(await readFile(join(root, 'public/index.html'), 'utf8')).toContain('<p>home</p>');
 			expect(await readFile(join(root, 'public/about/index.html'), 'utf8')).toContain('<p>about</p>');
 		} finally {

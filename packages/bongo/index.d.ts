@@ -6,6 +6,8 @@ export interface Argv {
 	minify?: boolean;
 	/** `bongo dev` only: also write the output to `public/`. @default false */
 	write?: boolean;
+	/** Render every page, and ignore what the last build kept. @default false */
+	fresh?: boolean;
 	// added via normalize
 	src?: string;
 	dest?: string;

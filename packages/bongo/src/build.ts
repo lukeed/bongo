@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { extname, join, sep } from 'node:path';
 import { dim, green } from 'kleur/colors';
@@ -13,6 +12,7 @@ import * as output from './utils/output';
 import * as bundler from './utils/bundler';
 import { load, loadModule, LoadError } from './utils/config';
 import * as loaders from './utils/loaders';
+import * as memo from './utils/memo';
 import * as render from './utils/render';
 import * as templates from './utils/templates';
 import * as tags from './utils/tags';
@@ -23,16 +23,11 @@ import { SCRIPT } from './utils/http';
 import type { Argv, Build, Config, Loader, Template } from 'bongo';
 import type { Blocks } from './utils/tempura/index';
 
-// Per-page frontmatter signatures from the last completed build. A narrow
-// rebuild (`opts.only`) compares the target's current frontmatter hash against
-// this snapshot. If they differ, the file's frontmatter changed — which may
-// have shifted `tags` / `section` / `title` / anything else sibling pages
-// render via `$pages` / `$section` / `$tags` — so we promote to a full rebuild
-// to keep sibling output accurate. Body-only edits keep the narrow path.
-let FRONTMATTER_SIG: Map<string, string> = new Map();
+// Per sink, the last good build's files, to delete the ones that the next build does not make.
+type Output = { files: Set<string>; dev: boolean };
 
-// Per sink, the last good build's files, and each page's assets and renders, to keep or delete on the next build.
-type Output = { assets: Map<string, string[]>; renders: Map<string, string[]>; keys: Map<string, { key: string; from: string }>; alternates: Map<string, Named>; files: Set<string>; dev: boolean };
+// Per sink, the memo of the last good build, so the next one renders only what changed; `bongo build` also saves it to disk.
+let MEMOS: Map<output.Sink, memo.Memo> = new Map();
 
 // The `<bongo:alternate>` elements that one page names, and the source that its Markdown copy comes from.
 type Named = { path: string; input: string; from: string; found: tags.Alternate[] };
@@ -49,12 +44,6 @@ const WRITES = 64;
 
 // The content files that a build reads and loads at once.
 const READS = 16;
-
-function frontmatterSig(raw: string): string {
-	let { offset } = templates.frontmatter(raw);
-	let block = offset > 0 ? raw.substring(0, offset) : '';
-	return createHash('sha256').update(block).digest('hex').slice(0, 16);
-}
 
 // Section = the directory prefix of the page's rel path, using forward slashes.
 // e.g. "blog/post.md" -> "blog", "index.md" -> "", "blog/2025/post.md" -> "blog/2025"
@@ -73,6 +62,7 @@ type CollectedPage = {
 	path: string;
 	params: Template.Params;
 	from: string;     // what rendered it, for errors (eg, "content/index.md → layouts/html.hbs")
+	rel?: string;     // the content file of a page
 };
 
 type ScanItem = {
@@ -81,7 +71,7 @@ type ScanItem = {
 	name: string;            // basename with ext
 	kind: 'page' | 'output' | 'data';
 	ext: string;             // final extension (post-loader chain) — 'hbs'|'html'|'htm'
-	body: string;            // frontmatter stripped, loaders run; `.hbs` still raw for walk-2 compile; emptied once the page renders
+	body?: string;           // frontmatter stripped, loaders run; `.hbs` still raw for walk-2 compile; unset for a page whose source the memo had, and once the page renders
 	params: Template.Params;
 	path: string;            // URL path (e.g. '/blog/post-1/')
 	url: string;             // absolute URL, under the subfolder of `$site.url` if any
@@ -91,7 +81,7 @@ type ScanItem = {
 	summary: string;
 	tags: string[];          // parsed from frontmatter.tags
 	headings: Template.Heading[];
-	sig: string;             // sha256 of the raw frontmatter block (empty block ⇒ constant hash)
+	hash: string;            // of the source file, to compare with the memo
 };
 
 // Frontmatter is typed, so `title: 2024` is a number; page text fields take any scalar as text.
@@ -123,12 +113,14 @@ async function rendering<T>(from: string, work: () => Promise<T>): Promise<T> {
 
 // switcheroo: templates get a reader for assets/ in place of the loader map
 // Compiled partials keep the template context until the next build, so this lives outside `run` and keeps none of the build (#59).
-function assetsFor(dir: string, renders: render.Context, base: string): (from: string, made: string[], page?: Blocks) => Template.Assets {
-	return (from, made, page) => ({
-		load(filename: string, encoding?: BufferEncoding) {
+function assetsFor(dir: string, renders: render.Context, base: string): (from: string, made: string[], page?: Blocks, loads?: [string, string][]) => Template.Assets {
+	return (from, made, page, loads) => ({
+		async load(filename: string, encoding?: BufferEncoding) {
 			let file = join(dir, filename);
 			fs.assert(file, `Missing "${filename}" asset!`);
-			return encoding ? fs.read(file, encoding) : fs.read(file);
+			let bytes = await fs.read(file);
+			loads?.push([file, memo.hash(bytes)]);
+			return encoding ? bytes.toString(encoding) : bytes;
 		},
 		async render(template, output, options = {}) {
 			let { html, file } = await templates.partial(template, options.args ?? {}, page);
@@ -171,14 +163,6 @@ function parseTags(value: unknown): string[] {
 }
 
 export type BuildOptions = {
-	// Narrow the build to a single content file's rel path (e.g. 'blog/post.md').
-	// Walk 1 (scan + registries) still runs over every file so `$pages` / `$section`
-	// / `$tags` stay accurate, but walk 2 renders only the matching page and
-	// `public/` is not wiped. Used by the dev server for content-file edits.
-	// Pass-through asset copies (images etc.) are still re-emitted since walk 1
-	// handles them inline. If `only` doesn't match any content file, nothing is
-	// rendered — call without `only` for a full rebuild in that case.
-	only?: string;
 	// From `prepare()`; dev passes its cached copy, so a content edit does not re-run the config.
 	inputs?: Inputs;
 	// Where the files go; dev keeps them in memory. Defaults to `public/` on disk.
@@ -214,8 +198,8 @@ export async function prepare(argv: Argv): Promise<Inputs> {
  */
 export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> {
 	normalize(argv);
-	// `bongo build` writes each page as it renders; dev and narrow builds hold every page, so a failed one writes nothing
-	let writes = !argv.dev && !opts.only ? utils.pool(WRITES) : undefined;
+	// `bongo build` writes each page as it renders; dev holds every page, so a failed rebuild writes nothing
+	let writes = !argv.dev ? utils.pool(WRITES) : undefined;
 	let watch = log.watchdog({ debug: argv.debug });
 	try {
 		await run(argv, opts, watch, writes);
@@ -244,13 +228,14 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	// A dev rebuild writes over its last good build, so a failed one leaves that build serving.
 	let sink = opts.sink ?? output.disk(argv);
-	if (!opts.only && !(argv.dev && OUTPUT.get(sink)?.dev)) {
+	if (!(argv.dev && OUTPUT.get(sink)?.dev)) {
 		// `bongo build` writes over the files of the last build, which is much faster than making them again, then sweeps the rest
 		await (writes ? sink.reuse() : sink.clear());
 		OUTPUT.delete(sink);
 	}
 
-	const { config, $data } = opts.inputs ?? await prepare(argv);
+	const inputs = opts.inputs ?? await prepare(argv);
+	const { config, $data } = inputs;
 	const { $site, $loaders: LOADERS } = config;
 	// a page path resolves under `$site.url`, so a site in a subfolder keeps it
 	let site = $site.url.endsWith('/') ? $site.url : $site.url + '/';
@@ -275,10 +260,16 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	watch.step('compiling layouts and partials');
 	await templates.collect(argv, context);
 
+	// the memo of the last good build, unless something that can change every page changed since
+	let key = await memo.key(argv, inputs.files);
+	let previous = argv.fresh ? undefined : MEMOS.get(sink) ?? (writes ? await memo.load(argv) : undefined);
+	let last = previous?.key === key ? previous : undefined;
+	let next: memo.Memo = { key, registries: { pages: '', tags: '', sections: {} }, loose: false, items: {}, files: {} };
+
 	const isPage = /(hbs|html?)$/;
 	const { Layouts, Partials } = templates;
 	const { dest, content } = argv;
-	const last = OUTPUT.get(sink);
+	const prior = OUTPUT.get(sink);
 	const written: Set<string> = new Set();
 
 	const loader_utils: Loader.Utilities = {
@@ -302,7 +293,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	// Pass-through assets (copies, direct writes) emit to disk immediately.
 	let scanned: ScanItem[] = [];
 
-	async function scan(input: string, rel: string, name: string): Promise<void> {
+	// Turns one content file into its record, or writes it, when it is no page: a loader's other result, or a copy.
+	async function parse(input: string, rel: string, name: string, bytes: Buffer, hash: string): Promise<ScanItem | undefined> {
 		let idx = rel.lastIndexOf('.');
 		let urlpath = '/' + rel.substring(0, idx);
 		let output = join(dest, rel);
@@ -316,18 +308,15 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		let params: Template.Params = {};
 		let found: Loader.Heading[] | undefined;
 		let src = '';
-		let sig = '';
 
 		if (DATA_MODULE.test(name)) {
 			let file = rel.substring(0, rel.length - ext.length - 1);
 			let path = '/' + file.replace(/\\/g, '/');
-			scanned.push({ input, rel, name, kind: 'data', ext, body: '', params, path: base + path.substring(1), url: new URL(path.substring(1), site).href, output: join(dest, file), section: deriveSection(rel), title: '', summary: '', tags: [], headings: [], sig: frontmatterSig('') });
-			return;
+			return { input, rel, name, kind: 'data', ext, body: '', params, path: base + path.substring(1), url: new URL(path.substring(1), site).href, output: join(dest, file), section: deriveSection(rel), title: '', summary: '', tags: [], headings: [], hash };
 		}
 
 		if (isPage.test(ext)) {
-			src = await fs.read(input, 'utf8');
-			sig = frontmatterSig(src);
+			src = bytes.toString('utf8');
 			let { offset, value } = templates.frontmatter(src);
 
 			if (offset > 0) {
@@ -340,12 +329,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			// `.hbs` content is compiled in walk 2, once Pages/Sections/Tags
 			// registries exist. `ext` stays 'hbs' through walk 1.
 		} else if (LOADERS[ext]) {
-			let bytes = await fs.read(input);
 			let initial = new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-
-			// Capture raw file text before loaders transform it, so the
-			// frontmatter signature is computed on the untouched source.
-			sig = frontmatterSig(new TextDecoder().decode(initial));
 
 			debug('[content.loader]', ext, '~> found');
 
@@ -363,12 +347,16 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 					: new TextDecoder().decode(result.content);
 			} else {
 				written.add(output);
-				return sink.write(output, result.content);
+				next.files[rel] = [hash, output, 0, 0];
+				await sink.write(output, result.content);
+				return;
 			}
 		} else {
 			debug('[content.loader]', ext, '~> unknown');
 			written.add(output);
-			return sink.copy(input, output);
+			next.files[rel] = [hash, output, 0, 0];
+			await sink.copy(input, output);
+			return;
 		}
 
 		if (kind === 'output') {
@@ -398,7 +386,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 		let section = deriveSection(rel);
 
-		scanned.push({
+		return {
 			input,
 			rel,
 			name,
@@ -414,8 +402,34 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			summary: text(params.summary),
 			tags: parseTags(params.tags),
 			headings: headings(found),
-			sig,
-		});
+			hash,
+		};
+	}
+
+	async function scan(input: string, rel: string, name: string): Promise<void> {
+		let bytes = await fs.read(input);
+		let hash = memo.hash(bytes);
+		// a page whose source the memo has runs no loader: its record goes into the registries, and its body loads only if it renders
+		let hit = last?.loose ? undefined : last?.items[rel];
+		if (hit?.hash === hash) {
+			scanned.push({ input, rel, name, kind: hit.kind, ext: hit.ext, params: hit.params, path: hit.path, url: hit.url, output: hit.output, section: hit.section, title: hit.title, summary: hit.summary, tags: hit.tags, headings: hit.headings, hash });
+			return;
+		}
+		let file = last?.files[rel];
+		let stat = file?.[0] === hash ? await sink.stat(file[1]) : undefined;
+		if (file && stat?.[0] === file[2] && stat?.[1] === file[3]) {
+			written.add(file[1]);
+			next.files[rel] = file;
+			await sink.keep(file[1]);
+			return;
+		}
+		let item = await parse(input, rel, name, bytes, hash);
+		if (item) scanned.push(item);
+	}
+
+	// The body of a page whose source the memo had, loaded as walk 1 would have.
+	async function bodyOf(item: ScanItem): Promise<string> {
+		return (await parse(item.input, item.rel, item.name, await fs.read(item.input), item.hash))?.body ?? '';
 	}
 
 	watch.step('reading content/');
@@ -424,20 +438,6 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		let reason = err instanceof Error ? err.message : String(err);
 		throw new Error(`${join('content', rel)}: ${reason}`, { cause: err });
 	}));
-
-	// Narrow-rebuild safety: if opts.only was set but the target's frontmatter
-	// hash diverges from the last build's snapshot (or the target no longer
-	// scans as a page), promote to a full rebuild so sibling pages don't keep
-	// stale HTML that references gone-tags / renamed-section / etc.
-	let narrowOnly = opts.only;
-	if (narrowOnly) {
-		let target = scanned.find(s => s.rel === narrowOnly);
-		let prev = FRONTMATTER_SIG.get(narrowOnly);
-		if (!target || prev === undefined || prev !== target.sig || !last) {
-			narrowOnly = undefined;
-			debug('[build.narrow] frontmatter changed or no good build to narrow; promoting to full rebuild');
-		}
-	}
 
 	// Between walks — build Pages and Sections registries.
 	let Pages: Template.PageInfo[] = [];
@@ -499,56 +499,87 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		$tags.push({ tag, pages });
 	}
 
+	// a hash of each registry, so a page that read one renders again when it changes
+	let record = (info: Template.PageInfo) => JSON.stringify([info.path, info.url, info.title, info.summary, info.section, info.tags, info.headings, info.params]);
+	next.registries = {
+		pages: memo.hash(Pages.map(record).join('\n')),
+		tags: memo.hash($tags.map(entry => entry.tag + '\n' + entry.pages.map(record).join('\n')).join('\n\n')),
+		sections: Object.fromEntries([...Sections].map(([name, list]) => [name, memo.hash(list.map(record).join('\n'))])),
+	};
+
 	watch.step('rendering pages');
 
 	// Walk 2 — render layouts with $pages + $section + $tags context.
-	// If `only` is set, skip rendering every page except the matching one — walk 1
-	// above already populated the registries so sibling awareness stays correct.
+	// A page renders again only when something that it read changed since the memo; any other page keeps its file.
 	// Output files always render, since they read `$pages`.
 	let pages: CollectedPage[] = [];
-	let outputs: Required<CollectedPage>[] = [];
+	let outputs: (CollectedPage & { html: string })[] = [];
 	let modules: ScanItem[] = [];
 	let later: ScanItem[] = [];
-	let alternates: Map<string, Named> = new Map(narrowOnly && last ? last.alternates : []);
-	let bundles: Map<string, string[]> = new Map(narrowOnly && last ? last.assets : []);
-	let rendered: Map<string, string[]> = new Map(narrowOnly && last ? last.renders : []);
+	let kept: { item: ScanItem; page: memo.Page }[] = [];
+	let dirty: ScanItem[] = [];
+	let alternates: Map<string, Named> = new Map();
+	let bundles: Map<string, string[]> = new Map();
+	let rendered: Map<string, string[]> = new Map();
 	rendered.set('', loose);
-	for (let [rel, names] of rendered) {
-		if (rel === narrowOnly || rel === '') continue;
-		for (let name of names) {
-			let hit = last?.keys.get(name);
-			if (hit) renders.seen.set(name, hit);
-		}
+
+	let sums: Map<string, Promise<string | undefined>> = new Map();
+	function sum(file: string): Promise<string | undefined> {
+		let hit = sums.get(file);
+		if (!hit) sums.set(file, hit = fs.read(file).then(memo.hash, () => undefined));
+		return hit;
 	}
 
-	for (let item of scanned) {
-		if (narrowOnly && item.rel !== narrowOnly && item.kind === 'page') continue;
-		if (item.kind === 'data') {
-			modules.push(item);
-			continue;
+	// Nothing that the page read changed, and its file is as the last build left it.
+	async function clean(item: ScanItem, page: memo.Page): Promise<boolean> {
+		if (!last) return false;
+		for (let read of page.reads) {
+			let was = read === 'section' ? last.registries.sections[item.section] : last.registries[read];
+			let now = read === 'section' ? next.registries.sections[item.section] : next.registries[read];
+			if (was !== now) return false;
 		}
-		if (item.kind === 'output') {
-			later.push(item);
-			continue;
+		for (let [file, hash] of page.loads) {
+			if (await sum(file) !== hash) return false;
 		}
+		let stat = await sink.stat(item.output);
+		return stat?.[0] === page.stat[0] && stat?.[1] === page.stat[1];
+	}
 
+	// A page that keeps its file still registers its assets, renders, and alternates, for the bundler, output files, and the sweep.
+	async function replay(item: ScanItem, old: memo.Item, page: memo.Page): Promise<void> {
+		for (let [entry, cfg] of page.registrations) bundler.register(entry, cfg);
+		bundles.set(item.rel, page.placeholders);
+		rendered.set(item.rel, page.renders.map(([name]) => name));
+		for (let [name, key] of page.renders) {
+			renders.seen.set(name, { key, from: item.path });
+			await sink.keep(join(dest, name));
+		}
+		alternates.set(item.rel, { path: item.path, input: item.input, from: `content/${item.rel}`, found: page.found });
+		await sink.keep(item.output);
+		next.items[item.rel] = old;
+		kept.push({ item, page });
+	}
+
+	async function renderPage(item: ScanItem): Promise<void> {
+		let body = item.body ?? await bodyOf(item);
+		item.body = undefined;
 		let $page = pageOf(item);
-
 		let $section = Sections.get(item.section) || [];
 		let made: string[] = [];
+		let loads: [string, string][] = [];
 		rendered.set(item.rel, made);
-		let scope = templates.scope({ $page, $pages: Pages, $section, $tags }, page => assets(item.path, made, page));
+		let scope = templates.scope({ $page, $pages: Pages, $section, $tags }, page => assets(item.path, made, page, loads));
+		let stop = templates.track();
 
 		// `.hbs` content is compiled here, with full walk-2 context —
 		// `$page`, `$pages`, `$section`, `$tags` are all available to the
 		// body. Non-`.hbs` content bodies pass through raw.
 		let rendered_content = item.ext === 'hbs'
-			? await rendering(`content/${item.rel}`, async () => (await templates.compileContent(item.body))(
+			? await rendering(`content/${item.rel}`, async () => (await templates.compileContent(body))(
 				{ ...context, ...scope.values, params: item.params },
 				scope.blocks,
 			))
-			: item.body;
-		item.body = '';
+			: body;
 
 		rendered_content = tags.scanImages(rendered_content, argv as Required<Argv>, config, `content/${item.rel}`, item.path);
 		$page.content = rendered_content;
@@ -597,6 +628,14 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			rendered_content = await rendering(chain.join(' → '), async () => view({ ...context, ...scope.values }, scope.blocks));
 		}
 
+		// a page reads a registry that its body, a layout of its chain, or a partial that it called names
+		let used = stop();
+		let reads: Set<memo.Read> = new Set([
+			...item.ext === 'hbs' ? templates.reads(body) : [],
+			...chain.slice(1).flatMap(name => templates.readsOf(name.replace(/\\/g, '/'))),
+			...[...used].flatMap(key => templates.readsOf('partials/' + key)),
+		]);
+
 		if (argv.dev) rendered_content += SCRIPT;
 
 		let found: tags.Alternate[] = [];
@@ -605,10 +644,35 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		rendered_content = tags.rewriteTransitionAttrs(rendered_content);
 		alternates.set(item.rel, { path: item.path, input: item.input, from: `content/${item.rel}`, found });
 
-		bundles.set(item.rel, bundler.placeholders(rendered_content));
-		pages.push({ output: item.output, html: writes ? undefined : rendered_content, path: item.path, params: item.params, from: chain.join(' → ') });
+		let placeholders = bundler.placeholders(rendered_content);
+		bundles.set(item.rel, placeholders);
+		let registrations = placeholders.flatMap(placeholder => {
+			let registration = bundler.registration(placeholder);
+			return registration ? [registration] : [];
+		});
+		let inline = placeholders.filter(placeholder => rendered_content.includes(`data-bongo-inline="${placeholder}"`));
+		let page: memo.Page = { reads: [...reads], loads, registrations, placeholders, inline, renders: [], found, signature: '', stat: [0, 0] };
+		next.items[item.rel] = { hash: item.hash, kind: item.kind, ext: item.ext, params: item.params, path: item.path, url: item.url, output: item.output, section: item.section, title: item.title, summary: item.summary, tags: item.tags, headings: item.headings, page };
+		pages.push({ output: item.output, html: writes ? undefined : rendered_content, path: item.path, params: item.params, from: chain.join(' → '), rel: item.rel });
 		await writes?.add(() => sink.write(item.output, rendered_content));
 	}
+
+	for (let item of scanned) {
+		if (item.kind === 'data') {
+			modules.push(item);
+			continue;
+		}
+		if (item.kind === 'output') {
+			later.push(item);
+			continue;
+		}
+		let old = last?.items[item.rel];
+		if (old?.page && old.hash === item.hash && await clean(item, old.page)) await replay(item, old, old.page);
+		else dirty.push(item);
+	}
+
+	// after every replay, so a page that renders sees the renders of each page that did not, as a full build would
+	for (let item of dirty) await renderPage(item);
 
 	let copies: Map<string, { from: string; input: string }> = new Map();
 	let ordered = [...alternates.values()].sort((a, b) => a.path.localeCompare(b.path));
@@ -633,7 +697,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		let made: string[] = [];
 		rendered.set(item.rel, made);
 		let scope = templates.scope({ $page: pageOf(item), $pages, $section: $sections.get(item.section) || [], $tags: $tagged }, page => assets(item.path, made, page));
-		let html = await rendering(`content/${item.rel}`, async () => (await templates.compileContent(item.body))(
+		let html = await rendering(`content/${item.rel}`, async () => (await templates.compileContent(item.body ?? ''))(
 			{ ...context, ...scope.values, params: item.params },
 			scope.blocks,
 		));
@@ -700,6 +764,23 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	for (let notice of flushResult.notices) log.info(notice);
 
+	// the outputs of a page's placeholders, and the content of those it inlines; a page that kept its file renders again when they change
+	let outs: Map<string, bundler.OutputInfo> = new Map(flushResult.outputs);
+	let contents: Map<string, Promise<string>> = new Map();
+	let inlined = (file: string) => {
+		let hit = contents.get(file);
+		if (!hit) contents.set(file, hit = sink.read(join(dest, file)).then(memo.hash, () => ''));
+		return hit;
+	};
+	let sign = async (page: memo.Page) => memo.hash(JSON.stringify(await Promise.all(page.placeholders.map(async placeholder => {
+		let out = outs.get(placeholder);
+		let sum = out && page.inline.includes(placeholder) ? await inlined(out.filename) : '';
+		return [placeholder, out?.filename, out?.exports, out?.image, sum];
+	}))));
+	for (let { item, page } of kept) {
+		if (await sign(page) !== page.signature) await renderPage(item);
+	}
+
 	watch.step('writing pages');
 	// a streamed build outruns the GC, so rendering leaves much garbage; one full collection here lowers peak RSS by ~120 MB on 10k pages
 	if (writes && typeof Bun !== 'undefined') Bun.gc(true);
@@ -758,16 +839,23 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	}
 
 	let files = new Set([...taken, ...[...rendered.values()].flat().map(name => join(dest, name)), ...[...copies.keys()].map(file => join(dest, file))]);
-	await Promise.all([...last?.files ?? []].filter(file => !files.has(file)).map(file => sink.remove(file)));
+	await Promise.all([...prior?.files ?? []].filter(file => !files.has(file)).map(file => sink.remove(file)));
 	if (writes) await sink.sweep();
 	let keys = new Map([...renders.seen, ...[...renders.files].map(([name, { key, from }]) => [name, { key, from }] as const)]);
-	OUTPUT.set(sink, { assets: bundles, renders: rendered, keys, alternates, files, dev: argv.dev });
+	OUTPUT.set(sink, { files, dev: argv.dev });
 
-	// Refresh the frontmatter-sig snapshot for the next narrow rebuild. Only
-	// pages actually scanned in this build are updated; narrow builds don't
-	// touch unrelated entries, so pages skipped by `narrowOnly` above retain
-	// their prior sig (which matches since they weren't re-read).
-	for (let item of scanned) FRONTMATTER_SIG.set(item.rel, item.sig);
+	// each page that rendered: its file as written, its assets, and its renders
+	for (let page of pages) {
+		let entry = page.rel ? next.items[page.rel]?.page : undefined;
+		if (!entry || !page.rel) continue;
+		entry.stat = await sink.stat(page.output) ?? [0, 0];
+		entry.signature = await sign(entry);
+		entry.renders = (rendered.get(page.rel) ?? []).map(name => [name, keys.get(name)?.key ?? '']);
+	}
+	for (let [rel, [hash, output]] of Object.entries(next.files)) next.files[rel] = [hash, output, ...await sink.stat(output) ?? [0, 0]];
+	next.loose = loose.length > 0;
+	MEMOS.set(sink, next);
+	if (writes) await memo.save(argv, next);
 
 	// after this build's own files are out; a racing build re-encodes what it loses
 	await Promise.all([images.prune(cache, config.$images), images.prune(renders.cache, config.$images)]);
