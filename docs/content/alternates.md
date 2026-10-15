@@ -5,14 +5,14 @@ group: Guides
 order: 13
 ---
 
-An alternate is another version of the same page: the page in another format, a feed of its section, or a translation. HTML names one with `<link rel="alternate">`, and tools follow it, such as feed readers, search engines, and AI tools. In bongo, you write `<bongo:alternate>` in a layout.
+An alternate is another version of the same page, such as the page in another format, or a feed of its section. HTML names one with `<link rel="alternate">`, and tools follow it, such as feed readers and AI tools. In bongo, you write `<bongo:alternate>` in a layout.
 
 ## Link an alternate
 
 ```hbs [layouts/html.hbs]
 <head>
 	<bongo:alternate type="application/rss+xml" href="/feed.xml" title="Blog" />
-	<bongo:alternate type="text/html" hreflang="fr" href="/fr{{ $page.path }}" />
+	<bongo:alternate type="text/markdown" />
 </head>
 ```
 
@@ -20,12 +20,14 @@ On the page `/about/`, this becomes:
 
 ```html
 <link rel="alternate" type="application/rss+xml" href="/feed.xml" title="Blog"/>
-<link rel="alternate" type="text/html" href="/fr/about/" hreflang="fr"/>
+<link rel="alternate" type="text/markdown" href="/about.md"/>
 ```
 
 - `type` — the media type of the other version. Required.
 - `href` — its URL. A relative `href` resolves against the URL of the page, as a browser resolves it.
-- All other attributes, such as `title` and `hreflang`, go on the `<link>`.
+- All other attributes, such as `title`, go on the `<link>`.
+
+For the other languages of a page, write plain `<link hreflang>` elements. See [Translations](/translations/).
 
 ## Markdown copies
 
@@ -33,7 +35,7 @@ For `type="text/markdown"`, bongo also writes the file: a Markdown copy of the p
 
 ## List the alternates of each page
 
-Output files and data modules render after every page, so each entry of `$pages` has `alternates`: the alternates of the page, by type. A link to a file of the site is a URL path; a link to another site is a full URL. It holds one link for each type: when a page links two alternates of one type, such as two translations, it holds the last.
+Output files and data modules render after every page, so each entry of `$pages` has `alternates`: the alternates of the page, by type. A link to a file of the site is a URL path; a link to another site is a full URL. It holds one link for each type: when a page links two alternates of one type, such as two feeds, it holds the last.
 
 ```ts
 {
