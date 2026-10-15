@@ -16,6 +16,7 @@ import * as loaders from './utils/loaders';
 import * as render from './utils/render';
 import * as templates from './utils/templates';
 import * as tags from './utils/tags';
+import * as utils from './utils/index';
 import { normalize } from './utils/argv';
 import { SCRIPT } from './utils/http';
 
@@ -43,6 +44,9 @@ let IMPORTS: string[] = [];
 // `search.json.ts` writes `search.json`
 const DATA_MODULE = /\.json\.[jt]s$/;
 
+// The pages that `bongo build` writes at once.
+const WRITES = 64;
+
 function frontmatterSig(raw: string): string {
 	let { offset } = templates.frontmatter(raw);
 	let block = offset > 0 ? raw.substring(0, offset) : '';
@@ -62,7 +66,7 @@ function deriveSection(rel: string): string {
 
 type CollectedPage = {
 	output: string;   // absolute path to write
-	html: string;     // rendered HTML, may contain placeholders
+	html?: string;    // rendered HTML, may contain placeholders; unset once `bongo build` has written it
 	path: string;
 	params: Template.Params;
 	from: string;     // what rendered it, for errors (eg, "content/index.md → layouts/html.hbs")
@@ -74,7 +78,7 @@ type ScanItem = {
 	name: string;            // basename with ext
 	kind: 'page' | 'output' | 'data';
 	ext: string;             // final extension (post-loader chain) — 'hbs'|'html'|'htm'
-	body: string;            // frontmatter stripped, loaders run; `.hbs` still raw for walk-2 compile
+	body: string;            // frontmatter stripped, loaders run; `.hbs` still raw for walk-2 compile; emptied once the page renders
 	params: Template.Params;
 	path: string;            // URL path (e.g. '/blog/post-1/')
 	url: string;             // absolute URL, under the subfolder of `$site.url` if any
@@ -189,9 +193,18 @@ export async function prepare(argv: Argv): Promise<Inputs> {
  */
 export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> {
 	normalize(argv);
+	// `bongo build` writes each page as it renders; dev and narrow builds hold every page, so a failed one writes nothing
+	let writes = !argv.dev && !opts.only ? utils.pool(WRITES) : undefined;
 	let watch = log.watchdog({ debug: argv.debug });
 	try {
-		await run(argv, opts, watch);
+		await run(argv, opts, watch, writes);
+	} catch (err) {
+		// leave no half-written pages; the build error matters more than a failed write or cleanup
+		if (writes) {
+			await writes.drain().catch(() => {});
+			await (opts.sink ?? output.disk(argv)).clear().catch(() => {});
+		}
+		throw err;
 	} finally {
 		watch.stop();
 	}
@@ -205,7 +218,7 @@ export function imports(): string[] {
 	return IMPORTS;
 }
 
-async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog): Promise<void> {
+async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog, writes: utils.Pool | undefined): Promise<void> {
 	let t0 = Date.now();
 
 	// A dev rebuild writes over its last good build, so a failed one leaves that build serving.
@@ -484,7 +497,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	// above already populated the registries so sibling awareness stays correct.
 	// Output files always render, since they read `$pages`.
 	let pages: CollectedPage[] = [];
-	let outputs: CollectedPage[] = [];
+	let outputs: Required<CollectedPage>[] = [];
 	let modules: ScanItem[] = [];
 	let later: ScanItem[] = [];
 	let alternates: Map<string, Named> = new Map(narrowOnly && last ? last.alternates : []);
@@ -526,6 +539,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 				scope.blocks,
 			))
 			: item.body;
+		item.body = '';
 
 		rendered_content = tags.scanImages(rendered_content, argv as Required<Argv>, config, `content/${item.rel}`, item.path);
 		$page.content = rendered_content;
@@ -583,7 +597,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		alternates.set(item.rel, { path: item.path, input: item.input, from: `content/${item.rel}`, found });
 
 		bundles.set(item.rel, bundler.placeholders(rendered_content));
-		pages.push({ output: item.output, html: rendered_content, path: item.path, params: item.params, from: chain.join(' → ') });
+		pages.push({ output: item.output, html: writes ? undefined : rendered_content, path: item.path, params: item.params, from: chain.join(' → ') });
+		await writes?.add(() => sink.write(item.output, rendered_content));
 	}
 
 	let copies: Map<string, { from: string; input: string }> = new Map();
@@ -693,16 +708,18 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		return [file.output, final];
 	}
 
+	async function substitute(page: CollectedPage): Promise<[string, string]> {
+		let html = await templates.substitute(page.html ?? String(await sink.read(page.output)), {
+			outputs: flushResult.outputs,
+			publicPath,
+			readFile: readOutput,
+		});
+		return finish(page, 'page', html);
+	}
+
 	// every file is ready before any is written, so a failed dev rebuild leaves the last good build
 	let ready = await Promise.all([
-		...pages.map(async page => {
-			let html = await templates.substitute(page.html, {
-				outputs: flushResult.outputs,
-				publicPath,
-				readFile: readOutput,
-			});
-			return finish(page, 'page', html);
-		}),
+		...(writes ? [] : pages.map(substitute)),
 		...outputs.map(file => finish(file, 'output', file.html)),
 		...json,
 	]);
@@ -717,6 +734,11 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		...[...renders.files].map(([name, entry]) => sink.defer(join(dest, name), entry.make)),
 		...[...copies].map(([file, copy]) => sink.defer(join(dest, file), () => images.slot(() => markdown(copy.input)))),
 	]);
+	if (writes) {
+		await writes.drain();
+		for (let page of pages) await writes.add(async () => sink.write(...await substitute(page)));
+		await writes.drain();
+	}
 	await Promise.all(ready.map(([file, text]) => sink.write(file, text)));
 
 	if (argv.minify) watch.step('minifying html');

@@ -66,4 +66,4 @@ When you run `bongo build`, bongo does these steps:
 4. It scans the rendered HTML for `<bongo:*>` elements, and the content of each page for `<img>` elements with a relative `src`. It registers each asset and replaces it with a placeholder token.
 5. It flushes the asset groups. JavaScript goes through Rolldown, CSS goes through LightningCSS, and images go through `Bun.Image`. Output file names include content hashes.
 6. It replaces the placeholders with external asset URLs or with inline asset contents.
-7. It passes each page and output file to [`$hooks.transform`](/hooks/), and writes the pages to `public/`. `bongo dev` keeps them in memory. With `--minify`, it then minifies the pages when the `minify` CLI is available. See [Minify](/cli/#minify).
+7. It passes each page and output file to [`$hooks.transform`](/hooks/), and writes the pages to `public/`. `bongo dev` keeps them in memory. So that a large site does not fill the memory, `bongo build` writes each page to `public/` as soon as it renders, then reads it again for steps 6 and 7. With `--minify`, it then minifies the pages when the `minify` CLI is available. See [Minify](/cli/#minify).

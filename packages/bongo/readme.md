@@ -36,7 +36,7 @@ An unknown option, or a `--port` that is not a port number, stops the command wi
 
 ### Output folder
 
-`bongo build` empties `public/` when it starts, before it loads the config, so no file from an earlier run stays.
+`bongo build` empties `public/` when it starts, before it loads the config, so no file from an earlier run stays. When the build fails, it empties `public/` again, so no part of the failed build stays.
 
 `bongo dev` does not use `public/`. It keeps its output in memory and serves it from there, so a `bongo build` that runs at the same time never changes what dev serves, and dev never changes what the build writes. With `--write`, `bongo dev` also writes its output to `public/`: it empties the folder before the first build, and each rebuild then deletes only the files that the new build no longer writes.
 
@@ -61,7 +61,7 @@ When you run `bongo build`:
 4. Rendered HTML is scanned for `<bongo:*>` elements, and each page's content for `<img>` elements with a relative `src`. Assets are registered and replaced with placeholder tokens.
 5. Asset groups are flushed. JavaScript goes through Rolldown; CSS goes through LightningCSS; images go through `Bun.Image`. Output filenames include content hashes.
 6. Placeholders are substituted with external asset URLs or inline asset contents.
-7. Pages are written to `public/`, or kept in memory by `bongo dev`. With `--minify`, they are then minified when the `minify` CLI is available.
+7. Pages are written to `public/`, or kept in memory by `bongo dev`. So that a large site does not fill the memory, `bongo build` writes each page to `public/` as soon as it renders, then reads it again for steps 6 and 7. With `--minify`, they are then minified when the `minify` CLI is available.
 
 ## Config
 
