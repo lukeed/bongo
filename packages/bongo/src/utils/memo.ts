@@ -46,7 +46,8 @@ export type Item = {
 /** The state of the last good build, by content file path. */
 export type Memo = {
 	key: string;
-	registries: { pages: string; tags: string; sections: Record<string, string> };
+	/** A hash of each registry; `outputs` is of the output files, which `$hooks.transform` gets. */
+	registries: { pages: string; tags: string; sections: Record<string, string>; outputs: string };
 	/** The bundler registration of each placeholder that a page of the memo has. */
 	bundles: Record<string, [entry: string, cfg: BundleConfig]>;
 	/** The source files of each placeholder's output in `bongo build`, and their hashes, from the last flush. */
