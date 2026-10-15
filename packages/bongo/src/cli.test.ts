@@ -116,7 +116,10 @@ describe('bongo cli', () => {
 		let taken = address.port;
 		try {
 			let out = await banner(['-C', root, '-H', '127.0.0.1', '--port', String(taken)]);
-			expect(out).toContain(`http://127.0.0.1:${taken + 1}/`);
+			// another process may hold the port above it, so dev may move further, up to 10 ports
+			let port = Number(out.match(/http:\/\/127\.0\.0\.1:(\d+)\//)?.[1]);
+			expect(port).toBeGreaterThan(taken);
+			expect(port).toBeLessThanOrEqual(taken + 10);
 		} finally {
 			blocker.close();
 			await rm(root, { recursive: true, force: true });
