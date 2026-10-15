@@ -5,6 +5,7 @@ import { join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import * as content from './content';
+import * as dev from './dev';
 
 type Sample = { wall: number; user: number; sys: number; rss: number };
 type Output = { files: number; bytes: number; sha: string };
@@ -37,9 +38,11 @@ let pages = Number(values.pages);
 if (!Number.isInteger(runs) || runs < 1) throw new Error(`Invalid --runs "${values.runs}"; use a whole number above 0`);
 if (!Number.isInteger(pages) || pages < 1) throw new Error(`Invalid --pages "${values.pages}"; use a whole number above 0`);
 
-let names = positionals.length ? positionals : Object.keys(SITES);
+// `dev` runs `bongo dev` on the generated site
+let targets = [...Object.keys(SITES), 'dev'];
+let names = positionals.length ? positionals : targets;
 for (let name of names) {
-	if (!SITES[name]) throw new Error(`Unknown "${name}" site; use ${Object.keys(SITES).join(' or ')}`);
+	if (!targets.includes(name)) throw new Error(`Unknown "${name}" target; use ${targets.join(', ')}`);
 }
 
 async function exec(cmd: string[]): Promise<string> {
@@ -142,12 +145,12 @@ console.log(`bongo ${ref} · bun ${Bun.version} · ${cpu[0].model} × ${cpu.leng
 console.log('~> building packages');
 await exec([process.execPath, 'run', 'build']);
 
-if (names.includes('site')) {
+if (names.includes('site') || names.includes('dev')) {
 	console.log(`~> writing ${pages} pages`);
 	await content.write(SITES.site, pages);
 }
 
-for (let name of names) {
+for (let name of names.filter(name => SITES[name])) {
 	let dir = SITES[name];
 	let out = join(dir, 'public');
 	console.log(`~> ${name}: 1 warmup + ${runs} runs`);
@@ -183,5 +186,17 @@ for (let name of names) {
 	console.log(row('peak rss of this run', ['', size(rss)]));
 	console.log('  From "rss" on, each column is read as the stage starts. "committed" and "in use" are of mimalloc. "live" is the js heap after a full GC, in a second run.');
 	if (stderr.trim()) console.log(`\n  stderr of the profile run:\n${stderr.trimEnd().replace(/^/gm, '    ')}`);
+	console.log('');
+}
+
+if (names.includes('dev')) {
+	console.log('~> dev: first build, 3 full rebuilds, 3 page edits');
+	let steps = await dev.profile(SITES.site, 3);
+	let width = Math.max(...steps.map(step => step.name.length));
+	let row = (label: string, cells: string[]) => `  ${label.padEnd(width)}${cells.map(cell => cell.padStart(11)).join('')}`;
+	console.log(`\n${relative(ROOT, SITES.site)}/ · bongo dev`);
+	console.log(row('step', ['time', 'max rss', 'rss after', 'footprint', 'js heap']));
+	for (let step of steps) console.log(row(step.name, [time(step.ms), size(step.max), size(step.after), size(step.footprint), size(step.heap)]));
+	console.log('  "footprint" and "js heap" are read once each step settles. On macOS, RSS also counts memory that the allocator freed, until the system takes it back.');
 	console.log('');
 }
