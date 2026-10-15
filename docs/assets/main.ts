@@ -89,6 +89,10 @@ function open(): void {
 function toggle(name: string, button: Element): void {
 	let on = document.body.classList.toggle(name);
 	button.setAttribute('aria-expanded', String(on));
+	if (!on) return;
+	// the menu and the page outline open in the same place, so one closes the other
+	for (let other of ['nav-open', 'toc-open'].filter(other => other !== name)) document.body.classList.remove(other);
+	for (let pill of document.querySelectorAll('.subbar [aria-expanded]')) if (pill !== button) pill.setAttribute('aria-expanded', 'false');
 }
 
 function copy(button: HTMLElement, text: string): void {
