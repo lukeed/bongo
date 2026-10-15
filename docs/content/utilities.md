@@ -120,6 +120,21 @@ $utils.url.path('/about/')
 //=> '/about/'
 ```
 
+### `url.ext(path, ext)`
+
+The path of a page plus an extension, as [`<bongo:alternate>`](/special-elements/#bongoalternate) names its Markdown copy. A folder page gives its route, and the root of the site gives `index`.
+
+```ts
+$utils.url.ext('/config/', 'md')
+//=> '/config.md'
+
+$utils.url.ext('/', 'md')
+//=> '/index.md'
+
+$utils.url.ext('/404.html', 'md')
+//=> '/404.md'
+```
+
 ## Dates
 
 ### `date.format(value, options?)`

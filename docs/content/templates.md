@@ -159,5 +159,6 @@ bongo has its own elements for the scripts, styles, and other files of `assets/`
 | `<bongo:asset>` | publish any file, such as a font or an icon, as a URL or a `<link rel="preload">`. |
 | `<bongo:client>` | add the [client runtime](/client-runtime/), for client-side navigation and view transitions. |
 | `<bongo:image>` | resize and convert an image, as a `<picture>` with a `srcset`. See [Images](/images/). |
+| `<bongo:alternate>` | link another version of the page, such as a Markdown copy that bongo writes. See [llms.txt](/llms-txt/). |
 
 bongo publishes only the files that these elements and your CSS use. A `src` that does not exist fails the build. See [Special elements](/special-elements/) for each attribute and the HTML that each element becomes, and [TypeScript](/typescript/) for type checks of these elements.

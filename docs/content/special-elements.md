@@ -174,6 +174,40 @@ The `src` is relative to `assets/`. A path that starts with `./`, `../`, or `/` 
 
 All other attributes, such as `alt`, `class`, and `fetchpriority`, go on the `<img>`.
 
+## `<bongo:alternate>`
+
+Writes a `<link rel="alternate">`, which names another version of the page. For `type="text/markdown"`, bongo also writes a Markdown copy of the page. See the [llms.txt guide](/llms-txt/).
+
+```hbs
+<bongo:alternate type="text/markdown" />
+```
+
+becomes, on the page `/config/`:
+
+```html
+<link rel="alternate" type="text/markdown" href="/config.md"/>
+```
+
+- `type` — the media type of the other version. Required.
+- `href` — its URL. For `text/markdown`, it defaults to the route of the page plus `.md`, as [`$utils.url.ext()`](/utilities/#urlextpath-ext) gives it. Other types need it. A relative `href` resolves against the URL of the page, as a browser resolves it.
+
+All other attributes, such as `title` and `hreflang`, go on the `<link>`. Other types are a plain link, such as a feed or a translation:
+
+```hbs
+<bongo:alternate type="application/rss+xml" href="/feed.xml" title="Blog" />
+<bongo:alternate type="text/html" hreflang="fr" href="/fr/config/" />
+```
+
+### Markdown copies
+
+When the type is `text/markdown`, and the `href` is a file of the site, bongo writes a copy of the page there: the `title` and the `summary` of its frontmatter, then the Markdown of the page as you wrote it.
+
+- A page from an `.html` or `.hbs` file has no Markdown to copy. It gets no copy and no `<link>`, so one layout can serve every page.
+- bongo reads the source again when it writes the copy, so the build does not keep it in memory. `bongo dev` makes a copy the first time that you open it.
+- The same `href` twice on one page writes one copy. Two pages that name the same file, or a copy that lands on another file of the site, fail the build.
+
+Output files and data modules see the alternates of each page in [`$pages`](/variables/#pages). A page's own templates do not, because bongo finds the element after the layouts render.
+
 ## Reserved names
 
-With [`@bongo/markdown`](/markdown/#elements), a `<bongo:name>` element in Markdown calls the partial with that name. The names `asset`, `client`, `image`, `script`, and `style` belong to bongo. Markdown passes those elements through, for bongo to replace, so a partial with one of these names cannot be called from Markdown. Call it with `{{#partial}}` instead.
+With [`@bongo/markdown`](/markdown/#elements), a `<bongo:name>` element in Markdown calls the partial with that name. The names `alternate`, `asset`, `client`, `image`, `script`, and `style` belong to bongo. Markdown passes those elements through, for bongo to replace, so a partial with one of these names cannot be called from Markdown. Call it with `{{#partial}}` instead.

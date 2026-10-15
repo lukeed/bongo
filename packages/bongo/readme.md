@@ -130,6 +130,7 @@ bongo gives `$utils` these helpers. Layouts, partials, `.hbs` content, and [data
 | `slug(text)` | A URL or anchor slug: `text` in lower case, with punctuation, symbols, and emoji removed, and each space as `-`. Letters and digits of every language stay. It is the id that `@bongo/markdown` gives a heading with `headingIds: true`, so `slug(heading.text)` equals `heading.id`, except that `slug` does not add `-1` to a repeated slug. `slug('Hello, world!')` is `hello-world`. |
 | `url.abs(to, from?)` | The full URL of `to`, resolved against `from`, or against `$site.url` when there is no `from`. For `https://example.com/blog/`, `url.abs('post/')` is `https://example.com/blog/post/`, and `url.abs('/about/')` is `https://example.com/about/`. |
 | `url.path(to, from?)` | The URL path of `to`, with its query and hash, resolved as `url.abs` resolves it. For `https://example.com/blog/`, `url.path('docs/')` is `/blog/docs/`, and `url.path('/about/')` is `/about/`. A path that already starts with `/`, such as `$page.path`, stays as it is, so links work on a site under a subpath. |
+| `url.ext(path, ext)` | The path of a page plus an extension, as `<bongo:alternate>` names its Markdown copy: `url.ext('/config/', 'md')` is `/config.md`, and `url.ext('/', 'md')` is `/index.md`. |
 | `date.format(value, options?)` | `value` as an ISO 8601 string, such as `2024-05-01T00:00:00.000Z`. With [`Intl.DateTimeFormat`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DateTimeFormat/DateTimeFormat#options) options, the date in the language of `$site.lang`, in UTC unless you set `timeZone`: `date.format('2024-05-01', { dateStyle: 'long' })` is `May 1, 2024`. An invalid date fails the build. |
 | `json(value)` | `value` as JSON that is safe inside a `<script>` element: it escapes `<`, `>`, `&`, U+2028, and U+2029 as `\u003c` and so on, so text such as `</script>` cannot end the element. Print it raw, with `{{{ }}}`: `<script type="application/ld+json">{{{ $utils.json(data) }}}</script>`. `undefined` gives `null`. |
 
@@ -398,6 +399,8 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax. Asset entrypo
 
 Multiple `<bongo:client>` tags on a page share one bundled runtime. A `nonce` goes on the script; every other attribute becomes a client option.
 
+`<bongo:alternate type="…" href="…" />` becomes a `<link rel="alternate">`, which names another version of the page, such as a feed or a translation. Other attributes, such as `title` and `hreflang`, go on the `<link>`. For `type="text/markdown"`, `href` defaults to the route of the page plus `.md`, and bongo also writes a Markdown copy of the page there: the `title` and `summary` of its frontmatter, then its Markdown as written. bongo reads the source again when it writes the copy, and `bongo dev` makes a copy on its first request. A page from an `.html` or `.hbs` file has no Markdown to copy, so it gets no copy and no `<link>`. Two pages that name the same file, or a copy that lands on another file of the site, fail the build.
+
 `<bongo:asset>` publishes any file from `assets/`, such as a font, image, or icon, under a content-hashed name. It goes through the same pipeline as files referenced from CSS `url()`: a file used by both gets one copy and one URL. That makes it the way to preload a font that your CSS loads.
 
 ```hbs
@@ -462,7 +465,7 @@ A `.hbs` partial declares the arguments that it reads with `{{#expect title, dat
 
 - `$site` — global site config.
 - `$page` — current page. Includes `path`, `url`, `title`, `summary`, `params`, `section`, `tags`, `headings`, and `content`. `headings` lists `{ level, id, text, html }` from the page's loader; `.html` and `.hbs` content has none.
-- `$pages` — every page in the build, sorted by path.
+- `$pages` — every page in the build, sorted by path. In output files and data modules, each entry also has `alternates`, the `<bongo:alternate>` elements of the page by type, such as `{ 'text/markdown': '/about.md' }`.
 - `$section` — pages scoped to the current page's section directory.
 - `$tags` — array of `{ tag, pages }` entries.
 - `$assets` — `load(filename, encoding?)` reads a file from `assets/` and returns a promise. `render(template, output?, options?)` draws a partial as an image and returns a promise of its URL path. See [Dynamic Images](#dynamic-images).
@@ -493,6 +496,7 @@ A `.hbs` file in `content/` is an output file, not a page, when its second exten
 An output file compiles with the same values as `.hbs` content: `$site`, `$page`, `$pages`, `$section`, `$tags`, `$data`, `$utils`, and its own frontmatter as `params`. It is different from a page:
 
 - It gets no layout. bongo writes it as it renders: it does not replace `<bongo:*>` elements or content images, adds no dev reload script, and never minifies it.
+- It renders after every page, so the entries of `$pages` have the `alternates` of each page. An `llms.txt.hbs` can list the Markdown copy of each page this way.
 - It is not in `$pages`, `$section`, or `$tags`, so a sitemap or a feed never lists itself.
 - Its frontmatter cannot set `url`. To change its path, rename the file.
 - `bongo dev` serves it with the content type of its extension, such as `text/xml`, and renders it again after every change to a page, because it can read every page.
