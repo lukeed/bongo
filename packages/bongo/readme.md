@@ -448,6 +448,8 @@ Add `transition:name` and `transition:animate` to HTML elements in a layout or p
 
 If `transition:animate` is present without `transition:name`, an automatic name is generated.
 
+An element with `transition:persist="KEY"`, or `transition:persist` and an `id`, is not replaced on a client navigation: the client runtime moves it into the new page in place of the element with the same key, so it keeps its scroll position, focus, and state. Update it yourself in a `bongo:replaced` handler, such as the link that marks the current page.
+
 ## Partials
 
 ```hbs

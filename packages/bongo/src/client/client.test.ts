@@ -85,6 +85,9 @@ describe('client() navigation', () => {
 		'/': { head: '<title>A</title>' + CORE, body: '<h1>A</h1>' },
 		'/b/': { head: '<title>B</title>' + CORE + '<link rel="stylesheet" href="/b.css">', body: '<h1>B</h1>' },
 		'/c/': { head: '<title>C</title>' + CORE + '<link rel="stylesheet" href="/c.css">', body: '<h1>C</h1><div id="bongo:live"></div>' },
+		'/one/': { head: '<title>One</title>' + CORE, body: '<aside transition:persist="side"><a href="/two/">Two</a></aside><nav id="bar" transition:persist><button>Menu</button></nav><h1>One</h1>' },
+		'/two/': { head: '<title>Two</title>' + CORE, body: '<h1>Two</h1><aside class="fresh" transition:persist="side"><a href="/one/">One</a></aside><nav id="bar" transition:persist></nav>' },
+		'/three/': { head: '<title>Three</title>' + CORE, body: '<h1>Three</h1>' },
 	};
 	let GLOBALS = [ 'document', 'DOMParser', 'location', 'history', 'window', 'navigation' ];
 
@@ -242,6 +245,31 @@ describe('client() navigation', () => {
 			'/core.css /b.css',
 			'/core.css /b.css off',
 		]);
+	});
+
+	test('keeps each transition:persist element, with its scroll and focus, in place of its copy on the new page', async () => {
+		await boot();
+		await go('/one/').done;
+		let side = document.querySelector('aside');
+		let bar = document.getElementById('bar');
+		let button = bar?.querySelector('button');
+		if (!side || !button) throw new Error('missing the elements to keep');
+		side.scrollTop = 40;
+		button.focus();
+
+		await go('/two/').done;
+		expect(heading()).toBe('Two');
+		expect(document.querySelector('aside')).toBe(side);
+		expect(side.className).toBe('');
+		expect(side.scrollTop).toBe(40);
+		expect(document.getElementById('bar')).toBe(bar);
+		expect(document.activeElement).toBe(button);
+		expect([...document.body.children].map(el => el.tagName)).toEqual(['DIV', 'H1', 'ASIDE', 'NAV']);
+
+		await go('/three/').done;
+		expect(document.querySelector('aside')).toBeNull();
+		await go('/one/').done;
+		expect(document.querySelector('aside')).not.toBe(side);
 	});
 
 	test('announces each new title in one live region that outlives the swaps', async () => {

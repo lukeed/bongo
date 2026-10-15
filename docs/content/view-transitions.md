@@ -61,6 +61,31 @@ and adds this rule to the `<style data-bongo-transitions>` block:
 ::view-transition-old(nav),::view-transition-new(nav){animation-name:slide}
 ```
 
+## Keep an element
+
+The client runtime replaces the whole `<body>` on each navigation. An element with `transition:persist` stays instead: the runtime moves it into the new page, in place of the element with the same key. Thus it keeps its scroll position, its focus, and its state, such as a sidebar that you scrolled or a video that plays.
+
+```hbs [layouts/single.hbs]
+<aside class="sidebar" transition:persist="sidebar">…</aside>
+```
+
+- The key is the value of `transition:persist`, or else the `id` of the element.
+- The new page must have an element with the same key, to mark where the kept element goes. If it has none, the element goes away, as other elements do.
+- The kept element does not change, so update it yourself when the page changes, such as the link that marks the current page. The `bongo:replaced` event runs just after the swap:
+
+```ts [assets/main.ts]
+import { on } from 'bongo/client';
+
+on('bongo:replaced', () => {
+	for (let link of document.querySelectorAll<HTMLAnchorElement>('.sidebar a')) {
+		if (link.pathname === location.pathname) link.setAttribute('aria-current', 'page');
+		else link.removeAttribute('aria-current');
+	}
+});
+```
+
+This site keeps its sidebar this way.
+
 ## Opt a link out
 
 A link with `transition:disable` forces a full-page load, with no transition:
@@ -71,4 +96,4 @@ A link with `transition:disable` forces a full-page load, with no transition:
 
 ## Types
 
-The TypeScript types of bongo add `transition:name` and `transition:animate` to every HTML element, and `transition:disable` to anchors. See [TypeScript](/typescript/).
+The TypeScript types of bongo add `transition:name`, `transition:animate`, and `transition:persist` to every HTML element, and `transition:disable` to anchors. See [TypeScript](/typescript/).

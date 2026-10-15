@@ -70,6 +70,7 @@ declare global {
 		interface HTMLAttributes<T> {
 			'transition:name'?: string;
 			'transition:animate'?: string;
+			'transition:persist'?: string | boolean;
 		}
 
 		// Anchor-only opt-outs consumed by the client runtime.

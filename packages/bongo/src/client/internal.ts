@@ -7,6 +7,7 @@ type Handler<K extends BongoEvent> = (detail: BongoEventDetails[ K ]) => void;
 const LISTENERS = new Map<BongoEvent, Set<Handler<BongoEvent>>>();
 
 const LIVE = 'bongo:live';
+const PERSIST = '[transition\\:persist]';
 
 // Fallback flag for browsers that don't expose NavigateEvent.sourceElement.
 let BYPASS_NEXT = false;
@@ -65,14 +66,45 @@ export async function fetchPage(url: URL, signal?: AbortSignal): Promise<string>
 	return res.text();
 }
 
+// The key of a `transition:persist` element: the attribute's value, or else its id.
+function persists(doc: Document): Map<string, Element> {
+	let out = new Map<string, Element>();
+	for (let el of doc.querySelectorAll(PERSIST)) {
+		let key = el.getAttribute('transition:persist') || el.id;
+		if (key) out.set(key, el);
+	}
+	return out;
+}
+
 export function reconcile(current: Document, incoming: Document): void {
 	current.title = incoming.title;
+
+	// Each `transition:persist` element moves into the new body in place of its copy, so it keeps its state.
+	// Moving an element resets its scroll, so it is put back after the swap.
+	let kept = persists(current);
+	let focus = current.activeElement;
+	let moved: { el: Element; top: number; left: number }[] = [];
+	for (let [key, copy] of persists(incoming)) {
+		let el = kept.get(key);
+		if (!el) continue;
+		moved.push({ el, top: el.scrollTop, left: el.scrollLeft });
+		copy.replaceWith(el);
+	}
 
 	// Body swap, keeping the one live region so screen readers keep tracking it.
 	let live = current.getElementById(LIVE);
 	incoming.getElementById(LIVE)?.remove();
 	current.body.replaceWith(incoming.body);
 	if (live) current.body.prepend(live);
+
+	for (let { el, top, left } of moved) {
+		el.scrollTop = top;
+		el.scrollLeft = left;
+	}
+	let view = current.defaultView;
+	if (view && focus instanceof view.HTMLElement && focus !== current.activeElement && moved.some(({ el }) => el.contains(focus))) {
+		focus.focus({ preventScroll: true });
+	}
 }
 
 /**
