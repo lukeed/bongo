@@ -225,6 +225,7 @@ export function imports(): string[] {
 
 async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog, writes: utils.Pool | undefined): Promise<void> {
 	let t0 = Date.now();
+	tags.reset();
 
 	// A dev rebuild writes over its last good build, so a failed one leaves that build serving.
 	let sink = opts.sink ?? output.disk(argv);

@@ -518,6 +518,22 @@ describe('scripts and styles', () => {
 		}
 	});
 
+	test('a stylesheet added after a build that missed it builds', async () => {
+		let root = await site({
+			'layouts/html.hbs': '{{{ $page.content }}}<bongo:style src="late.css" />',
+			'content/index.html': '<p>home</p>',
+		});
+		try {
+			await expect(build({ cwd: root, dev: true })).rejects.toThrow('Missing "assets/late.css"');
+			await mkdir(join(root, 'assets'), { recursive: true });
+			await writeFile(join(root, 'assets/late.css'), '.a { color: red }');
+			await build({ cwd: root, dev: true });
+			expect(await read(root, 'index.html')).toMatch(/href="\/late\.[^"]+\.css"/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('an inline style keeps its other attributes', async () => {
 		let root = await site({
 			'assets/print.css': '.a { color: red }',
