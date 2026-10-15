@@ -8,10 +8,11 @@ import * as content from './content';
 
 type Sample = { wall: number; user: number; sys: number; rss: number };
 type Output = { files: number; bytes: number; sha: string };
-type Stage = { name: string; ms: number; rss: number; heap: number };
-type Mark = { at: number; text: string; heap: number };
-type Trace = { t0: number; t1: number; marks: Mark[]; samples: [at: number, rss: number][]; rss: number };
-type Profile = { stages: Stage[]; rss: number };
+type Memory = { rss: number; committed: number; used: number; heap: number };
+type Stage = { name: string; ms: number; rss: number; start?: Memory; live?: number };
+type Mark = { at: number; text: string; memory: Memory | null };
+type Trace = { t0: number; t1: number; marks: Mark[]; samples: [at: number, rss: number][]; rss: number; stderr: string };
+type Profile = { stages: Stage[]; rss: number; stderr: string };
 
 const ROOT = join(import.meta.dirname, '..');
 const BIN = join(ROOT, 'packages/bongo/bin.js');
@@ -76,16 +77,16 @@ async function digest(dir: string): Promise<Output> {
 	return { files: files.length, bytes, sha: hash.digest('hex').slice(0, 16) };
 }
 
-// A build through stages.ts. With `heap`, it reads the live heap at each stage line; else `ps` reads its RSS as often as it can.
-async function trace(dir: string, heap: boolean): Promise<Trace> {
+// A build through stages.ts, which reads its memory at each stage line, after a full GC with `gc`; without `gc`, `ps` also reads its RSS as often as it can.
+async function trace(dir: string, gc: boolean): Promise<Trace> {
 	let t0 = Date.now();
-	let child = Bun.spawn([process.execPath, join(import.meta.dirname, 'stages.ts'), dir, ...(heap ? ['--heap'] : [])], { stdout: 'pipe', stderr: 'pipe' });
+	let child = Bun.spawn([process.execPath, join(import.meta.dirname, 'stages.ts'), dir, ...(gc ? ['--gc'] : [])], { stdout: 'pipe', stderr: 'pipe' });
 	let lines = new Response(child.stdout).text();
-	let stderr = new Response(child.stderr).text();
+	let errors = new Response(child.stderr).text();
 	let samples: [at: number, rss: number][] = [];
 	let t1 = 0;
 	let exited = child.exited.then(code => (t1 = Date.now(), code));
-	while (!heap && !t1) {
+	while (!gc && !t1) {
 		let at = Date.now();
 		let ps = Bun.spawn(['ps', '-o', 'rss=', '-p', String(child.pid)], { stdout: 'pipe', stderr: 'ignore' });
 		let kb = Number((await new Response(ps.stdout).text()).trim());
@@ -93,34 +94,35 @@ async function trace(dir: string, heap: boolean): Promise<Trace> {
 	}
 	let code = await exited;
 	let usage = child.resourceUsage();
-	if (code !== 0 || !usage) throw new Error(`bongo build failed in ${dir}:\n${await stderr}`);
+	let stderr = await errors;
+	if (code !== 0 || !usage) throw new Error(`bongo build failed in ${dir}:\n${stderr}`);
 	let marks = (await lines).trim().split('\n').map(line => {
-		let [at, text, live] = line.split('\t');
-		return { at: Number(at), text, heap: Number(live) };
+		let [at, text, memory] = line.split('\t');
+		return { at: Number(at), text, memory: JSON.parse(memory) };
 	});
-	return { t0, t1, marks, samples, rss: usage.maxRSS * RSS_UNIT };
+	return { t0, t1, marks, samples, rss: usage.maxRSS * RSS_UNIT, stderr };
 }
 
-// Time and max RSS of each stage come from a plain run; the live heap as each stage starts comes from a `--heap` run, since its GCs change RSS.
+// Time, RSS, and memory at the start of each stage come from a plain run; the live heap comes from a `--gc` run, since its GCs change the rest.
 async function profile(dir: string): Promise<Profile> {
 	let plain = await trace(dir, false);
-	let heaps = new Map((await trace(dir, true)).marks.map(mark => [mark.text, mark.heap]));
+	let lives = new Map((await trace(dir, true)).marks.map(mark => [mark.text, mark.memory?.heap]));
 	let stages: Stage[] = [];
 	let name = 'boot';
 	let from = plain.t0;
-	let heap = 0;
+	let start: Memory | undefined;
 	let close = (to: number) => {
 		let rss = plain.samples.filter(([at]) => at >= from && at < to).map(([, rss]) => rss);
-		stages.push({ name, ms: to - from, rss: Math.max(0, ...rss), heap });
+		stages.push({ name, ms: to - from, rss: Math.max(0, ...rss), start, live: start && lives.get(name) });
 	};
 	for (let mark of plain.marks) {
 		close(mark.at);
 		name = mark.text.startsWith(name + ': ') ? '(other)' : mark.text;
 		from = mark.at;
-		heap = heaps.get(mark.text) ?? 0;
+		start = mark.memory ?? undefined;
 	}
 	close(plain.t1);
-	return { stages: stages.filter(stage => stage.name !== '(other)' || stage.ms >= 5), rss: plain.rss };
+	return { stages: stages.filter(stage => stage.name !== '(other)' || stage.ms >= 5), rss: plain.rss, stderr: plain.stderr };
 }
 
 function stat(list: number[]): [median: number, min: number, max: number] {
@@ -158,7 +160,7 @@ for (let name of names) {
 		if ((await digest(out)).sha !== output.sha) throw new Error(`${name}: run ${i + 1} wrote other bytes than the warmup run`);
 	}
 
-	let { stages, rss } = await profile(dir);
+	let { stages, rss, stderr } = await profile(dir);
 	if ((await digest(out)).sha !== output.sha) throw new Error(`${name}: a profile run wrote other bytes than the warmup run`);
 
 	let rows: [string, string, string][] = [['', 'median', 'min … max']];
@@ -173,8 +175,13 @@ for (let name of names) {
 	console.log(`  ${'output'.padEnd(10)}${output.files} files · ${size(output.bytes)} · sha256 ${output.sha}`);
 
 	let width = Math.max(...stages.map(stage => stage.name.length));
-	console.log(`\n  ${'stage'.padEnd(width)}${'time'.padStart(10)}${'max rss'.padStart(12)}${'heap at start'.padStart(16)}`);
-	for (let stage of stages) console.log(`  ${stage.name.padEnd(width)}${time(stage.ms).padStart(10)}${size(stage.rss).padStart(12)}${size(stage.heap).padStart(16)}`);
-	console.log(`  ${'peak rss of this run'.padEnd(width)}${''.padStart(10)}${size(rss).padStart(12)}`);
+	let row = (label: string, cells: string[]) => `  ${label.padEnd(width)}${cells.map(cell => cell.padStart(11)).join('')}`;
+	console.log('\n' + row('stage', ['time', 'max rss', 'rss', 'committed', 'in use', 'js heap', 'live']));
+	for (let { name, ms, rss, start, live } of stages) {
+		console.log(row(name, [time(ms), size(rss), size(start?.rss ?? 0), size(start?.committed ?? 0), size(start?.used ?? 0), size(start?.heap ?? 0), size(live ?? 0)]));
+	}
+	console.log(row('peak rss of this run', ['', size(rss)]));
+	console.log('  From "rss" on, each column is read as the stage starts. "committed" and "in use" are of mimalloc. "live" is the js heap after a full GC, in a second run.');
+	if (stderr.trim()) console.log(`\n  stderr of the profile run:\n${stderr.trimEnd().replace(/^/gm, '    ')}`);
 	console.log('');
 }
