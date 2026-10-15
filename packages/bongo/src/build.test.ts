@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, spyOn, test } from 'bun:test';
-import { heapStats } from 'bun:jsc';
 import { randomBytes } from 'node:crypto';
 import { existsSync, realpathSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
@@ -897,20 +896,27 @@ describe('page writes', () => {
 
 	test('a dev build keeps none of its pages in memory once it returns', async () => {
 		let layout = { 'partials/note.hbs': '<i>note</i>', 'layouts/html.hbs': '<html>{{#partial src="note"}}{{{ $page.content }}}</html>' };
-		let pages = Object.fromEntries(Array.from({ length: 200 }, (_, i) => [`content/p${i}.html`, '<p>' + '—'.repeat(40_000) + '</p>']));
+		// one body for every page, so the test itself holds 80 kB, and the build would hold 200 pages
+		let body = '<p>' + '—'.repeat(40_000) + '</p>';
 		let warm = await site({ ...layout, 'content/index.html': '<p>warm</p>' });
-		let root = await site({ ...layout, ...pages });
-		// a GC in a new task, since JSC scans the stack, where a frame of the build could still pin its objects
-		let live = async () => {
-			await new Promise(next => setTimeout(next));
-			Bun.gc(true);
-			return heapStats().heapSize;
-		};
+		let root = await site({ ...layout, ...Object.fromEntries(Array.from({ length: 200 }, (_, i) => [`content/p${i}.html`, body])) });
+		// a fresh process, since JSC scans the stack, and a stale frame in a long test run can pin the build; each GC also runs in a new task
+		let script = [
+			`import { heapStats } from 'bun:jsc';`,
+			`import { build } from ${JSON.stringify(join(import.meta.dirname, 'build.ts'))};`,
+			`console.log = () => {};`,
+			`let live = async () => { await new Promise(next => setTimeout(next)); Bun.gc(true); return heapStats().heapSize; };`,
+			`await build({ cwd: ${JSON.stringify(warm)}, dev: true });`,
+			`let before = await live();`,
+			`await build({ cwd: ${JSON.stringify(root)}, dev: true });`,
+			`process.stdout.write('@delta ' + (await live() - before));`,
+		].join('\n');
 		try {
-			await build({ cwd: warm, dev: true });
-			let before = await live();
-			await build({ cwd: root, dev: true });
-			expect(await live() - before).toBeLessThan(5e6);
+			let child = Bun.spawn([process.execPath, '-e', script], { stdout: 'pipe', stderr: 'pipe' });
+			let [out, err] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+			let delta = /@delta (\d+)/.exec(out)?.[1];
+			if (delta === undefined) throw new Error(err || out);
+			expect(Number(delta)).toBeLessThan(5e6);
 		} finally {
 			await rm(warm, { recursive: true, force: true });
 			await rm(root, { recursive: true, force: true });
