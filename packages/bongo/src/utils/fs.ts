@@ -13,6 +13,7 @@ export { exists };
 
 export const ls = fs.readdir;
 export const read = fs.readFile;
+export const stat = fs.stat;
 
 /**
  * Whether `path` is a file, after symlinks resolve.
@@ -66,13 +67,21 @@ export function unsafe(dir: string, root: string, keep: string[]): string | unde
 }
 
 /**
+ * Throw when `unsafe()` refuses `dir` as the output folder of the project at `root`.
+ * @example guard('/site', '/site', []) // throws 'Refusing to empty the output folder "/site": it is the project root'
+ */
+function guard(dir: string, root: string, keep: string[]): void {
+	let reason = unsafe(dir, root, keep);
+	if (reason) throw new Error(`Refusing to empty the output folder "${dir}": ${reason}`);
+}
+
+/**
  * Delete everything inside `dir`, the output folder, after `unsafe()` allows it. A symlink is deleted, never followed.
  * Another bongo may empty the same folder at the same time.
  * @example await empty('/site/public', '/site', ['/site/content', '/site/assets'])
  */
 export async function empty(dir: string, root: string, keep: string[]): Promise<void> {
-	let reason = unsafe(dir, root, keep);
-	if (reason) throw new Error(`Refusing to empty the output folder "${dir}": ${reason}`);
+	guard(dir, root, keep);
 	try {
 		var names = await fs.readdir(dir);
 	} catch (err) {
@@ -85,7 +94,9 @@ export async function empty(dir: string, root: string, keep: string[]): Promise<
 export type Reuse = {
 	/** Make room to write `file`, and claim it and its folders, so that `sweep` keeps them. */
 	fit(file: string): Promise<void>;
-	/** Delete each kept file that no `fit` claimed, and the folders that this leaves empty. */
+	/** Claim `file`, which stays as it is, and its folders, so that `sweep` keeps them. */
+	claim(file: string): void;
+	/** Delete each kept file that no `fit` or `claim` claimed, and the folders that this leaves empty. */
 	sweep(): Promise<void>;
 };
 
@@ -95,14 +106,21 @@ type Kept = { rel: string; dir: boolean; claimed: boolean; gone: boolean };
  * Get ready to write over `dir`, the output folder, after `unsafe()` allows it: delete each symlink in it, never what it points to, and keep the rest.
  * Writing over a file is much faster than making it again. Before each write, `fit` deletes a kept path that no write claimed and that stands in the way:
  * a file where the write needs a folder, a folder where it needs a file, or a path that differs in case only, which a case-insensitive disk would write into.
+ * With `made`, the files that the last build left in `dir`, it lists nothing and keeps only those, so a file that something else put there stays.
+ * Then each path that a write or the sweep goes through is checked once, and a symlink in it is deleted.
  * @example let old = await reuse('/site/public', '/site', keep); await old.fit(file); await write(file, data); await old.sweep();
  */
-export async function reuse(dir: string, root: string, keep: string[]): Promise<Reuse> {
-	let reason = unsafe(dir, root, keep);
-	if (reason) throw new Error(`Refusing to empty the output folder "${dir}": ${reason}`);
+export async function reuse(dir: string, root: string, keep: string[], made?: string[]): Promise<Reuse> {
+	guard(dir, root, keep);
 
 	let all: Kept[] = [];
 	let kept: Map<string, Kept[]> = new Map();
+	let add = (rel: string, folder: boolean) => {
+		let item: Kept = { rel, dir: folder, claimed: false, gone: false };
+		all.push(item);
+		let key = rel.toLowerCase();
+		kept.set(key, [...kept.get(key) ?? [], item]);
+	};
 	let walk = async (rel: string): Promise<void> => {
 		try {
 			var entries = await fs.readdir(join(dir, rel), { withFileTypes: true });
@@ -113,14 +131,44 @@ export async function reuse(dir: string, root: string, keep: string[]): Promise<
 		await utils.settle(entries.map(async entry => {
 			let path = rel ? rel + '/' + entry.name : entry.name;
 			if (entry.isSymbolicLink()) return remove(join(dir, path));
-			let item: Kept = { rel: path, dir: entry.isDirectory(), claimed: false, gone: false };
-			all.push(item);
-			let key = path.toLowerCase();
-			kept.set(key, [...kept.get(key) ?? [], item]);
-			if (item.dir) await walk(path);
+			add(path, entry.isDirectory());
+			if (entry.isDirectory()) await walk(path);
 		}));
 	};
-	await walk('');
+
+	if (made) {
+		let folders: Set<string> = new Set();
+		for (let rel of made) {
+			add(rel, false);
+			for (let at = rel.lastIndexOf('/'); at > 0; at = rel.lastIndexOf('/', at - 1)) {
+				let folder = rel.slice(0, at);
+				if (folders.has(folder)) break;
+				folders.add(folder);
+				add(folder, true);
+			}
+		}
+	} else {
+		await walk('');
+	}
+
+	let lose = (rel: string) => {
+		for (let other of all) {
+			if (other.rel === rel || other.rel.startsWith(rel + '/')) other.gone = true;
+		}
+	};
+
+	// without a walk, a symlink may have come since the last build: delete it, once for each path, before a write or a deletion goes through it
+	let checks: Map<string, Promise<boolean>> = new Map();
+	let real = (rel: string): Promise<boolean> => {
+		let hit = checks.get(rel);
+		if (!hit) checks.set(rel, hit = fs.lstat(join(dir, rel)).then(async info => {
+			if (!info.isSymbolicLink()) return true;
+			lose(rel);
+			await remove(join(dir, rel));
+			return false;
+		}, () => true));
+		return hit;
+	};
 
 	// a deletion in progress, by the lowercase path; a write to that path waits for it
 	let pending: Map<string, Promise<void>> = new Map();
@@ -132,6 +180,7 @@ export async function reuse(dir: string, root: string, keep: string[]): Promise<
 				let rel = parts.slice(0, i).join('/');
 				let key = rel.toLowerCase();
 				while (pending.has(key)) await pending.get(key);
+				if (made) await real(rel);
 				for (let item of kept.get(key) ?? []) {
 					if (item.gone) continue;
 					if (item.rel === rel && item.dir === (i < parts.length)) {
@@ -139,17 +188,29 @@ export async function reuse(dir: string, root: string, keep: string[]): Promise<
 						continue;
 					}
 					if (item.claimed) continue;
-					for (let other of all) {
-						if (other.rel === item.rel || other.rel.startsWith(item.rel + '/')) other.gone = true;
-					}
+					lose(item.rel);
 					let job = remove(join(dir, item.rel)).finally(() => pending.delete(key));
 					pending.set(key, job);
 					await job;
 				}
 			}
 		},
+		claim(file) {
+			let parts = relative(dir, file).split(sep);
+			for (let i = 1; i <= parts.length; i++) {
+				let rel = parts.slice(0, i).join('/');
+				for (let item of kept.get(rel.toLowerCase()) ?? []) {
+					if (item.rel === rel && item.dir === (i < parts.length)) item.claimed = true;
+				}
+			}
+		},
 		async sweep() {
-			await utils.settle(all.filter(item => !item.dir && !item.claimed && !item.gone).map(item => prune(join(dir, item.rel), dir)));
+			await utils.settle(all.filter(item => !item.dir && !item.claimed && !item.gone).map(async item => {
+				for (let at = item.rel.indexOf('/'); made && at > 0; at = item.rel.indexOf('/', at + 1)) {
+					if (!await real(item.rel.slice(0, at))) return;
+				}
+				if (!item.gone) await prune(join(dir, item.rel), dir);
+			}));
 		},
 	};
 }

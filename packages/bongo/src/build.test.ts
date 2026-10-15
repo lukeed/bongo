@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
 import { existsSync, realpathSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -1150,6 +1150,98 @@ describe('incremental builds', () => {
 			expect(await run()).toEqual([]);
 			await edit('content/about.html', '<p>about</p>', '<p>about us</p>')(root);
 			expect(await run()).toEqual(['/about/']);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a source whose size and mtime stay as the memo has them is not read, so its page stays until --fresh', async () => {
+		let root = await site(sources());
+		let file = join(root, 'content/about.html');
+		let old = new Date('2020-01-01T00:00:00Z');
+		try {
+			await utimes(file, old, old);
+			await build({ cwd: root });
+			await edit('content/about.html', '<p>about</p>', '<p>abcde</p>')(root);
+			await utimes(file, old, old);
+			await build({ cwd: root });
+			expect(await read(root, 'about/index.html')).toContain('<p>about</p>');
+			await build({ cwd: root, fresh: true });
+			expect(await read(root, 'about/index.html')).toContain('<p>abcde</p>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a source that changed just before a build is read by the next, even with the same size and mtime', async () => {
+		let root = await site(sources());
+		let file = join(root, 'content/about.html');
+		let recent = new Date(Date.now() - 500);
+		try {
+			await utimes(file, recent, recent);
+			await build({ cwd: root });
+			await edit('content/about.html', '<p>about</p>', '<p>abcde</p>')(root);
+			await utimes(file, recent, recent);
+			await build({ cwd: root });
+			expect(await read(root, 'about/index.html')).toContain('<p>abcde</p>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a file that something else put in public/ stays through bongo build, until --fresh lists the folder', async () => {
+		let root = await site(sources());
+		try {
+			await build({ cwd: root });
+			await writeFile(join(root, 'public/stray.txt'), 'x');
+			await edit('content/about.html', '<p>about</p>', '<p>about us</p>')(root);
+			await build({ cwd: root });
+			expect(existsSync(join(root, 'public/stray.txt'))).toBe(true);
+			await build({ cwd: root, fresh: true });
+			expect(existsSync(join(root, 'public/stray.txt'))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a symlink that comes into public/ after a build is deleted, never followed, by a write or the sweep', async () => {
+		let root = await site(sources());
+		let outside = await mkdtemp(join(tmpdir(), 'bongo-outside-'));
+		try {
+			await build({ cwd: root });
+			for (let name of ['a', 'b']) {
+				await mkdir(join(outside, name));
+				await writeFile(join(outside, name, 'index.html'), 'precious');
+			}
+			await rm(join(root, 'public/blog'), { recursive: true });
+			await symlink(outside, join(root, 'public/blog'));
+			await edit('content/blog/a.html', '<p>a</p>', '<p>a2</p>')(root);
+			await rm(join(root, 'content/blog/b.html'));
+			await build({ cwd: root });
+			expect(await readFile(join(outside, 'a/index.html'), 'utf8')).toBe('precious');
+			expect(await readFile(join(outside, 'b/index.html'), 'utf8')).toBe('precious');
+			expect((await lstat(join(root, 'public/blog'))).isSymbolicLink()).toBe(false);
+			expect(await read(root, 'blog/a/index.html')).toContain('<p>a2</p>');
+			expect(existsSync(join(root, 'public/blog/b/index.html'))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+			await rm(outside, { recursive: true, force: true });
+		}
+	});
+
+	test('a failed bongo build forgets the memo, since it empties public/', async () => {
+		let root = await site(sources());
+		let saved = join(root, 'node_modules/.cache/bongo/memo.json');
+		try {
+			await build({ cwd: root });
+			expect(existsSync(saved)).toBe(true);
+			await writeFile(join(root, 'content/broken.hbs'), '<p>{{ $utils.nope() }}</p>');
+			await expect(build({ cwd: root })).rejects.toThrow('nope');
+			expect(existsSync(saved)).toBe(false);
+			await rm(join(root, 'content/broken.hbs'));
+			rendered();
+			await build({ cwd: root });
+			expect(rendered()).toEqual(all);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
