@@ -11,6 +11,7 @@ import * as yaml from './yaml';
 import type { Argv, Config, Template } from 'bongo';
 import type { Args } from './tempura/index';
 import type { OutputInfo, Placeholder } from './bundler';
+import type { Read } from './memo';
 
 type Cache = Map<string, Template.Compiler>;
 
@@ -28,6 +29,42 @@ export const Partials: Cache = new Map;
 
 // The file of each partial, for errors; `$partials` entries have none.
 const FILES: Map<string, string> = new Map;
+
+// The registries that each layout ("layouts/html.hbs") and partial ("partials/nav") names in its source.
+const READS: Map<string, Read[]> = new Map;
+const REGISTRIES: Read[] = ['pages', 'section', 'tags'];
+
+// The partials that render while a page renders; pages render one at a time.
+let USED: Set<string> | undefined;
+
+/**
+ * The registries that a template names, which are the only ones it can read: tempura reaches a value only by its name.
+ * @example reads('{{#each $section as p}}{{ p.title }}{{/each}}') //=> ['section']
+ */
+export function reads(source: string): Read[] {
+	return REGISTRIES.filter(name => new RegExp('\\$' + name + '\\b').test(source));
+}
+
+/**
+ * The registries that a layout or a partial reads; one in TypeScript or JavaScript may read any of them.
+ * @example readsOf('layouts/blog/single.hbs') //=> ['section']
+ */
+export function readsOf(name: string): Read[] {
+	return READS.get(name) ?? REGISTRIES;
+}
+
+/**
+ * Note each partial that renders until the returned function is called, which gives their names.
+ * @example let stop = templates.track(); await view(data, blocks); let used = stop(); //=> Set { 'nav', 'footer' }
+ */
+export function track(): () => Set<string> {
+	let used: Set<string> = new Set();
+	USED = used;
+	return () => {
+		if (USED === used) USED = undefined;
+		return used;
+	};
+}
 
 // Strip the extension and normalise backslashes to forward slashes so partial
 // names are stable across platforms (Windows' `\`-separated `fs.readdir` paths
@@ -128,6 +165,7 @@ export async function collect(argv: Required<Argv>, config: Context): Promise<vo
 	for (let key in blocks) if (key !== 'partial') delete blocks[key];
 	Partials.clear();
 	Layouts.clear();
+	READS.clear();
 
 	// Re-assign onto the exported const so ESM consumers see the new closures.
 	Object.assign(blocks, made);
@@ -138,10 +176,11 @@ export async function collect(argv: Required<Argv>, config: Context): Promise<vo
 	let options: tempura.Options = { async: true, props, blocks: blocks as unknown as tempura.Blocks };
 	let partial: tempura.Options = { ...options, props: [...props, '$slot'] };
 
-	async function compile(dir: string, rel: string, opts = options) {
+	async function compile(dir: string, rel: string, name: string, opts = options) {
 		try {
 			let file = join(dir, rel);
 			let content = await fs.read(file, 'utf8');
+			READS.set(name, reads(content));
 			return tempura.compile(content, opts);
 		} catch (err) {
 			let type = parse(dir).name.slice(0, -1); // strip "s"
@@ -174,7 +213,7 @@ export async function collect(argv: Required<Argv>, config: Context): Promise<vo
 			let file = String(rel);
 			let render: Template.Compiler;
 			if (isHBS.test(file)) {
-				let compiled = await compile(partials, file, partial);
+				let compiled = await compile(partials, file, 'partials/' + key, partial);
 				render = async (data, scope) => {
 					try {
 						return await compiled(data, scope);
@@ -194,6 +233,7 @@ export async function collect(argv: Required<Argv>, config: Context): Promise<vo
 
 			// NOTE: Partials get the page values of the page that renders them; arguments win
 			let compiler = (x: Args, page?: tempura.Blocks) => {
+				USED?.add(key);
 				let values = page && SCOPES.get(page);
 				return render({ ...values, ...x, ...config, $assets: values?.$assets ?? config.$assets }, page ?? blocks as unknown as tempura.Blocks);
 			};
@@ -204,7 +244,11 @@ export async function collect(argv: Required<Argv>, config: Context): Promise<vo
 	for (let name in config.$partials) {
 		let key = toPartialName(name);
 		debug('[collect.$partials]', key);
-		let compiler = config.$partials[name];
+		let render = config.$partials[name];
+		let compiler: Template.Compiler = (...args) => {
+			USED?.add(key);
+			return render(...args);
+		};
 		FILES.delete(key);
 		Partials.set(key, blocks[key] = compiler);
 	}
@@ -212,7 +256,7 @@ export async function collect(argv: Required<Argv>, config: Context): Promise<vo
 	await fs.list(layouts, async (_, rel) => {
 		if (isHBS.test(rel)) {
 			debug('[collect.layouts]', rel);
-			Layouts.set(rel, await compile(layouts, rel));
+			Layouts.set(rel, await compile(layouts, rel, 'layouts/' + rel.replace(/\\/g, '/')));
 		}
 	});
 }

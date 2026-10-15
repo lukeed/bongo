@@ -239,7 +239,7 @@ describe('$assets.render', () => {
 		}
 	});
 
-	test('a narrow rebuild fails when a page renders over the image of a page it did not render again', async () => {
+	test('a rebuild fails when a page renders over the image of a page that did not render again', async () => {
 		let root = await site({
 			'partials/card.hbs': '<div style="display: flex; width: 100%; height: 100%; background: {{ $page.params.color }}"></div>',
 			'content/a.hbs': `---\ncolor: red\n---\n{{ await $assets.render('card', 'a.png') }}`,
@@ -248,11 +248,11 @@ describe('$assets.render', () => {
 		try {
 			await build({ cwd: root });
 			await writeFile(join(root, 'content/b.hbs'), `---\ncolor: blue\n---\n{{ await $assets.render('card', 'a.png') }}`);
-			let err = await build({ cwd: root }, { only: 'b.hbs' }).then(() => undefined, (err: Error) => err);
+			let err = await build({ cwd: root }).then(() => undefined, (err: Error) => err);
 			expect(err?.message).toContain('"a.png" renders twice with different content, from /a/ and /b/');
 
 			await writeFile(join(root, 'content/b.hbs'), `---\ncolor: blue\n---\n{{ await $assets.render('card', 'c.png') }}`);
-			await build({ cwd: root }, { only: 'b.hbs' });
+			await build({ cwd: root });
 			expect((await readdir(join(root, 'public'))).filter(name => name.endsWith('.png')).sort()).toEqual(['a.png', 'c.png']);
 		} finally {
 			await rm(root, { recursive: true, force: true });
@@ -270,7 +270,8 @@ describe('$assets.render', () => {
 			let [entry] = await readdir(cache);
 			expect(entry).toMatch(/^[a-f0-9]{16}\.png$/);
 			await writeFile(join(cache, entry), 'cached');
-			await build({ cwd: root });
+			// fresh, since a page that nothing changed for does not render again
+			await build({ cwd: root, fresh: true });
 			expect(await readFile(join(root, 'public/card.png'), 'utf8')).toBe('cached');
 		} finally {
 			await rm(root, { recursive: true, force: true });

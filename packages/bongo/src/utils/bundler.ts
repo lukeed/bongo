@@ -113,6 +113,11 @@ function toGroupKey(entry: string, cfg: BundleConfig): string {
 
 const PLACEHOLDER = /__BONGO_BUNDLE:[a-f0-9]{16}__/g;
 
+// The part of a placeholder that names its output in dev: the same for one entry and its settings, whatever its content.
+function stable(placeholder: Placeholder): string {
+	return placeholder.slice('__BONGO_BUNDLE:'.length, '__BONGO_BUNDLE:'.length + 8);
+}
+
 /**
  * The distinct placeholders that rendered `html` references.
  * Each is a copy, since a match shares the memory of all of `html` and would keep it alive.
@@ -134,6 +139,16 @@ export function retain(keep: Set<string>): void {
 	}
 	GROUPS = groups;
 	REGISTRATIONS = new Map([...REGISTRATIONS].filter(([placeholder]) => keep.has(placeholder)));
+}
+
+/**
+ * The entry and config that `placeholder` stands for, so a page that does not render again can register its assets again.
+ * @example let [entry, cfg] = registration(placeholder) ?? []; register(entry, cfg) //=> placeholder
+ */
+export function registration(placeholder: string): [entry: string, cfg: BundleConfig] | undefined {
+	for (let [key, reg] of REGISTRATIONS) {
+		if (key === placeholder) return [reg.entry, reg.cfg];
+	}
 }
 
 export function register(entry: string, cfg: BundleConfig): Placeholder {
@@ -162,6 +177,8 @@ type FlushContext = {
 	emit: (file: string) => Promise<string>;
 	files: Set<string>;
 	images: images.Context;
+	/** Name scripts and stylesheets by their entry and settings, not their content, so an edit changes no page that links them. */
+	dev: boolean;
 };
 
 /**
@@ -268,7 +285,7 @@ async function flushJsGroup(
 	let input: Record<string, string> = {};
 	let entryByName: Map<string, Registration> = new Map();
 	for (let reg of regs.toSorted((a, b) => a.entry < b.entry ? -1 : a.entry > b.entry ? 1 : 0)) {
-		let base = path.basename(reg.entry).replace(/\.[^.]+$/, '');
+		let base = path.basename(reg.entry).replace(/\.[^.]+$/, '') + (ctx.dev ? '.' + stable(reg.placeholder) : '');
 		let name = base;
 		let i = 1;
 		while (entryByName.has(name)) name = `${base}-${i++}`;
@@ -313,7 +330,7 @@ async function flushJsGroup(
 			codeSplitting: cfg.split !== false,
 			minify: cfg.minify ?? false,
 			sourcemap: cfg.sourceMap === 'inline' ? 'inline' : false,
-			entryFileNames: '[name].[hash].js',
+			entryFileNames: ctx.dev ? '[name].js' : '[name].[hash].js',
 			chunkFileNames: '[name].[hash].js',
 			assetFileNames: '[name].[hash][extname]',
 		});
@@ -358,7 +375,7 @@ async function flushCssGroup(
 		let code = result.code;
 		let hash = createHash('sha256').update(code).digest('hex').slice(0, 8);
 		let base = path.basename(reg.entry).replace(/\.[^.]+$/, '');
-		let filename = `${base}.${hash}.css`;
+		let filename = `${base}.${ctx.dev ? stable(reg.placeholder) : hash}.css`;
 
 		await ctx.sink.write(path.join(outDir, filename), code);
 		ctx.files.add(filename);
@@ -435,6 +452,7 @@ export async function flush(opts: {
 		publicPath: opts.publicPath ?? '/',
 		emit,
 		files,
+		dev: opts.dev ?? false,
 		images: images.context({
 			outDir: opts.outDir,
 			sink,

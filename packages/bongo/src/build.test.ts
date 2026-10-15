@@ -185,7 +185,7 @@ describe('output files', () => {
 		}
 	});
 
-	test('a narrow rebuild renders every output file again from all pages, and leaves other pages alone', async () => {
+	test('a rebuild renders every output file again from all pages, and leaves other pages alone', async () => {
 		let root = await site({
 			'content/a.html': '---\ntitle: A\n---\n<p>a</p>',
 			'content/b.html': '---\ntitle: B\n---\n<p>b</p>',
@@ -200,14 +200,14 @@ describe('output files', () => {
 
 			await new Promise(r => setTimeout(r, 20));
 			await writeFile(join(root, 'content/a.html'), '---\ntitle: A\n---\n<p>a, edited</p>');
-			await build({ cwd: root }, { only: 'a.html' });
+			await build({ cwd: root });
 			expect(await read(root, 'a/index.html')).toContain('a, edited');
 			expect(await read(root, 'list.txt')).toBe('A;B;');
 			expect(await mtime('list.txt')).toBeGreaterThan(list);
 			expect(await mtime('b/index.html')).toBe(sibling);
 
 			await writeFile(join(root, 'content/list.txt.hbs'), '{{#each $pages as p}}[{{ p.title }}]{{/each}}');
-			await build({ cwd: root }, { only: 'list.txt.hbs' });
+			await build({ cwd: root });
 			expect(await read(root, 'list.txt')).toBe('[A][B]');
 			expect(await mtime('b/index.html')).toBe(sibling);
 		} finally {
@@ -283,7 +283,7 @@ describe('data modules', () => {
 		}
 	});
 
-	test('a narrow rebuild runs every data module again', async () => {
+	test('a rebuild runs every data module again', async () => {
 		let root = await site({
 			'content/a.html': '---\ntitle: A\n---\n<p>a</p>',
 			'content/titles.json.ts': 'export default ({ $pages }: Record<string, any>) => $pages.map((p: { title: string }) => p.title);',
@@ -292,7 +292,7 @@ describe('data modules', () => {
 			await build({ cwd: root });
 			expect(await read(root, 'titles.json')).toBe('["A"]');
 			await writeFile(join(root, 'content/a.html'), '---\ntitle: A2\n---\n<p>a</p>');
-			await build({ cwd: root }, { only: 'a.html' });
+			await build({ cwd: root });
 			expect(await read(root, 'titles.json')).toBe('["A2"]');
 		} finally {
 			await rm(root, { recursive: true, force: true });
@@ -784,7 +784,8 @@ describe('$hooks.transform', () => {
 			expect(await read(root, 'feed.xml')).toStartWith('<feed/>|');
 			expect(await info('feed.xml')).toEqual({ kind: 'output', path: '/feed.xml', params: { format: 'rss' }, outputs, title: 'T', placeholders: false });
 
-			await build({ cwd: root }, { only: 'index.html' });
+			await writeFile(join(root, 'content/index.html'), '---\ntitle: Home\n---\n<bongo:style src="style.css" />');
+			await build({ cwd: root });
 			expect((await info('index.html')).outputs).toEqual(outputs);
 		} finally {
 			await rm(root, { recursive: true, force: true });
@@ -968,6 +969,133 @@ describe('headings', () => {
 			expect(JSON.parse(await read(root, 'docs/a/index.html'))).toEqual([headings, [2, 0], [2, 0]]);
 			expect(JSON.parse(await read(root, 'docs/b/index.html'))).toEqual([[], [2, 0], [2, 0]]);
 			expect(JSON.parse(await read(root, 'docs/list.json'))).toEqual([['/docs/a/', ['a', 'b']], ['/docs/b/', []]]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('incremental builds', () => {
+	let config = (title: string) => [
+		`export default {`,
+		`	$site: { url: 'https://example.com/', title: ${JSON.stringify(title)}, lang: 'en' },`,
+		`	$loaders: {`,
+		`		md(file, content, utils) {`,
+		`			let text = utils.decode(content);`,
+		`			let { offset, value } = utils.frontmatter(text);`,
+		`			return { filename: file.replace(/\\.md$/, '.html'), content: '<p>' + text.slice(offset).trim() + '</p>', metadata: value };`,
+		`		},`,
+		`	},`,
+		`	$hooks: {`,
+		`		transform(text, ctx) {`,
+		`			if (ctx.kind === 'page') (globalThis.__rendered ??= []).push(ctx.path);`,
+		`			return text;`,
+		`		},`,
+		`	},`,
+		`};`,
+	].join('\n');
+
+	// a site with each input an incremental build must follow: registries, partials, data, loaded assets, bundles, loaders, copies, output files, and data modules
+	let sources = (): Record<string, string> => ({
+		'bongo.config.ts': config('Site'),
+		'data/meta.json': '{ "motto": "hello" }',
+		'assets/style.css': 'body { color: red }',
+		'assets/main.ts': 'console.log(1);',
+		'assets/icon.svg': '<svg id="v1"/>',
+		'layouts/html.hbs': '<html><title>{{ $page.title }} · {{ $site.title }}</title><bongo:alternate type="text/markdown" /><bongo:style src="style.css" />{{{ $page.content }}}{{#partial src="foot"}}<bongo:script src="main.ts" /></html>',
+		'layouts/blog/single.hbs': '{{#var at = $section.findIndex(p => p.path === $page.path)}}<article>{{{ $page.content }}}<a href="{{ $section[at + 1]?.path }}">next</a></article>',
+		'partials/foot.hbs': '<footer>{{ $data.meta.motto }} {{{ await $assets.load("icon.svg", "utf8") }}}</footer>',
+		'content/index.hbs': '---\ntitle: Home\n---\n{{#each $pages as p}}<a href="{{ p.path }}">{{ p.title }}</a>{{/each}}',
+		'content/tags.hbs': '---\ntitle: Tags\n---\n{{#each $tags as t}}<h2>{{ t.tag }}</h2>{{#each t.pages as p}}{{ p.title }}{{/each}}{{/each}}',
+		'content/about.html': '---\ntitle: About\n---\n<p>about</p>',
+		'content/blog/a.html': '---\ntitle: A\ntags: x\n---\n<p>a</p>',
+		'content/blog/b.html': '---\ntitle: B\ntags: y\n---\n<p>b</p>',
+		'content/notes/n.md': '---\ntitle: Note\n---\nplain text',
+		'content/files/data.csv': 'a,b',
+		'content/sitemap.xml.hbs': '{{#each $pages as p}}<url>{{ p.url }}</url>{{/each}}',
+		'content/search.json.ts': 'export default ({ $pages }) => $pages.map(p => p.title);',
+	});
+
+	let all = ['/', '/about/', '/blog/a/', '/blog/b/', '/notes/n/', '/tags/'];
+
+	type Step = { name: string; change(root: string): Promise<void>; build: string[]; dev?: string[] };
+
+	let edit = (rel: string, from: string, to: string) => async (root: string) => {
+		let file = join(root, rel);
+		await writeFile(file, (await readFile(file, 'utf8')).replace(from, to));
+	};
+
+	let steps: Step[] = [
+		{ name: 'nothing changed', change: async () => {}, build: [] },
+		{ name: 'a body', change: edit('content/about.html', '<p>about</p>', '<p>about us</p>'), build: ['/about/'] },
+		{ name: 'a title', change: edit('content/blog/a.html', 'title: A\n', 'title: A2\n'), build: ['/', '/blog/a/', '/blog/b/', '/tags/'] },
+		{ name: 'a new page', change: root => writeFile(join(root, 'content/blog/c.html'), '---\ntitle: C\ntags: x\n---\n<p>c</p>'), build: ['/', '/blog/a/', '/blog/b/', '/blog/c/', '/tags/'] },
+		{ name: 'a deleted page', change: root => rm(join(root, 'content/blog/b.html')), build: ['/', '/blog/a/', '/blog/c/', '/tags/'] },
+		{ name: 'a Markdown source', change: edit('content/notes/n.md', 'plain text', 'other text'), build: ['/notes/n/'] },
+		{ name: 'a copied file', change: edit('content/files/data.csv', 'a,b', 'a,c'), build: [] },
+		{ name: 'a layout', change: edit('layouts/html.hbs', '<html>', '<html lang="en">'), build: ['/', '/about/', '/blog/a/', '/blog/c/', '/notes/n/', '/tags/'] },
+		{ name: 'a partial', change: edit('partials/foot.hbs', '<footer>', '<footer class="f">'), build: ['/', '/about/', '/blog/a/', '/blog/c/', '/notes/n/', '/tags/'] },
+		{ name: 'a data file', change: edit('data/meta.json', 'hello', 'hi'), build: ['/', '/about/', '/blog/a/', '/blog/c/', '/notes/n/', '/tags/'] },
+		{ name: 'a loaded asset', change: edit('assets/icon.svg', 'v1', 'v2'), build: ['/', '/about/', '/blog/a/', '/blog/c/', '/notes/n/', '/tags/'] },
+		{ name: 'a stylesheet', change: edit('assets/style.css', 'red', 'blue'), build: ['/', '/about/', '/blog/a/', '/blog/c/', '/notes/n/', '/tags/'], dev: [] },
+		{ name: 'the config', change: edit('bongo.config.ts', '"Site"', '"Site 2"'), build: ['/', '/about/', '/blog/a/', '/blog/c/', '/notes/n/', '/tags/'] },
+	];
+
+	async function tree(dir: string): Promise<Map<string, Buffer>> {
+		let { readdir } = await import('node:fs/promises');
+		let out: Map<string, Buffer> = new Map();
+		for (let entry of await readdir(dir, { recursive: true, withFileTypes: true })) {
+			if (!entry.isFile()) continue;
+			let file = join(entry.parentPath, entry.name);
+			out.set(file.slice(dir.length + 1), await readFile(file));
+		}
+		return out;
+	}
+
+	// a fresh build of the same sources, in the same folder, since bundle names depend on it, as the reference
+	async function same(root: string, dev: boolean): Promise<void> {
+		let ours = await tree(join(root, 'public'));
+		await build({ cwd: root, dev, fresh: true });
+		let fresh = await tree(join(root, 'public'));
+		expect([...ours.keys()].sort()).toEqual([...fresh.keys()].sort());
+		for (let [file, bytes] of fresh) {
+			expect({ file, text: ours.get(file)?.toString() }).toEqual({ file, text: bytes.toString() });
+		}
+	}
+
+	let rendered = (): string[] => {
+		let list = [...new Set((globalThis as { __rendered?: string[] }).__rendered ?? [])].sort();
+		(globalThis as { __rendered?: string[] }).__rendered = [];
+		return list;
+	};
+
+	for (let dev of [false, true]) {
+		test(`${dev ? 'dev' : 'bongo build'} renders only the pages that a change reaches, and writes the bytes of a fresh build`, async () => {
+			let root = await site(sources());
+			try {
+				rendered();
+				await build({ cwd: root, dev });
+				expect(rendered()).toEqual(all);
+				for (let step of steps) {
+					await step.change(root);
+					await build({ cwd: root, dev });
+					expect({ step: step.name, rendered: rendered() }).toEqual({ step: step.name, rendered: dev ? step.dev ?? step.build : step.build });
+					await same(root, dev);
+					rendered();
+				}
+			} finally {
+				await rm(root, { recursive: true, force: true });
+			}
+		}, 60_000);
+	}
+
+	test('--fresh renders every page', async () => {
+		let root = await site(sources());
+		try {
+			await build({ cwd: root });
+			rendered();
+			await build({ cwd: root, fresh: true });
+			expect(rendered()).toEqual(all);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

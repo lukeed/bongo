@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -27,6 +27,10 @@ export type Sink = {
 	reuse(): Promise<void>;
 	/** After `reuse`, delete each kept file that no write since then replaced. */
 	sweep(): Promise<void>;
+	/** The size and mtime of `file`, or for a file in memory, its size and version; `undefined` when it is missing. */
+	stat(file: string): Promise<[size: number, mtime: number] | undefined>;
+	/** Keep `file` from the last build as it is, so that `sweep` keeps it too. */
+	keep(file: string): Promise<void>;
 	minify(files: string[]): Promise<boolean>;
 };
 
@@ -53,6 +57,8 @@ export function folder(dir: string): Sink {
 		clear: () => Promise.reject(new Error(`Refusing to empty "${dir}": it is not an output folder`)),
 		reuse: () => Promise.reject(new Error(`Refusing to empty "${dir}": it is not an output folder`)),
 		sweep: async () => {},
+		stat: file => stat(file).then(info => [info.size, info.mtimeMs], () => undefined),
+		keep: async () => {},
 		minify: minify.html,
 	};
 }
@@ -93,6 +99,9 @@ export function disk(argv: Required<Argv>): Sink {
 			let done = old;
 			old = undefined;
 			await done?.sweep();
+		},
+		async keep(file) {
+			await old?.fit(file);
 		},
 	};
 	DISKS.set(argv.dest, sink);
@@ -150,6 +159,14 @@ export function memory(dir: string, mirror?: Sink): Memory {
 		},
 		reuse: () => sink.clear(),
 		sweep: async () => {},
+		async stat(file) {
+			let entry = files.get(file);
+			if (!entry) return;
+			return 'data' in entry ? [entry.data.length, entry.version] : [-1, -1];
+		},
+		async keep(file) {
+			await mirror?.keep(file);
+		},
 		async minify(list) {
 			let temp = await mkdtemp(join(tmpdir(), 'bongo-minify-'));
 			try {
