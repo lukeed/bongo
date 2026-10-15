@@ -1,29 +1,24 @@
-import { createHash } from 'node:crypto';
-import { readdir, readFile } from 'node:fs/promises';
 import { cpus, release, totalmem } from 'node:os';
 import { join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import * as content from './content';
 import * as dev from './dev';
+import * as incremental from './incremental';
+import { digest, ROOT, RSS_UNIT, sample } from './measure';
 
-type Sample = { wall: number; user: number; sys: number; rss: number };
-type Output = { files: number; bytes: number; sha: string };
+import type { Sample } from './measure';
+
 type Memory = { rss: number; committed: number; used: number; heap: number };
 type Stage = { name: string; ms: number; rss: number; start?: Memory; live?: number };
 type Mark = { at: number; text: string; memory: Memory | null };
 type Trace = { t0: number; t1: number; marks: Mark[]; samples: [at: number, rss: number][]; rss: number; stderr: string };
 type Profile = { stages: Stage[]; rss: number; stderr: string };
 
-const ROOT = join(import.meta.dirname, '..');
-const BIN = join(ROOT, 'packages/bongo/bin.js');
 const SITES: Record<string, string> = {
 	site: join(import.meta.dirname, 'site'),
 	docs: join(ROOT, 'docs'),
 };
-
-// ru_maxrss is in KiB on Linux, and in bytes on macOS
-const RSS_UNIT = process.platform === 'linux' ? 1024 : 1;
 
 let { values, positionals } = parseArgs({
 	allowPositionals: true,
@@ -38,8 +33,8 @@ let pages = Number(values.pages);
 if (!Number.isInteger(runs) || runs < 1) throw new Error(`Invalid --runs "${values.runs}"; use a whole number above 0`);
 if (!Number.isInteger(pages) || pages < 1) throw new Error(`Invalid --pages "${values.pages}"; use a whole number above 0`);
 
-// `dev` runs `bongo dev` on the generated site
-let targets = [...Object.keys(SITES), 'dev'];
+// `incremental` runs `bongo build` on the generated site after edits, and `dev` runs `bongo dev` on it
+let targets = [...Object.keys(SITES), 'incremental', 'dev'];
 let names = positionals.length ? positionals : targets;
 for (let name of names) {
 	if (!targets.includes(name)) throw new Error(`Unknown "${name}" target; use ${targets.join(', ')}`);
@@ -50,34 +45,6 @@ async function exec(cmd: string[]): Promise<string> {
 	let [stdout, stderr, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
 	if (code !== 0) throw new Error(`"${cmd.join(' ')}" failed:\n${stderr || stdout}`);
 	return stdout.trim();
-}
-
-async function sample(dir: string): Promise<Sample> {
-	let t0 = performance.now();
-	let child = Bun.spawn([process.execPath, BIN, 'build', '-C', dir], { stdout: 'ignore', stderr: 'pipe' });
-	let [stderr, code] = await Promise.all([new Response(child.stderr).text(), child.exited]);
-	let wall = performance.now() - t0;
-	let usage = child.resourceUsage();
-	if (code !== 0 || !usage) throw new Error(`bongo build failed in ${dir}:\n${stderr}`);
-	return {
-		wall,
-		user: Number(usage.cpuTime.user) / 1e3,
-		sys: Number(usage.cpuTime.system) / 1e3,
-		rss: usage.maxRSS * RSS_UNIT,
-	};
-}
-
-async function digest(dir: string): Promise<Output> {
-	let entries = await readdir(dir, { recursive: true, withFileTypes: true });
-	let files = entries.filter(entry => entry.isFile()).map(entry => relative(dir, join(entry.parentPath, entry.name))).sort();
-	let hash = createHash('sha256');
-	let bytes = 0;
-	for (let file of files) {
-		let data = await readFile(join(dir, file));
-		bytes += data.length;
-		hash.update(`${file}\0${data.length}\0`).update(data);
-	}
-	return { files: files.length, bytes, sha: hash.digest('hex').slice(0, 16) };
 }
 
 // A build through stages.ts, which reads its memory at each stage line, after a full GC with `gc`; without `gc`, `ps` also reads its RSS as often as it can.
@@ -145,7 +112,7 @@ console.log(`bongo ${ref} · bun ${Bun.version} · ${cpu[0].model} × ${cpu.leng
 console.log('~> building packages');
 await exec([process.execPath, 'run', 'build']);
 
-if (names.includes('site') || names.includes('dev')) {
+if (names.some(name => ['site', 'incremental', 'dev'].includes(name))) {
 	console.log(`~> writing ${pages} pages`);
 	await content.write(SITES.site, pages);
 }
@@ -153,13 +120,13 @@ if (names.includes('site') || names.includes('dev')) {
 for (let name of names.filter(name => SITES[name])) {
 	let dir = SITES[name];
 	let out = join(dir, 'public');
-	console.log(`~> ${name}: 1 warmup + ${runs} runs`);
-	await sample(dir);
+	console.log(`~> ${name}: 1 warmup + ${runs} runs, all --fresh`);
+	await sample(dir, ['--fresh']);
 	let output = await digest(out);
 
 	let samples: Sample[] = [];
 	for (let i = 0; i < runs; i++) {
-		samples.push(await sample(dir));
+		samples.push(await sample(dir, ['--fresh']));
 		if ((await digest(out)).sha !== output.sha) throw new Error(`${name}: run ${i + 1} wrote other bytes than the warmup run`);
 	}
 
@@ -189,8 +156,23 @@ for (let name of names.filter(name => SITES[name])) {
 	console.log('');
 }
 
+if (names.includes('incremental')) {
+	console.log(`~> incremental: ${runs} runs of each edit, and a --fresh build to check the bytes of the last`);
+	let steps = await incremental.profile(SITES.site, runs);
+	let width = Math.max(...steps.map(step => step.name.length));
+	let row = (label: string, cells: string[]) => `  ${label.padEnd(width)}${cells.map(cell => cell.padStart(11)).join('')}`;
+	console.log(`\n${relative(ROOT, SITES.site)}/ · bongo build`);
+	console.log(row('step', ['wall', 'user', 'sys', 'peak rss', 'written']));
+	for (let { name, samples, written } of steps) {
+		let median = (key: keyof Sample) => stat(samples.map(sample => sample[key]))[0];
+		console.log(row(name, [time(median('wall')), time(median('user')), time(median('sys')), size(median('rss')), String(written)]));
+	}
+	console.log('  Each value is the median of the runs. "written" counts the files whose mtime the build changed.');
+	console.log('');
+}
+
 if (names.includes('dev')) {
-	console.log('~> dev: first build, 3 full rebuilds, 3 page edits');
+	console.log('~> dev: first build, 3 each of layout, page, and stylesheet edits, 1 new page');
 	let steps = await dev.profile(SITES.site, 3);
 	let width = Math.max(...steps.map(step => step.name.length));
 	let row = (label: string, cells: string[]) => `  ${label.padEnd(width)}${cells.map(cell => cell.padStart(11)).join('')}`;

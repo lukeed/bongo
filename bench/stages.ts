@@ -8,7 +8,7 @@ type Mimalloc = {
 	malloc_huge: { current: number };
 };
 
-// Prints "<epoch ms>\t<text>\t<memory JSON>" for each `--debug` stage line of a build of the site at argv[2]; with `--gc`, a full GC runs before each reading.
+// Prints "<epoch ms>\t<text>\t<memory JSON>" for each `--debug` stage line of a `--fresh` build of the site at argv[2]; with `--gc`, a full GC runs before each reading.
 let gc = process.argv.includes('--gc');
 let stage = '';
 let mark = (text: string) => {
@@ -32,5 +32,5 @@ console.log = (...args: unknown[]) => {
 };
 
 mark('start');
-await build({ cwd: process.argv[2], debug: true });
+await build({ cwd: process.argv[2], debug: true, fresh: true });
 mark('exit');
