@@ -8,7 +8,9 @@ import * as content from './content';
 
 type Sample = { wall: number; user: number; sys: number; rss: number };
 type Output = { files: number; bytes: number; sha: string };
-type Stage = { name: string; ms: number; rss: number };
+type Stage = { name: string; ms: number; rss: number; heap: number };
+type Mark = { at: number; text: string; heap: number };
+type Trace = { t0: number; t1: number; marks: Mark[]; samples: [at: number, rss: number][]; rss: number };
 type Profile = { stages: Stage[]; rss: number };
 
 const ROOT = join(import.meta.dirname, '..');
@@ -74,39 +76,51 @@ async function digest(dir: string): Promise<Output> {
 	return { files: files.length, bytes, sha: hash.digest('hex').slice(0, 16) };
 }
 
-// One more build, through stages.ts, while `ps` reads its RSS as often as it can.
-async function profile(dir: string): Promise<Profile> {
+// A build through stages.ts. With `heap`, it reads the live heap at each stage line; else `ps` reads its RSS as often as it can.
+async function trace(dir: string, heap: boolean): Promise<Trace> {
 	let t0 = Date.now();
-	let child = Bun.spawn([process.execPath, join(import.meta.dirname, 'stages.ts'), dir], { stdout: 'pipe', stderr: 'pipe' });
+	let child = Bun.spawn([process.execPath, join(import.meta.dirname, 'stages.ts'), dir, ...(heap ? ['--heap'] : [])], { stdout: 'pipe', stderr: 'pipe' });
 	let lines = new Response(child.stdout).text();
 	let stderr = new Response(child.stderr).text();
 	let samples: [at: number, rss: number][] = [];
 	let t1 = 0;
 	let exited = child.exited.then(code => (t1 = Date.now(), code));
-	while (!t1) {
+	while (!heap && !t1) {
 		let at = Date.now();
 		let ps = Bun.spawn(['ps', '-o', 'rss=', '-p', String(child.pid)], { stdout: 'pipe', stderr: 'ignore' });
 		let kb = Number((await new Response(ps.stdout).text()).trim());
 		if (kb > 0) samples.push([(at + Date.now()) / 2, kb * 1024]);
 	}
+	let code = await exited;
 	let usage = child.resourceUsage();
-	if (await exited !== 0 || !usage) throw new Error(`bongo build failed in ${dir}:\n${await stderr}`);
+	if (code !== 0 || !usage) throw new Error(`bongo build failed in ${dir}:\n${await stderr}`);
+	let marks = (await lines).trim().split('\n').map(line => {
+		let [at, text, live] = line.split('\t');
+		return { at: Number(at), text, heap: Number(live) };
+	});
+	return { t0, t1, marks, samples, rss: usage.maxRSS * RSS_UNIT };
+}
 
+// Time and max RSS of each stage come from a plain run; the live heap as each stage starts comes from a `--heap` run, since its GCs change RSS.
+async function profile(dir: string): Promise<Profile> {
+	let plain = await trace(dir, false);
+	let heaps = new Map((await trace(dir, true)).marks.map(mark => [mark.text, mark.heap]));
 	let stages: Stage[] = [];
 	let name = 'boot';
-	let from = t0;
+	let from = plain.t0;
+	let heap = 0;
 	let close = (to: number) => {
-		let rss = samples.filter(([at]) => at >= from && at < to).map(([, rss]) => rss);
-		stages.push({ name, ms: to - from, rss: Math.max(0, ...rss) });
+		let rss = plain.samples.filter(([at]) => at >= from && at < to).map(([, rss]) => rss);
+		stages.push({ name, ms: to - from, rss: Math.max(0, ...rss), heap });
 	};
-	for (let line of (await lines).trim().split('\n')) {
-		let [at, text] = line.split('\t');
-		close(Number(at));
-		name = text.startsWith(name + ': ') ? '(other)' : text;
-		from = Number(at);
+	for (let mark of plain.marks) {
+		close(mark.at);
+		name = mark.text.startsWith(name + ': ') ? '(other)' : mark.text;
+		from = mark.at;
+		heap = heaps.get(mark.text) ?? 0;
 	}
-	close(t1);
-	return { stages: stages.filter(stage => stage.name !== '(other)' || stage.ms >= 5), rss: usage.maxRSS * RSS_UNIT };
+	close(plain.t1);
+	return { stages: stages.filter(stage => stage.name !== '(other)' || stage.ms >= 5), rss: plain.rss };
 }
 
 function stat(list: number[]): [median: number, min: number, max: number] {
@@ -145,7 +159,7 @@ for (let name of names) {
 	}
 
 	let { stages, rss } = await profile(dir);
-	if ((await digest(out)).sha !== output.sha) throw new Error(`${name}: the profile run wrote other bytes than the warmup run`);
+	if ((await digest(out)).sha !== output.sha) throw new Error(`${name}: a profile run wrote other bytes than the warmup run`);
 
 	let rows: [string, string, string][] = [['', 'median', 'min … max']];
 	let metrics: [string, keyof Sample, (value: number) => string][] = [['wall', 'wall', time], ['user', 'user', time], ['sys', 'sys', time], ['peak rss', 'rss', size]];
@@ -159,8 +173,8 @@ for (let name of names) {
 	console.log(`  ${'output'.padEnd(10)}${output.files} files · ${size(output.bytes)} · sha256 ${output.sha}`);
 
 	let width = Math.max(...stages.map(stage => stage.name.length));
-	console.log(`\n  ${'stage'.padEnd(width)}${'time'.padStart(10)}${'max rss'.padStart(12)}`);
-	for (let stage of stages) console.log(`  ${stage.name.padEnd(width)}${time(stage.ms).padStart(10)}${size(stage.rss).padStart(12)}`);
+	console.log(`\n  ${'stage'.padEnd(width)}${'time'.padStart(10)}${'max rss'.padStart(12)}${'heap at start'.padStart(16)}`);
+	for (let stage of stages) console.log(`  ${stage.name.padEnd(width)}${time(stage.ms).padStart(10)}${size(stage.rss).padStart(12)}${size(stage.heap).padStart(16)}`);
 	console.log(`  ${'peak rss of this run'.padEnd(width)}${''.padStart(10)}${size(rss).padStart(12)}`);
 	console.log('');
 }
