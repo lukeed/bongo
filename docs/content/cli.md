@@ -75,13 +75,13 @@ Without `--debug`, a stage that is still running after 15 seconds prints `still 
 
 ## Output folder
 
-`bongo build` writes over the files that an earlier run left in `public/`, which is much faster than making them again. When it is done, it deletes each file that it did not write, so no file from an earlier run stays. When the build fails, it empties `public/`, so no part of the failed build stays.
+`bongo build` writes over the files that an earlier run left in `public/`, which is much faster than making them again. When it is done, it deletes each file of the last build that it did not write, so no file from an earlier run stays. The record of the last build lists those files, so `bongo build` does not list `public/`. Thus a file that something else put in `public/` stays, until a build without the record, such as `bongo build --fresh`, lists the folder and deletes it. When the build fails, it empties `public/` and deletes the record, so no part of the failed build stays.
 
 `bongo dev` does not use `public/`. It keeps its output in memory and serves it from there. Thus a `bongo build` that runs at the same time never changes what dev serves, and dev never changes what the build writes.
 
 With `--write`, `bongo dev` also writes its output to `public/`. It empties the folder before the first build. After that, each rebuild deletes only the files that the new build no longer writes.
 
-bongo deletes a symlink in `public/`, but never the file or folder that it points to. bongo refuses to empty or write over `public/`, and the build fails, when the folder resolves through symlinks to:
+bongo never follows a symlink in `public/`. It deletes a symlink that a write or a deletion goes through, and a build that lists the folder deletes each symlink in it. It never deletes the file or folder that a symlink points to. bongo refuses to empty or write over `public/`, and the build fails, when the folder resolves through symlinks to:
 
 - the project root, or a folder above it,
 - a folder outside the project,
@@ -94,7 +94,7 @@ The error starts with `Refusing to empty the output folder`, and gives the reaso
 
 A build renders only the pages that a change reaches. The other pages keep their files from the last build. `bongo build` keeps a record of its last good build in `node_modules/.cache/bongo/memo.json`. `bongo dev` keeps the same record in memory, so each rebuild after a change renders only the pages that the change reaches.
 
-Each build reads every source file, and compares a hash of it with the record. A page renders again when:
+Each build compares the size and the mtime of each source file with the record. It reads and hashes only a file whose size or mtime changed, and compares that hash with the record. A file that changed less than 2 seconds before a build is read again by the next build, since its mtime may not show a second change that soon. A page renders again when:
 
 - its source file changes,
 - it reads `$pages`, `$tags`, or `$section`, and a page in that list changes its path, title, summary, section, tags, headings, or frontmatter. A page reads a list when its source, one of its layouts, or a partial that it calls names that list,
@@ -105,7 +105,7 @@ Each build reads every source file, and compares a hash of it with the record. A
 
 Every page renders again when the config changes, or a local file that it imports, a file in `data/`, `layouts/`, or `partials/`, the lockfile, the version of bongo, the runtime, or `--minify`. [Output files](/output-files/) and [data modules](/data-modules/) render on every build, since they can read every page.
 
-bongo cannot see what a template, a hook, or a loader reads by itself, such as the time, an environment variable, or a file that it opens. A page that uses one keeps its last file until something else makes it render. Use `--fresh` for such a build, as at the turn of a year for a footer that prints the year:
+bongo cannot see a change that keeps the size and the mtime of a source file, as `cp -p` or `rsync -t` can make. It also cannot see what a template, a hook, or a loader reads by itself, such as the time, an environment variable, or a file that it opens. A page that uses one keeps its last file until something else makes it render. Use `--fresh` for such a build, as at the turn of a year for a footer that prints the year:
 
 ```sh
 bongo build --fresh
