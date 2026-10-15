@@ -195,7 +195,7 @@ An object with two methods for the files of `assets/`.
 <meta property="og:image" content="{{ $utils.url.abs(card) }}"/>
 ```
 
-See [Render dynamic images](/dynamic-images/) and [Open Graph images](/open-graph-images/).
+See [Dynamic images](/dynamic-images/) and [Open Graph images](/open-graph-images/).
 
 ## `params`
 

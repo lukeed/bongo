@@ -1,5 +1,5 @@
 ---
-title: Render dynamic images
+title: Dynamic images
 summary: How $assets.render draws a partial as an SVG, PNG, JPEG, or WebP image from your page data, and which runtimes each format needs.
 group: Guides
 order: 7

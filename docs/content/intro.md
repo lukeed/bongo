@@ -21,7 +21,7 @@ You write one config file, `bongo.config.ts`, and put your files in a small set 
 - **Data**: JSON, YAML, and module files in `data/` are available in every template. See [Data](/data/).
 - **Assets**: `<bongo:script>`, `<bongo:style>`, and `<bongo:asset>` elements bundle and publish files under content-hashed names. See [Special elements](/templates/#special-elements).
 - **Images**: bongo resizes and converts images, and gives them a `srcset`, a `width`, and a `height`. See [Images](/images/).
-- **Dynamic images**: draw a partial as an image, such as a social card for each page. See [Render dynamic images](/dynamic-images/) and [Open Graph images](/open-graph-images/).
+- **Dynamic images**: draw a partial as an image, such as a social card for each page. See [Dynamic images](/dynamic-images/) and [Open Graph images](/open-graph-images/).
 - **CSS**: bundling, autoprefixing, nesting, CSS modules, and packages in `@import`. See [CSS](/css/).
 - **Output files**: a sitemap, a `robots.txt`, or a feed from one `.hbs` file. See [Output files](/output-files/).
 - **Data modules**: JSON files from a TypeScript or JavaScript module, such as a search index. See [Data modules](/data-modules/).
