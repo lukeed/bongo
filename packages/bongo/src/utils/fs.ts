@@ -115,9 +115,11 @@ export async function reuse(dir: string, root: string, keep: string[], made?: st
 
 	let all: Kept[] = [];
 	let kept: Map<string, Kept[]> = new Map();
+	let exact: Map<string, Kept> = new Map();
 	let add = (rel: string, folder: boolean) => {
 		let item: Kept = { rel, dir: folder, claimed: false, gone: false };
 		all.push(item);
+		exact.set(rel, item);
 		let key = rel.toLowerCase();
 		kept.set(key, [...kept.get(key) ?? [], item]);
 	};
@@ -195,13 +197,15 @@ export async function reuse(dir: string, root: string, keep: string[], made?: st
 				}
 			}
 		},
+		// from the file up, as far as a folder that is claimed already, since each claim claims every folder above it
 		claim(file) {
-			let parts = relative(dir, file).split(sep);
-			for (let i = 1; i <= parts.length; i++) {
-				let rel = parts.slice(0, i).join('/');
-				for (let item of kept.get(rel.toLowerCase()) ?? []) {
-					if (item.rel === rel && item.dir === (i < parts.length)) item.claimed = true;
-				}
+			let rel = file.startsWith(dir + sep) ? file.slice(dir.length + 1) : relative(dir, file);
+			if (sep !== '/') rel = rel.split(sep).join('/');
+			for (let end = rel.length; end > 0; end = rel.lastIndexOf('/', end - 1)) {
+				let item = exact.get(rel.slice(0, end));
+				if (!item || item.dir !== (end < rel.length)) continue;
+				if (item.claimed) break;
+				item.claimed = true;
 			}
 		},
 		async sweep() {
