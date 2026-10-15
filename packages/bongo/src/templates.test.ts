@@ -186,4 +186,38 @@ describe('collect', () => {
 			templates.Partials.clear();
 		}
 	});
+
+	test('starts from empty caches, so a deleted partial or layout leaves nothing behind', async () => {
+		let { mkdtempSync, mkdirSync, rmSync, writeFileSync } = await import('node:fs');
+		let { tmpdir } = await import('node:os');
+		let { join } = await import('node:path');
+		let templates = await import('./utils/templates');
+
+		let dir = mkdtempSync(join(tmpdir(), 'bongo-partials-'));
+		let partials = join(dir, 'partials');
+		let layouts = join(dir, 'layouts');
+		mkdirSync(partials);
+		mkdirSync(layouts);
+		writeFileSync(join(partials, 'a.hbs'), 'a');
+		writeFileSync(join(partials, 'b.hbs'), 'b');
+		writeFileSync(join(layouts, 'html.hbs'), '{{{ $page.content }}}');
+		writeFileSync(join(layouts, 'old.hbs'), 'old');
+
+		try {
+			let argv = { layouts, partials } as Parameters<typeof templates.collect>[0];
+			let base = { $site: {}, $utils: {}, $loaders: {}, $partials: {}, $build: {}, plugins: [] } as unknown as Parameters<typeof templates.collect>[1];
+			await templates.collect(argv, base);
+			expect([templates.Partials.has('b'), 'b' in templates.blocks, templates.Layouts.has('old.hbs')]).toEqual([true, true, true]);
+
+			rmSync(join(partials, 'b.hbs'));
+			rmSync(join(layouts, 'old.hbs'));
+			await templates.collect(argv, base);
+			expect([templates.Partials.has('b'), 'b' in templates.blocks, templates.Layouts.has('old.hbs')]).toEqual([false, false, false]);
+			expect([...templates.Partials.keys()]).toEqual(['a']);
+		} finally {
+			templates.Partials.clear();
+			templates.Layouts.clear();
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
 });

@@ -121,6 +121,24 @@ async function rendering<T>(from: string, work: () => Promise<T>): Promise<T> {
 	}
 }
 
+// switcheroo: templates get a reader for assets/ in place of the loader map
+// Compiled partials keep the template context until the next build, so this lives outside `run` and keeps none of the build (#59).
+function assetsFor(dir: string, renders: render.Context, base: string): (from: string, made: string[], page?: Blocks) => Template.Assets {
+	return (from, made, page) => ({
+		load(filename: string, encoding?: BufferEncoding) {
+			let file = join(dir, filename);
+			fs.assert(file, `Missing "${filename}" asset!`);
+			return encoding ? fs.read(file, encoding) : fs.read(file);
+		},
+		async render(template, output, options = {}) {
+			let { html, file } = await templates.partial(template, options.args ?? {}, page);
+			let name = await render.add(renders, { html, file, template, output, options, from });
+			made.push(name);
+			return bundler.href(base, name);
+		},
+	});
+}
+
 function pageOf(item: ScanItem): Template.Page {
 	return {
 		path: item.path,
@@ -247,22 +265,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		quality: images.settings({}, config.$images).quality,
 	});
 
-	// switcheroo: templates get a reader for assets/ in place of the loader map
-	function assets(from: string, made: string[], page?: Blocks): Template.Assets {
-		return {
-			load(filename: string, encoding?: BufferEncoding) {
-				let file = join(argv.assets, filename);
-				fs.assert(file, `Missing "${filename}" asset!`);
-				return encoding ? fs.read(file, encoding) : fs.read(file);
-			},
-			async render(template, output, options = {}) {
-				let { html, file } = await templates.partial(template, options.args ?? {}, page);
-				let name = await render.add(renders, { html, file, template, output, options, from });
-				made.push(name);
-				return bundler.href(base, name);
-			},
-		};
-	}
+	let assets = assetsFor(argv.assets, renders, base);
 
 	// renders outside a page, as from a loader that calls a partial
 	let loose: string[] = [];

@@ -894,6 +894,35 @@ describe('page writes', () => {
 		}
 	});
 
+	test('a dev build keeps none of its pages in memory once it returns', async () => {
+		let layout = { 'partials/note.hbs': '<i>note</i>', 'layouts/html.hbs': '<html>{{#partial src="note"}}{{{ $page.content }}}</html>' };
+		// one body for every page, so the test itself holds 80 kB, and the build would hold 200 pages
+		let body = '<p>' + '—'.repeat(40_000) + '</p>';
+		let warm = await site({ ...layout, 'content/index.html': '<p>warm</p>' });
+		let root = await site({ ...layout, ...Object.fromEntries(Array.from({ length: 200 }, (_, i) => [`content/p${i}.html`, body])) });
+		// a fresh process, since JSC scans the stack, and a stale frame in a long test run can pin the build; each GC also runs in a new task
+		let script = [
+			`import { heapStats } from 'bun:jsc';`,
+			`import { build } from ${JSON.stringify(join(import.meta.dirname, 'build.ts'))};`,
+			`console.log = () => {};`,
+			`let live = async () => { await new Promise(next => setTimeout(next)); Bun.gc(true); return heapStats().heapSize; };`,
+			`await build({ cwd: ${JSON.stringify(warm)}, dev: true });`,
+			`let before = await live();`,
+			`await build({ cwd: ${JSON.stringify(root)}, dev: true });`,
+			`process.stdout.write('@delta ' + (await live() - before));`,
+		].join('\n');
+		try {
+			let child = Bun.spawn([process.execPath, '-e', script], { stdout: 'pipe', stderr: 'pipe' });
+			let [out, err] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+			let delta = /@delta (\d+)/.exec(out)?.[1];
+			if (delta === undefined) throw new Error(err || out);
+			expect(Number(delta)).toBeLessThan(5e6);
+		} finally {
+			await rm(warm, { recursive: true, force: true });
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('a failed bongo build waits for the writes it started, so none lands after it empties public/', async () => {
 		let root = await site({
 			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $loaders: { bad: () => { throw new Error('no thanks'); }, slow: async (file, content) => { await new Promise(r => setTimeout(r, 50)); return { filename: file + '.txt', content }; } } };`,
