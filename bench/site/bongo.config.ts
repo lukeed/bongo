@@ -7,6 +7,8 @@ import { language as typescript } from '@twinkleplop/typescript';
 
 import type { Config, Template } from 'bongo';
 
+const DAY = new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+
 export default {
 	$site: {
 		lang: 'en',
@@ -16,12 +18,7 @@ export default {
 	},
 	$utils: {
 		humanDate(iso: string): string {
-			return new Date(iso + 'T12:00:00Z').toLocaleDateString('en-US', {
-				year: 'numeric',
-				month: 'long',
-				day: 'numeric',
-				timeZone: 'UTC',
-			});
+			return DAY.format(new Date(iso + 'T12:00:00Z'));
 		},
 		sections(pages: Template.PageInfo[]): Template.PageInfo[] {
 			return pages.filter(page => page.section !== '' && page.path === `/${page.section}/`);
