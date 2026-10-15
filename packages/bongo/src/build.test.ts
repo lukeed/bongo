@@ -828,6 +828,54 @@ describe('$hooks.transform', () => {
 	});
 });
 
+describe('page writes', () => {
+	test('bongo build writes each page as it renders, and dev writes none until every page is ready', async () => {
+		let root = await site({
+			'bongo.config.ts': `import { existsSync } from 'node:fs'; export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $hooks: { transform: (text, ctx) => ctx.path === '/' ? text + '|' + existsSync(import.meta.dirname + '/public/b/index.html') : text } };`,
+			'content/index.html': '<p>home</p>',
+			'content/b.html': '<p>b</p>',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toBe('<html><p>home</p></html>|true');
+			await build({ cwd: root, dev: true });
+			expect(await read(root, 'index.html')).toEndWith('</script>|false');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a failed bongo build leaves none of the pages it wrote', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $hooks: { transform(text, ctx) { if (ctx.path === '/b/') throw new Error('no thanks'); return text; } } };`,
+			'content/index.html': '<p>home</p>',
+			'content/b.html': '<p>b</p>',
+		});
+		try {
+			await expect(build({ cwd: root })).rejects.toThrow('no thanks, rendering content/b.html → layouts/html.hbs');
+			expect(existsSync(join(root, 'public/index.html'))).toBe(false);
+			expect(existsSync(join(root, 'public/b/index.html'))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a failed bongo build waits for the writes it started, so none lands after it empties public/', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $loaders: { bad: () => { throw new Error('no thanks'); }, slow: async (file, content) => { await new Promise(r => setTimeout(r, 50)); return { filename: file + '.txt', content }; } } };`,
+			'content/a.bad': 'a',
+			'content/b.slow': 'b',
+		});
+		try {
+			await expect(build({ cwd: root })).rejects.toThrow('content/a.bad: no thanks');
+			await new Promise(r => setTimeout(r, 100));
+			expect(existsSync(join(root, 'public/b.slow'))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('headings', () => {
 	test('a loader gives the headings of a page to $page, $pages, $section, and data modules', async () => {
 		let root = await site({

@@ -115,10 +115,11 @@ const PLACEHOLDER = /__BONGO_BUNDLE:[a-f0-9]{16}__/g;
 
 /**
  * The distinct placeholders that rendered `html` references.
+ * Each is a copy, since a match shares the memory of all of `html` and would keep it alive.
  * @example placeholders(scanBongoTags(html, argv, config)) //=> ['__BONGO_BUNDLE:0123456789abcdef__']
  */
 export function placeholders(html: string): string[] {
-	return [...new Set(html.match(PLACEHOLDER))];
+	return [...new Set(html.match(PLACEHOLDER))].map(match => Buffer.from(match, 'latin1').toString('latin1'));
 }
 
 /**

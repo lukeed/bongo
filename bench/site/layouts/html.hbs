@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="{{ $site.lang }}">
+<head>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1"/>
+	<title>{{ $page.title }} — {{ $site.title }}</title>
+	<meta name="description" content="{{ $page.summary || $site.description }}"/>
+	<link rel="canonical" href="{{ $page.url }}"/>
+	<meta property="og:type" content="article"/>
+	<meta property="og:site_name" content="{{ $site.title }}"/>
+	<meta property="og:title" content="{{ $page.title }}"/>
+	<meta property="og:description" content="{{ $page.summary || $site.description }}"/>
+	<meta property="og:url" content="{{ $page.url }}"/>
+	<bongo:style src="style.css"></bongo:style>
+</head>
+<body>
+{{#partial src="nav"}}
+<main>
+{{{ $page.content }}}
+</main>
+{{#partial src="footer"}}
+<bongo:client transitions prefetch />
+<bongo:script src="main.ts"></bongo:script>
+</body>
+</html>

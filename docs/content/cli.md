@@ -70,7 +70,7 @@ Without `--debug`, a stage that is still running after 15 seconds prints `still 
 
 ## Output folder
 
-`bongo build` empties `public/` when it starts, before it loads the config. Thus no file from an earlier run stays.
+`bongo build` empties `public/` when it starts, before it loads the config. Thus no file from an earlier run stays. When the build fails, it empties `public/` again, so no part of the failed build stays.
 
 `bongo dev` does not use `public/`. It keeps its output in memory and serves it from there. Thus a `bongo build` that runs at the same time never changes what dev serves, and dev never changes what the build writes.
 

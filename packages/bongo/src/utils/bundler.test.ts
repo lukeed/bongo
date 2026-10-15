@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
+import { heapStats } from 'bun:jsc';
 import { realpathSync } from 'node:fs';
 import { mkdir, writeFile, rm, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -389,6 +390,14 @@ describe('placeholders()', () => {
 		let b = '__BONGO_BUNDLE:fedcba9876543210__';
 		expect(bundler.placeholders(`<link href="${a}"/><script src="${b}"></script><img src="${a}">`)).toEqual([a, b]);
 		expect(bundler.placeholders('<p>none</p>')).toEqual([]);
+	});
+
+	test('keeps none of the html alive, so a build can hold the placeholders of every page', () => {
+		let live = () => (Bun.gc(true), heapStats().heapSize);
+		let before = live();
+		let kept = Array.from({ length: 1000 }, (_, i) => bundler.placeholders('—'.repeat(10_000) + `<a href="__BONGO_BUNDLE:${String(i).padStart(16, '0')}__">`));
+		expect(kept[7]).toEqual(['__BONGO_BUNDLE:0000000000000007__']);
+		expect(live() - before).toBeLessThan(5e6);
 	});
 });
 

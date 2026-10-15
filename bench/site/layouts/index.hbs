@@ -1,0 +1,14 @@
+{{#var list = $page.path === '/' ? $utils.sections($pages) : $section.filter(page => page.path !== $page.path)}}
+<div class="listing">
+	<h1>{{ $page.title }}</h1>
+	{{{ $page.content }}}
+	{{#each list as item}}
+	<article class="post-preview">
+		<h2><a href="{{ item.path }}">{{ item.title }}</a></h2>
+		{{#if item.params.date}}
+		{{#partial src="meta" date=item.params.date tags=item.tags}}
+		{{/if}}
+		<p class="summary">{{ item.summary }}</p>
+	</article>
+	{{/each}}
+</div>

@@ -1,0 +1,24 @@
+{{#var near = $utils.pager($section, $page.path)}}
+{{#var heads = $page.headings.filter(heading => heading.level === 2)}}
+<article class="post">
+	<header>
+		<h1>{{ $page.title }}</h1>
+		{{#partial src="meta" date=$page.params.date tags=$page.tags}}
+	</header>
+	{{#if heads.length}}
+	<nav class="toc" aria-label="On this page">
+		<ol>
+			{{#each heads as head}}
+			<li><a href="#{{ head.id }}">{{{ head.html }}}</a></li>
+			{{/each}}
+		</ol>
+	</nav>
+	{{/if}}
+	<div class="post-body">
+		{{{ $page.content }}}
+	</div>
+	<nav class="pager" aria-label="Pages">
+		{{#if near.prev}}<a href="{{ near.prev.path }}" rel="prev">← {{ near.prev.title }}</a>{{/if}}
+		{{#if near.next}}<a href="{{ near.next.path }}" rel="next">{{ near.next.title }} →</a>{{/if}}
+	</nav>
+</article>

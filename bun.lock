@@ -12,6 +12,19 @@
         "typescript": "7.0.2",
       },
     },
+    "bench": {
+      "name": "bench",
+      "devDependencies": {
+        "@bongo/markdown": "workspace:*",
+        "@twinkleplop/bash": "^0.1.7",
+        "@twinkleplop/core": "^0.3.1",
+        "@twinkleplop/css": "^0.1.7",
+        "@twinkleplop/json": "^0.1.7",
+        "@twinkleplop/markdown-core": "^0.2.1",
+        "@twinkleplop/typescript": "^0.1.7",
+        "bongo": "workspace:@lukeed/bongo@*",
+      },
+    },
     "build": {
       "name": "build",
       "devDependencies": {
@@ -415,6 +428,8 @@
     "base64-js": ["base64-js@0.0.8", "", {}, "sha512-3XSA2cR/h/73EzlXXdU6YNycmYI7+kicTxks4eJg2g39biHR84slg2+des+p7iHYhbRg/udIS4TD53WabcOUkw=="],
 
     "baseline-browser-mapping": ["baseline-browser-mapping@2.11.28", "", { "bin": { "baseline-browser-mapping": "dist/cli.cjs" } }, "sha512-br0LOmjJqr6Rt4AEkadbcNf67Zpo7EPwKsWbjnRrJIa1QYFHQBqM4C7F2WTbV8ahTEcg1Eo+Y0aWjjORInYFyA=="],
+
+    "bench": ["bench@workspace:bench"],
 
     "blake3-wasm": ["blake3-wasm@2.1.5", "", {}, "sha512-F1+K8EbfOZE49dtoPtmxUQrpXaBIl3ICvasLh+nJta0xkz+9kF/7uet9fLnwKqhDrmj6g+6K3Tw9yQPUg2ka5g=="],
 

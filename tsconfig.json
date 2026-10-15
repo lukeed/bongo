@@ -25,6 +25,7 @@
     ]
   },
   "include": [
+    "bench",
     "docs",
     "packages"
   ],
@@ -32,6 +33,7 @@
     "**/node_modules/**",
     "archive/**",
     "docs/public/**",
+    "bench/site/public/**",
     "packages/**/*.js",
     "packages/create-bongo/template/**",
     "packages/bongo/test/fixtures/site-build-error/**"
