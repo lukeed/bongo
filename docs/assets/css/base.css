@@ -118,6 +118,9 @@ pre {
 	border: 1.5px solid var(--icode-line);
 	border-radius: 6px;
 	padding: .08em .36em;
+	/* one piece, so `--minify` never breaks after its dashes; a code wider than the line still wraps */
+	display: inline-block;
+	max-width: 100%;
 	overflow-wrap: anywhere;
 }
 
