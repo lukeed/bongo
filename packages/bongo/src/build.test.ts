@@ -496,6 +496,28 @@ describe('scripts and styles', () => {
 		}
 	});
 
+	test('a script has the same bytes whatever folder the build runs from', async () => {
+		let root = await site({
+			'assets/a.ts': 'console.log(document.title);',
+			'layouts/html.hbs': '{{{ $page.content }}}<bongo:script src="a.ts" />',
+			'content/index.html': '<p>home</p>',
+		});
+		let script = `import { build } from ${JSON.stringify(join(import.meta.dirname, 'build.ts'))};\nconsole.log = () => {};\nawait build({ cwd: ${JSON.stringify(root)} });`;
+		let code = async (cwd: string) => {
+			let child = Bun.spawn([process.execPath, '-e', script], { cwd, stdout: 'ignore', stderr: 'pipe' });
+			let [err, exit] = await Promise.all([new Response(child.stderr).text(), child.exited]);
+			if (exit !== 0) throw new Error(err);
+			let file = /src="\/([^"]+\.js)"/.exec(await read(root, 'index.html'))?.[1];
+			if (!file) throw new Error('index.html links no script');
+			return read(root, file);
+		};
+		try {
+			expect(await code(tmpdir())).toBe(await code(root));
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('an inline style keeps its other attributes', async () => {
 		let root = await site({
 			'assets/print.css': '.a { color: red }',

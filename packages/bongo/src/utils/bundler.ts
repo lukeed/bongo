@@ -177,6 +177,7 @@ type FlushContext = {
 	emit: (file: string) => Promise<string>;
 	files: Set<string>;
 	images: images.Context;
+	cwd: string;
 	/** Name scripts and stylesheets by their entry and settings, not their content, so an edit changes no page that links them. */
 	dev: boolean;
 };
@@ -315,6 +316,7 @@ async function flushJsGroup(
 
 	let bundle = await rd.rolldown({
 		input,
+		cwd: ctx.cwd,
 		resolve: {
 			extensions: ['.ts', '.js', '.cjs', '.mjs', '.css', '.json'],
 			mainFields: ['browser', 'module', 'jsnext', 'main'],
@@ -428,6 +430,8 @@ export function summary(error: BuildError, root: string): string {
 
 export async function flush(opts: {
 	outDir: string;
+	/** The project root, which scripts name their modules from, so their bytes do not depend on the folder that the build runs in. @default process.cwd() */
+	cwd?: string;
 	/** Where the files go. @default the folder `outDir` on disk */
 	sink?: output.Sink;
 	/** Prefix for the public urls of emitted files. @default '/' */
@@ -452,6 +456,7 @@ export async function flush(opts: {
 		publicPath: opts.publicPath ?? '/',
 		emit,
 		files,
+		cwd: opts.cwd ?? process.cwd(),
 		dev: opts.dev ?? false,
 		images: images.context({
 			outDir: opts.outDir,
