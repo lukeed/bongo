@@ -48,6 +48,9 @@ const READS = 16;
 // A content file that changed this close to a build may change again within the precision of its mtime, so the next build reads it.
 const RACY = 2000;
 
+// A build that renders fewer pages leaves too little garbage for a full GC to pay for its time.
+const COLLECT = 1000;
+
 // Section = the directory prefix of the page's rel path, using forward slashes.
 // e.g. "blog/post.md" -> "blog", "index.md" -> "", "blog/2025/post.md" -> "blog/2025"
 // Note: index.* stripping only applies to URL path, NOT section derivation.
@@ -853,7 +856,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	watch.step('writing pages');
 	// a streamed build outruns the GC, so rendering leaves much garbage; one full collection here lowers peak RSS by ~120 MB on 10k pages
-	if (writes && typeof Bun !== 'undefined') Bun.gc(true);
+	if (writes && pages.length >= COLLECT && typeof Bun !== 'undefined') Bun.gc(true);
 
 	// Pass 2: substitute placeholders and write pages.
 	let readOutput = async (filename: string) => String(await sink.read(join(dest, filename)));

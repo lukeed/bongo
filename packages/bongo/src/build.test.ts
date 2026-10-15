@@ -918,13 +918,16 @@ describe('page writes', () => {
 		}
 	});
 
-	test('bongo build collects the garbage of rendering once, before it writes the pages again; dev does not', async () => {
-		let root = await site({ 'content/index.html': '<p>home</p>' });
+	test('bongo build collects the garbage of rendering 1,000 pages once, before it writes them again; a smaller render and dev do not', async () => {
+		let root = await site(Object.fromEntries(Array.from({ length: 1000 }, (_, i) => [`content/p${i}.html`, `<p>${i}</p>`])));
 		let gc = spyOn(Bun, 'gc');
 		try {
 			await build({ cwd: root });
 			expect(gc.mock.calls).toEqual([[true]]);
 			gc.mockClear();
+			await writeFile(join(root, 'content/p1.html'), '<p>one</p>');
+			await build({ cwd: root });
+			expect(gc).not.toHaveBeenCalled();
 			await build({ cwd: root, dev: true });
 			expect(gc).not.toHaveBeenCalled();
 		} finally {
