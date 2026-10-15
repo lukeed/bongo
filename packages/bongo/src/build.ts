@@ -597,21 +597,18 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	}
 
 	// A page that keeps its file still registers its assets, renders, and alternates, for the bundler, output files, and the sweep.
-	async function replay(item: ScanItem, old: memo.Item, page: memo.Page): Promise<void> {
-		for (let placeholder of page.placeholders) {
-			let registration = last?.bundles[placeholder];
-			if (!registration) continue;
-			bundler.register(...registration);
-			next.bundles[placeholder] = registration;
-		}
+	let replayed: Set<string> = new Set();
+	let keeps: string[] = [];
+	function replay(item: ScanItem, old: memo.Item, page: memo.Page): void {
+		page.placeholders.forEach(placeholder => replayed.add(placeholder));
 		bundles.set(item.rel, page.placeholders);
 		rendered.set(item.rel, page.renders.map(([name]) => name));
 		for (let [name, key] of page.renders) {
 			renders.seen.set(name, { key, from: item.path });
-			await sink.keep(join(dest, name));
+			keeps.push(join(dest, name));
 		}
 		alternates.set(item.rel, { path: item.path, input: item.input, from: `content/${item.rel}`, found: page.found });
-		await sink.keep(item.output);
+		keeps.push(item.output);
 		next.items[item.rel] = old;
 		kept.push({ item, page });
 	}
@@ -741,9 +738,18 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			continue;
 		}
 		let old = last?.items[item.rel];
-		if (cleans[i] && old?.page) await replay(item, old, old.page);
+		if (cleans[i] && old?.page) replay(item, old, old.page);
 		else dirty.push(item);
 	}
+
+	// each asset of the kept pages registers once, and their files are kept before any page renders
+	for (let placeholder of replayed) {
+		let registration = last?.bundles[placeholder];
+		if (!registration) continue;
+		bundler.register(...registration);
+		next.bundles[placeholder] = registration;
+	}
+	await Promise.all(keeps.map(file => sink.keep(file)));
 
 	// after every replay, so a page that renders sees the renders of each page that did not, as a full build would
 	await renderAll(dirty);
