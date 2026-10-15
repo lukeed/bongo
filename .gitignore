@@ -12,6 +12,8 @@ node_modules
 /packages/*/twinkleplop.js
 
 /example/public
+/bench/site/content
+/bench/site/public
 
 !bun.lock
 

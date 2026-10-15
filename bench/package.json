@@ -1,0 +1,14 @@
+{
+  "name": "bench",
+  "private": true,
+  "devDependencies": {
+    "@bongo/markdown": "workspace:*",
+    "@twinkleplop/bash": "^0.1.7",
+    "@twinkleplop/core": "^0.3.1",
+    "@twinkleplop/css": "^0.1.7",
+    "@twinkleplop/json": "^0.1.7",
+    "@twinkleplop/markdown-core": "^0.2.1",
+    "@twinkleplop/typescript": "^0.1.7",
+    "bongo": "workspace:@lukeed/bongo@*"
+  }
+}
