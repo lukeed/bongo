@@ -105,6 +105,9 @@ const WRITES: Record<string, string> = { 'text/markdown': 'md' };
 /** A `<bongo:alternate>` of a page: its type, its href resolved to a URL path (or a full URL elsewhere), and the file that bongo writes, as a path in the output folder. */
 export type Alternate = { type: string; href: string; file?: string };
 
+/** The alternates of the page that a scan fills, and whether the page has a Markdown source to copy. */
+export type Page = { alternates: Alternate[]; markdown: boolean };
+
 type Format = NonNullable<bundler.BundleConfig['format']>;
 
 function isFormat(value: string): value is Format {
@@ -214,7 +217,7 @@ export function scanBongoTags(
 	config: Pick<Required<Config>, '$build' | '$images'> & Partial<Pick<Config, '$site'>>,
 	from?: string,
 	path = '/',
-	found?: Alternate[],
+	page?: Page,
 ): string {
 	let base = publicPath(config.$site?.url ?? '');
 	let where = from ? `, rendering ${from}` : '';
@@ -243,8 +246,10 @@ export function scanBongoTags(
 					file = name;
 				}
 			}
+			// a page that no Markdown file made has nothing to copy, so its layout may still name a copy for every page
+			if (file !== undefined && page && !page.markdown) return '';
 			let resolved = local ? url.pathname + url.search + url.hash : url.href;
-			found?.push(file === undefined ? { type, href: resolved } : { type, href: resolved, file });
+			page?.alternates.push(file === undefined ? { type, href: resolved } : { type, href: resolved, file });
 
 			let escaped = (value: string) => value.replace(/[&"]/g, c => ATTR_ESCAPE[c]);
 			return `<link rel="alternate" type="${escaped(type)}" href="${escaped(href)}"${rest(props, OWN.alternate)}/>`;

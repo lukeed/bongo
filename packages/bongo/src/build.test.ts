@@ -592,7 +592,25 @@ describe('alternates', () => {
 		}
 	});
 
-	test('one page may name its copy twice, but two pages may not write one file, and a copy needs Markdown', async () => {
+	test('a page with no Markdown source gets no copy and no <link>, so one layout serves every page', async () => {
+		let root = await site({
+			'bongo.config.ts': CONFIG(),
+			'layouts/html.hbs': '<bongo:alternate type="text/markdown" />{{{ $page.content }}}',
+			'content/a.md': 'A',
+			'content/index.hbs': '<p>home</p>',
+			'content/list.json.ts': 'export default ({ $pages }) => $pages.map(page => [page.path, page.alternates]);',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toBe('<p>home</p>');
+			expect(existsSync(join(root, 'public/index.md'))).toBe(false);
+			expect(JSON.parse(await read(root, 'list.json'))).toEqual([['/', {}], ['/a/', { 'text/markdown': '/a.md' }]]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('one page may name its copy twice, but two pages may not write one file', async () => {
 		let twice = await site({
 			'bongo.config.ts': CONFIG(),
 			'layouts/html.hbs': '<bongo:alternate type="text/markdown" /><bongo:alternate type="text/markdown" />{{{ $page.content }}}',
@@ -608,7 +626,6 @@ describe('alternates', () => {
 		let cases: [Record<string, string>, string][] = [
 			[{ 'content/a.md': 'A', 'content/b.md': 'B', 'layouts/html.hbs': '<bongo:alternate type="text/markdown" href="/same.md" />' }, '"same.md" is a Markdown copy of content/a.md and of content/b.md'],
 			[{ 'content/a.md': 'A', 'content/notes.txt': 'mine', 'layouts/html.hbs': '<bongo:alternate type="text/markdown" href="/notes.txt" />' }, '"notes.txt" is a Markdown copy of content/a.md, and a file of the site'],
-			[{ 'content/plain.html': '<p>plain</p>' }, 'content/plain.html has no Markdown source for its <bongo:alternate type="text/markdown">'],
 		];
 		for (let [files, message] of cases) {
 			let root = await site({ 'bongo.config.ts': CONFIG(), 'layouts/html.hbs': '<bongo:alternate type="text/markdown" />', ...files });

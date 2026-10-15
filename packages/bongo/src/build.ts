@@ -577,7 +577,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		if (argv.dev) rendered_content += SCRIPT;
 
 		let found: tags.Alternate[] = [];
-		rendered_content = tags.scanBongoTags(rendered_content, argv as Required<Argv>, config, chain.join(' → '), item.path, found);
+		let markdown = /\.(md|markdown)$/i.test(item.input);
+		rendered_content = tags.scanBongoTags(rendered_content, argv as Required<Argv>, config, chain.join(' → '), item.path, { alternates: found, markdown });
 		rendered_content = tags.rewriteTransitionAttrs(rendered_content);
 		alternates.set(item.rel, { path: item.path, input: item.input, from: `content/${item.rel}`, found });
 
@@ -590,7 +591,6 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	for (let named of ordered) {
 		for (let alt of named.found) {
 			if (alt.file === undefined) continue;
-			if (!/\.(md|markdown)$/i.test(named.input)) throw new Error(`${named.from} has no Markdown source for its <bongo:alternate type="${alt.type}">`);
 			let prev = copies.get(alt.file);
 			if (prev && prev.from !== named.from) throw new Error(`"${alt.file}" is a Markdown copy of ${prev.from} and of ${named.from}`);
 			copies.set(alt.file, { from: named.from, input: named.input });

@@ -343,10 +343,10 @@ describe('scanBongoTags', () => {
 // ---------------------------------------------------------------------------
 
 describe('scanBongoTags — <bongo:alternate>', () => {
-	function scan(html: string, path = '/config/', url = 'https://example.com/') {
+	function scan(html: string, path = '/config/', url = 'https://example.com/', markdown = true) {
 		let found: Alternate[] = [];
 		let config = { ...makeConfig(), $site: { ...makeConfig().$site, url } };
-		let out = scanBongoTags(html, makeArgv(tmpdir()), config, 'layouts/html.hbs', path, found);
+		let out = scanBongoTags(html, makeArgv(tmpdir()), config, 'layouts/html.hbs', path, { alternates: found, markdown });
 		return { out, found };
 	}
 
@@ -370,6 +370,14 @@ describe('scanBongoTags — <bongo:alternate>', () => {
 		expect(scan('<bongo:alternate type="text/markdown" href="https://example.com/a.md" />').found).toEqual([{ type: 'text/markdown', href: '/a.md', file: 'a.md' }]);
 		expect(scan('<bongo:alternate type="text/markdown" href="https://other.dev/a.md" />').found).toEqual([{ type: 'text/markdown', href: 'https://other.dev/a.md' }]);
 		expect(scan('<bongo:alternate type="text/markdown" href="/elsewhere/a.md" />', '/docs/x/', 'https://example.com/docs/').found).toEqual([{ type: 'text/markdown', href: '/elsewhere/a.md' }]);
+	});
+
+	test('a page with no Markdown source drops a Markdown copy that bongo would write, and keeps other links', () => {
+		let html = '<bongo:alternate type="text/markdown" /><bongo:alternate type="text/markdown" href="https://other.dev/a.md" />';
+		expect(scan(html, '/', 'https://example.com/', false)).toEqual({
+			out: '<link rel="alternate" type="text/markdown" href="https://other.dev/a.md"/>',
+			found: [{ type: 'text/markdown', href: 'https://other.dev/a.md' }],
+		});
 	});
 
 	test('another type is a plain <link>, and other attributes go on it', () => {
