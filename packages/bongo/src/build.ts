@@ -277,6 +277,9 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	let last = previous?.key === key ? previous : undefined;
 	let next: memo.Memo = { key, registries: { pages: '', tags: '', sections: {}, outputs: '' }, bundles: {}, assets: {}, loose: false, items: {}, files: {}, sources: {}, made: [] };
 
+	// the size of each output file that the build has read a stat of, for the size report
+	let bytes: Map<string, number> = new Map();
+
 	// the hash of each file that a page loads or an asset is made from, read once in a build
 	let sums: Map<string, Promise<string>> = new Map();
 	function sum(file: string): Promise<string> {
@@ -588,7 +591,9 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			if (await sum(file) !== hash) return false;
 		}
 		let stat = await sink.stat(item.output);
-		return stat?.[0] === page.stat[0] && stat?.[1] === page.stat[1];
+		if (stat?.[0] !== page.stat[0] || stat?.[1] !== page.stat[1]) return false;
+		bytes.set(item.output, stat[0]);
+		return true;
 	}
 
 	// A page that keeps its file still registers its assets, renders, and alternates, for the bundler, output files, and the sweep.
@@ -926,11 +931,14 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		if (!entry || !page.rel) return;
 		let [stat, signature] = await Promise.all([sink.stat(page.output), sign(entry)]);
 		entry.stat = stat ?? [0, 0];
+		bytes.set(page.output, entry.stat[0]);
 		entry.signature = signature;
 		entry.renders = (rendered.get(page.rel) ?? []).map(name => [name, keys.get(name)?.key ?? '']);
 	}));
 	await Promise.all(Object.entries(next.files).map(async ([rel, [hash, output]]) => {
-		next.files[rel] = [hash, output, ...await sink.stat(output) ?? [0, 0]];
+		let stat = await sink.stat(output) ?? [0, 0];
+		next.files[rel] = [hash, output, ...stat];
+		bytes.set(output, stat[0]);
 	}));
 	if (!argv.dev) {
 		// a stylesheet without imports lists no dependencies, so the entry counts too
@@ -952,6 +960,6 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	if (!argv.dev) {
 		log.info(`${green('done')} ${dim('in ' + log.elapsed(Date.now() - t0))}`);
 		watch.step('listing sizes');
-		await log.sizes(argv.dest, process.cwd(), files);
+		await log.sizes(argv.dest, process.cwd(), files, bytes);
 	}
 }
