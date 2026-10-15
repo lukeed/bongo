@@ -81,6 +81,25 @@ describe('sizes', () => {
 		]);
 	});
 
+	test('takes a size that the build already knows, and reads a stat of each other file', async () => {
+		let root = await mkdtemp(join(tmpdir(), 'bongo-sizes-'));
+		try {
+			await mkdir(join(root, 'public'), { recursive: true });
+			await writeFile(join(root, 'public/a.html'), 'aaaa');
+			await writeFile(join(root, 'public/b.html'), 'bb');
+			await log.sizes(join(root, 'public'), root, [join(root, 'public/a.html'), join(root, 'public/b.html')], new Map([[join(root, 'public/a.html'), 999]]));
+			expect(lines()).toEqual([
+				'',
+				'  public/',
+				`    a.html  999 B │ ${gz('aaaa')}`,
+				`    b.html    2 B │ ${gz('bb')}`,
+				'',
+			]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('groups the files by extension above 50 files, and lists each script and stylesheet', async () => {
 		let pages = Object.fromEntries(Array.from({ length: 59 }, (_, i) => [`p${i}/index.html`, 'x'.repeat(100)]));
 		let js = 'let a = 1;';

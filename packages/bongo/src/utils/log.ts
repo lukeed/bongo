@@ -1,7 +1,5 @@
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, relative, sep } from 'node:path';
-import { promisify } from 'node:util';
-import { gzip } from 'node:zlib';
 import { cyan, dim, yellow } from 'kleur/colors';
 
 import { limit } from './index';
@@ -107,7 +105,12 @@ const TABLE_MAX = 50;
 const GZIPS = 8;
 
 const ASSET = /\.(?:[cm]?js|css)$/i;
-const compress = promisify(gzip);
+// The gzip size of `data`: Bun compresses it at once, and Node loads zlib only for the report.
+async function gzipped(data: Uint8Array<ArrayBuffer>): Promise<number> {
+	if (typeof Bun !== 'undefined') return Bun.gzipSync(data).length;
+	let { gzip } = await import('node:zlib');
+	return new Promise((resolve, reject) => gzip(data, (err, out) => err ? reject(err) : resolve(out.length)));
+}
 
 type Row = { name: string; size: Size; gzip?: Size; count?: number };
 
@@ -117,18 +120,26 @@ function files(count: number): string {
 
 /**
  * Print each of `paths`, the files of a build in `dest`, with its size and gzip size. Above 50 files, print the size of each kind of file instead, and list only scripts and stylesheets.
- * Only the files it lists are read, a few at a time, so a large site costs one `stat` for each other file, and no walk of `dest`.
+ * Only the files it lists are read, a few at a time, and `known` gives the sizes that the build already has, so a large site costs one `stat` for each other file, and no walk of `dest`.
  * @example await sizes('/site/public', process.cwd(), ['/site/public/index.html']);
  */
-export async function sizes(dest: string, cwd: string, paths: Iterable<string>): Promise<void> {
-	let found = await Promise.all([...paths].map(file => stat(file).then(info => [{ rel: relative(dest, file).split(sep).join('/'), bytes: info.size }], () => [])));
+export async function sizes(dest: string, cwd: string, paths: Iterable<string>, known: ReadonlyMap<string, number> = new Map()): Promise<void> {
+	let base = dest + sep;
+	let name = (file: string) => {
+		let rel = file.startsWith(base) ? file.slice(base.length) : relative(dest, file);
+		return sep === '/' ? rel : rel.split(sep).join('/');
+	};
+	let found = await Promise.all([...paths].map(async file => {
+		let bytes = known.get(file) ?? await stat(file).then(info => info.size, () => -1);
+		return bytes < 0 ? [] : [{ rel: name(file), bytes }];
+	}));
 	let all = found.flat();
 	if (!all.length) return;
 
 	let table = all.length <= TABLE_MAX;
 	let listed = all.filter(file => table || ASSET.test(file.rel)).sort((a, b) => a.rel.localeCompare(b.rel));
 	let slot = limit(GZIPS);
-	let gzips = await Promise.all(listed.map(file => slot(async () => (await compress(await readFile(join(dest, file.rel)))).length)));
+	let gzips = await Promise.all(listed.map(file => slot(async () => gzipped(await readFile(join(dest, file.rel))))));
 
 	let rows: Row[] = [];
 	if (!table) {
