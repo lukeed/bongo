@@ -275,7 +275,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	// the memo applies to pages, unless something that can change every page changed since
 	let key = await memo.key(argv, inputs.files);
 	let last = previous?.key === key ? previous : undefined;
-	let next: memo.Memo = { key, registries: { pages: '', tags: '', sections: {}, outputs: '' }, bundles: {}, assets: {}, loose: false, items: {}, files: {}, sources: {}, made: [] };
+	let next: memo.Memo = { key, registries: { pages: '', tags: '', sections: {}, outputs: '' }, bundles: {}, assets: {}, marks: {}, loose: false, items: {}, files: {}, sources: {}, made: [] };
 
 	// the size of each output file that the build has read a stat of, for the size report
 	let bytes: Map<string, number> = new Map();
@@ -705,7 +705,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			if (registration) next.bundles[placeholder] = registration;
 		}
 		let inline = placeholders.filter(placeholder => rendered_content.includes(`data-bongo-inline="${placeholder}"`));
-		let page: memo.Page = { reads: [...reads], loads, placeholders, inline, renders: [], found, signature: '', stat: [0, 0] };
+		let page: memo.Page = { reads: [...reads], loads, placeholders, inline, renders: [], found, stat: [0, 0] };
 		next.items[item.rel] = { hash: item.hash, kind: item.kind, ext: item.ext, params: item.params, path: item.path, url: item.url, output: item.output, section: item.section, tags: item.tags, headings: item.headings, record: item.record ?? '', page };
 		pages.push({ output: item.output, html: writes ? undefined : rendered_content, path: item.path, params: item.params, from: chain.join(' → '), rel: item.rel });
 		await writes?.add(() => sink.write(item.output, rendered_content));
@@ -839,28 +839,23 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	for (let notice of flushResult.notices) log.info(notice);
 
-	// the outputs of a page's placeholders, and the content of those it inlines; a page that kept its file renders again when they change
+	// what each placeholder puts in a page: a link to its output, and the content of an output that a page inlines; a page that kept its file renders again when one of its own changed
 	let outs: Map<string, bundler.OutputInfo> = new Map(flushResult.outputs);
 	let contents: Map<string, Promise<string>> = new Map();
-	let inlined = (file: string) => {
+	let inner = (placeholder: string) => {
+		let file = outs.get(placeholder)?.filename;
+		if (file === undefined) return Promise.resolve('');
 		let hit = contents.get(file);
 		if (!hit) contents.set(file, hit = sink.read(join(dest, file)).then(memo.hash, () => ''));
 		return hit;
 	};
-	// by the placeholders and inlined ones of a page, which most pages share
-	let signatures: Map<string, Promise<string>> = new Map();
-	let sign = (page: memo.Page) => {
-		let key = page.placeholders.join() + '|' + page.inline.join();
-		let hit = signatures.get(key);
-		if (!hit) signatures.set(key, hit = Promise.all(page.placeholders.map(async placeholder => {
-			let out = outs.get(placeholder);
-			let sum = out && page.inline.includes(placeholder) ? await inlined(out.filename) : '';
-			return [placeholder, out?.filename, out?.exports, out?.image, sum];
-		})).then(list => memo.hash(JSON.stringify(list))));
-		return hit;
-	};
-	let stale = await Promise.all(kept.map(async ({ item, page }) => await sign(page) !== page.signature ? [item] : []));
-	await renderAll(stale.flat());
+	let marks = new Map([...outs].map(([placeholder, out]) => [placeholder, memo.hash(JSON.stringify([out.filename, out.exports, out.image]))]));
+	let inlines: Set<string> = new Set();
+	for (let { page } of kept) page.inline.forEach(placeholder => inlines.add(placeholder));
+	let relinked = new Set([...marks].filter(([placeholder, mark]) => last?.marks[placeholder]?.[0] !== mark).map(([placeholder]) => placeholder));
+	let reinlined = new Set((await Promise.all([...inlines].map(async placeholder => await inner(placeholder) !== last?.marks[placeholder]?.[1] ? [placeholder] : []))).flat());
+	let stale = relinked.size || reinlined.size ? kept.filter(({ page }) => page.placeholders.some(placeholder => relinked.has(placeholder)) || page.inline.some(placeholder => reinlined.has(placeholder))) : [];
+	await renderAll(stale.map(({ item }) => item));
 
 	watch.step('writing pages');
 	// a streamed build outruns the GC, so rendering leaves much garbage; one full collection here lowers peak RSS by ~120 MB on 10k pages
@@ -929,10 +924,9 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	await Promise.all(pages.map(async page => {
 		let entry = page.rel ? next.items[page.rel]?.page : undefined;
 		if (!entry || !page.rel) return;
-		let [stat, signature] = await Promise.all([sink.stat(page.output), sign(entry)]);
-		entry.stat = stat ?? [0, 0];
+		entry.stat = await sink.stat(page.output) ?? [0, 0];
 		bytes.set(page.output, entry.stat[0]);
-		entry.signature = signature;
+		entry.inline.forEach(placeholder => inlines.add(placeholder));
 		entry.renders = (rendered.get(page.rel) ?? []).map(name => [name, keys.get(name)?.key ?? '']);
 	}));
 	await Promise.all(Object.entries(next.files).map(async ([rel, [hash, output]]) => {
@@ -949,6 +943,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		};
 		next.assets = Object.fromEntries(await Promise.all([...outs].map(async ([placeholder, out]) => [placeholder, await sources(placeholder, out)])));
 	}
+	next.marks = Object.fromEntries(await Promise.all([...marks].map(async ([placeholder, mark]) => [placeholder, [mark, inlines.has(placeholder) ? await inner(placeholder) : '']])));
 	if (writes) next.made = [...files].filter(file => file.startsWith(dest + sep)).map(file => relative(dest, file).split(sep).join('/'));
 	next.loose = loose.length > 0;
 	MEMOS.set(sink, next);
