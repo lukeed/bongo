@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import * as fs from './fs';
+import * as memo from './memo';
 import * as minify from './minify';
 
 import type { Argv } from 'bongo';
@@ -23,8 +24,8 @@ export type Sink = {
 	read(file: string): Promise<Buffer>;
 	remove(file: string): Promise<void>;
 	clear(): Promise<void>;
-	/** Keep the files of the last build, to write over them; refuses where `clear` refuses. A sink that gains nothing from it empties itself instead. */
-	reuse(): Promise<void>;
+	/** Keep the files of the last build, to write over them; refuses where `clear` refuses. With `made`, the files that the last build made, it trusts that list and lists nothing. A sink that gains nothing from it empties itself instead. */
+	reuse(made?: string[]): Promise<void>;
 	/** After `reuse`, delete each kept file that no write since then replaced. */
 	sweep(): Promise<void>;
 	/** The size and mtime of `file`, or for a file in memory, its size and version; `undefined` when it is missing. */
@@ -87,13 +88,15 @@ export function disk(argv: Required<Argv>): Sink {
 			await old?.fit(file);
 			await fs.write(file, data);
 		},
-		clear() {
+		async clear() {
 			old = undefined;
-			return fs.empty(argv.dest, argv.cwd, keep);
+			// the memo describes the files that this empties
+			await memo.forget(argv);
+			await fs.empty(argv.dest, argv.cwd, keep);
 		},
-		async reuse() {
+		async reuse(made) {
 			old = undefined;
-			old = await fs.reuse(argv.dest, argv.cwd, keep);
+			old = await fs.reuse(argv.dest, argv.cwd, keep, made);
 		},
 		async sweep() {
 			let done = old;
@@ -101,7 +104,7 @@ export function disk(argv: Required<Argv>): Sink {
 			await done?.sweep();
 		},
 		async keep(file) {
-			await old?.fit(file);
+			old?.claim(file);
 		},
 	};
 	DISKS.set(argv.dest, sink);

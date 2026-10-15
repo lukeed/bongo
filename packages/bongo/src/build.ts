@@ -1,5 +1,5 @@
 import { realpathSync } from 'node:fs';
-import { extname, join, sep } from 'node:path';
+import { extname, join, relative, sep } from 'node:path';
 import { dim, green } from 'kleur/colors';
 import * as mime from 'mrmime';
 
@@ -44,6 +44,9 @@ const WRITES = 64;
 
 // The content files that a build reads and loads at once.
 const READS = 16;
+
+// A content file that changed this close to a build may change again within the precision of its mtime, so the next build reads it.
+const RACY = 2000;
 
 // Section = the directory prefix of the page's rel path, using forward slashes.
 // e.g. "blog/post.md" -> "blog", "index.md" -> "", "blog/2025/post.md" -> "blog/2025"
@@ -206,8 +209,10 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 	} catch (err) {
 		// leave no half-written pages; the build error matters more than a failed write or cleanup
 		if (writes) {
+			let sink = opts.sink ?? output.disk(argv);
 			await writes.drain().catch(() => {});
-			await (opts.sink ?? output.disk(argv)).clear().catch(() => {});
+			await sink.clear().catch(() => {});
+			MEMOS.delete(sink);
 		}
 		throw err;
 	} finally {
@@ -229,9 +234,11 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	// A dev rebuild writes over its last good build, so a failed one leaves that build serving.
 	let sink = opts.sink ?? output.disk(argv);
+	// the memo of the last good build; `bongo build` keeps it on disk
+	let previous = argv.fresh ? undefined : MEMOS.get(sink) ?? (writes ? await memo.load(argv) : undefined);
 	if (!(argv.dev && OUTPUT.get(sink)?.dev)) {
-		// `bongo build` writes over the files of the last build, which is much faster than making them again, then sweeps the rest
-		await (writes ? sink.reuse() : sink.clear());
+		// `bongo build` writes over the files of the last build, which is much faster than making them again, then sweeps the rest; the memo lists them, so public/ need not be listed
+		await (writes ? sink.reuse(previous?.made) : sink.clear());
 		OUTPUT.delete(sink);
 	}
 
@@ -261,11 +268,10 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	watch.step('compiling layouts and partials');
 	await templates.collect(argv, context);
 
-	// the memo of the last good build, unless something that can change every page changed since
+	// the memo applies to pages, unless something that can change every page changed since
 	let key = await memo.key(argv, inputs.files);
-	let previous = argv.fresh ? undefined : MEMOS.get(sink) ?? (writes ? await memo.load(argv) : undefined);
 	let last = previous?.key === key ? previous : undefined;
-	let next: memo.Memo = { key, registries: { pages: '', tags: '', sections: {}, outputs: '' }, bundles: {}, assets: {}, loose: false, items: {}, files: {} };
+	let next: memo.Memo = { key, registries: { pages: '', tags: '', sections: {}, outputs: '' }, bundles: {}, assets: {}, loose: false, items: {}, files: {}, sources: {}, made: [] };
 
 	// the hash of each file that a page loads or an asset is made from, read once in a build
 	let sums: Map<string, Promise<string>> = new Map();
@@ -424,14 +430,12 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		};
 	}
 
-	async function scan(input: string, rel: string, name: string): Promise<void> {
-		let bytes = await fs.read(input);
-		let hash = memo.hash(bytes);
-		// a page whose source the memo has runs no loader: its record goes into the registries, and its body loads only if it renders
+	// A content file that the memo has as it is: a page goes into the registries and runs no loader, and its body loads only if it renders; a file that walk 1 wrote keeps its output.
+	async function recall(input: string, rel: string, name: string, hash: string): Promise<boolean> {
 		let hit = last?.loose ? undefined : last?.items[rel];
 		if (hit?.hash === hash && !links(hit.page)) {
-			scanned.push({ input, rel, name, kind: hit.kind, ext: hit.ext, params: hit.params, path: hit.path, url: hit.url, output: hit.output, section: hit.section, title: text(hit.params.title), summary: text(hit.params.summary), tags: parseTags(hit.params.tags), headings: hit.headings, hash });
-			return;
+			scanned.push({ input, rel, name, kind: hit.kind, ext: hit.ext, params: hit.params, path: hit.path, url: hit.url, output: hit.output, section: hit.section, title: text(hit.params.title), summary: text(hit.params.summary), tags: hit.tags, headings: hit.headings, hash });
+			return true;
 		}
 		let file = last?.files[rel];
 		let stat = file?.[0] === hash ? await sink.stat(file[1]) : undefined;
@@ -439,10 +443,28 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			written.add(file[1]);
 			next.files[rel] = file;
 			await sink.keep(file[1]);
-			return;
+			return true;
 		}
-		let item = await parse(input, rel, name, bytes, hash);
-		if (item) scanned.push(item);
+		return false;
+	}
+
+	// A file whose size and mtime are as the memo has them keeps its hash, unread; any other is read, a few at a time.
+	async function scan(input: string, rel: string, name: string): Promise<void> {
+		let info = await fs.stat(input);
+		let note = (hash: string) => next.sources[rel] = info.mtimeMs < t0 - RACY ? [info.size, info.mtimeMs, hash] : [-1, -1, hash];
+		let known = previous?.sources[rel];
+		if (known?.[0] === info.size && known[1] === info.mtimeMs) {
+			note(known[2]);
+			if (await recall(input, rel, name, known[2])) return;
+		}
+		await reads(async () => {
+			let bytes = await fs.read(input);
+			let hash = memo.hash(bytes);
+			note(hash);
+			if (await recall(input, rel, name, hash)) return;
+			let item = await parse(input, rel, name, bytes, hash);
+			if (item) scanned.push(item);
+		});
 	}
 
 	// The body of a page: from walk 1, or for a page whose source the memo had, loaded as walk 1 would have.
@@ -454,7 +476,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	watch.step('reading content/');
 	let reads = utils.limit(READS);
-	await fs.list(content, (input, rel, name) => reads(() => scan(input, rel, name)).catch(err => {
+	await fs.list(content, (input, rel, name) => scan(input, rel, name).catch(err => {
 		let reason = err instanceof Error ? err.message : String(err);
 		throw new Error(`${join('content', rel)}: ${reason}`, { cause: err });
 	}));
@@ -673,7 +695,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		}
 		let inline = placeholders.filter(placeholder => rendered_content.includes(`data-bongo-inline="${placeholder}"`));
 		let page: memo.Page = { reads: [...reads], loads, placeholders, inline, renders: [], found, signature: '', stat: [0, 0] };
-		next.items[item.rel] = { hash: item.hash, kind: item.kind, ext: item.ext, params: item.params, path: item.path, url: item.url, output: item.output, section: item.section, headings: item.headings, page };
+		next.items[item.rel] = { hash: item.hash, kind: item.kind, ext: item.ext, params: item.params, path: item.path, url: item.url, output: item.output, section: item.section, tags: item.tags, headings: item.headings, page };
 		pages.push({ output: item.output, html: writes ? undefined : rendered_content, path: item.path, params: item.params, from: chain.join(' → '), rel: item.rel });
 		await writes?.add(() => sink.write(item.output, rendered_content));
 	}
@@ -913,6 +935,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		};
 		next.assets = Object.fromEntries(await Promise.all([...outs].map(async ([placeholder, out]) => [placeholder, await sources(placeholder, out)])));
 	}
+	if (writes) next.made = [...files].filter(file => file.startsWith(dest + sep)).map(file => relative(dest, file).split(sep).join('/'));
 	next.loose = loose.length > 0;
 	MEMOS.set(sink, next);
 	if (writes) await memo.save(argv, next);

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
-import { mkdir, open, readFile, rename } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import * as fs from './fs';
@@ -29,7 +29,7 @@ export type Page = {
 	stat: [size: number, mtime: number];
 };
 
-/** What walk 1 found for one content file; its title, summary, and tags come from its params. */
+/** What walk 1 found for one content file; its title and summary come from its params. */
 export type Item = {
 	hash: string;
 	kind: 'page' | 'output' | 'data';
@@ -39,6 +39,7 @@ export type Item = {
 	url: string;
 	output: string;
 	section: string;
+	tags: string[];
 	headings: Template.Heading[];
 	page?: Page;
 };
@@ -57,9 +58,13 @@ export type Memo = {
 	items: Record<string, Item>;
 	/** Each content file that walk 1 wrote itself, as a loader's non-page result or a copy: its hash, its output, and the output's size and mtime. */
 	files: Record<string, [hash: string, output: string, size: number, mtime: number]>;
+	/** The size, mtime, and hash of each content file, so a file whose size and mtime did not change is not read; -1 for a file that changed too close to the build to trust its mtime. */
+	sources: Record<string, [size: number, mtime: number, hash: string]>;
+	/** Each file of the build in `public/`, relative to it, so the next `bongo build` need not list the folder. */
+	made: string[];
 };
 
-const FORMAT = '2';
+const FORMAT = '3';
 
 // the items of the memo that one write holds
 const LINES = 1000;
@@ -73,6 +78,11 @@ export function hash(data: string | Uint8Array): string {
 }
 
 let CODE: string | undefined;
+
+// A hash of this bongo code and the format of its memo, which a memo must match to be read at all.
+async function code(): Promise<string> {
+	return CODE ??= hash(FORMAT + '\0' + await readFile(realpathSync(__filename), 'utf8'));
+}
 
 // The nearest lockfile above `dir`, which pins the version of each plugin and loader.
 function lockfile(dir: string): string | undefined {
@@ -97,9 +107,8 @@ async function folder(dir: string): Promise<string[]> {
  * @example let key = await memo.key(argv, inputs.files);
  */
 export async function key(argv: Required<Argv>, inputs: string[]): Promise<string> {
-	CODE ??= hash(await readFile(realpathSync(__filename)));
 	let sum = createHash('sha1');
-	sum.update(JSON.stringify([FORMAT, CODE, process.versions.bun ?? process.version, argv.minify, argv.dev, argv.dest]));
+	sum.update(JSON.stringify([await code(), process.versions.bun ?? process.version, argv.minify, argv.dev, argv.dest]));
 	let lock = lockfile(argv.cwd);
 	let files = [...new Set([...inputs, ...await folder(argv.layouts), ...await folder(argv.partials), ...lock ? [lock] : []])].sort();
 	for (let file of files) {
@@ -115,13 +124,15 @@ function where(argv: Required<Argv>): string {
 }
 
 /**
- * The memo that the last `bongo build` of this site saved, if any: one line for all but its items, then one line for each item.
+ * The memo that the last `bongo build` of this site saved with this bongo, if any: one line for all but its items, then one line for each item.
  * @example let last = await memo.load(argv);
  */
 export async function load(argv: Required<Argv>): Promise<Memo | undefined> {
 	try {
 		let [head, ...lines] = (await readFile(where(argv), 'utf8')).split('\n');
-		let memo: Memo = { ...JSON.parse(head), items: {} };
+		let { code: from, ...rest } = JSON.parse(head);
+		if (from !== await code()) return;
+		let memo: Memo = { ...rest, items: {} };
 		for (let line of lines) {
 			if (!line) continue;
 			let [rel, item]: [string, Item] = JSON.parse(line);
@@ -131,6 +142,14 @@ export async function load(argv: Required<Argv>): Promise<Memo | undefined> {
 	} catch {
 		return;
 	}
+}
+
+/**
+ * Delete the saved memo, once `public/` no longer holds the build that it describes.
+ * @example await memo.forget(argv);
+ */
+export async function forget(argv: Required<Argv>): Promise<void> {
+	await rm(where(argv), { force: true });
 }
 
 /**
@@ -145,7 +164,7 @@ export async function save(argv: Required<Argv>, memo: Memo): Promise<void> {
 	let { items, ...head } = memo;
 	let handle = await open(temp, 'w');
 	try {
-		await handle.write(JSON.stringify(head) + '\n');
+		await handle.write(JSON.stringify({ code: await code(), ...head }) + '\n');
 		let entries = Object.entries(items);
 		for (let i = 0; i < entries.length; i += LINES) {
 			await handle.write(entries.slice(i, i + LINES).map(entry => JSON.stringify(entry) + '\n').join(''));
