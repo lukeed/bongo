@@ -25,13 +25,14 @@ cover:
 
 ## Page values
 
-bongo reads three keys into fields of `$page`:
+bongo reads these keys into fields of `$page`:
 
 - `title` becomes `$page.title`.
 - `summary` becomes `$page.summary`.
 - `tags` becomes `$page.tags`. It takes a list or a comma-separated string. See [Tags](/content/#tags).
+- `draft` and `date` decide `$page.draft`. A page with `draft: true`, or a `date` after the build starts, is a draft, which `bongo build` leaves out, unless the page has `draft: false`. See [Drafts](/content/#drafts).
 
-`$page.title` and `$page.summary` are always text, so `title: 2024` gives `"2024"`. All keys, these three included, stay in `$page.params` with their typed values.
+`$page.title` and `$page.summary` are always text, so `title: 2024` gives `"2024"`. All keys, these included, stay in `$page.params` with their typed values.
 
 `url` sets a custom path for the page. See [Custom URLs](/content/#custom-urls).
 

@@ -1,6 +1,6 @@
 ---
 title: Content
-summary: How bongo turns the files in content/ into pages, how page URLs, sections, and tags work, and how .hbs content compiles.
+summary: How bongo turns the files in content/ into pages, how page URLs, sections, tags, and drafts work, and how .hbs content compiles.
 group: Guides
 order: 1
 ---
@@ -94,6 +94,33 @@ tags: js, css
 </ul>
 {{/each}}
 ```
+
+## Drafts
+
+A page is a draft when its frontmatter has `draft: true`, or a `date` after the build starts:
+
+```yaml
+---
+title: Coming soon
+date: 2026-12-01T09:00
+---
+```
+
+`bongo build` leaves each draft out. It writes no file for the draft, and `$pages`, `$section`, and `$tags` do not list it, so a sitemap, a feed, or a data module never sees it. `bongo build --drafts` builds drafts too. `bongo dev` builds them, and `bongo dev --no-drafts` leaves them out, to show what a build ships. See [CLI](/cli/#options).
+
+`draft: false` publishes a page whatever its `date`, such as the page of an event that is still to come.
+
+`$page.draft` is `true` for a draft, and so is the `draft` field of its entry in `$pages`. Use it to mark a draft while you write:
+
+```hbs
+{{#if $page.draft}}<p class="draft">Draft</p>{{/if}}
+```
+
+### Scheduled pages
+
+A page with a `date` in the future is scheduled: the first `bongo build` that starts after that moment publishes it. A date with no time is 00:00 UTC, and a time with no offset is in UTC, as [`$utils.date`](/utilities/) reads it. For another time zone, give an offset, such as `2026-12-01T09:00+02:00`. A `date` that is not an ISO date, such as `TBD`, schedules nothing.
+
+A static site publishes nothing by itself, so run a build at that time, for example from a scheduled job in CI. No file has to change: each build reads the clock to know which pages are in, and renders again each page that lists a page that is now published. See [Incremental builds](/cli/#incremental-builds).
 
 ## `.hbs` content
 

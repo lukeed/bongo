@@ -29,6 +29,7 @@ bongo dev -C site --host --port 3000
 bongo dev --write
 bongo build --debug
 bongo build --fresh
+bongo build --drafts
 ```
 
 An unknown option, or a `--port` that is not a port number, stops the command with an error. A bare `--host`, with no value, exposes the dev server on your network.
@@ -54,7 +55,7 @@ bongo never follows a symlink in `public/`. It deletes a symlink that a write or
 
 A build renders only the pages that a change reaches; the other pages keep their files from the last build. `bongo build` keeps a record of its last good build in `node_modules/.cache/bongo/memo.json`, and `bongo dev` keeps it in memory. Each build reads and hashes only the source files whose size or mtime changed since the record, and compares those hashes with it; a file that changed less than 2 seconds before a build is read again by the next. A page renders again when its source changes; when it reads `$pages`, `$tags`, or `$section` through its source, layouts, or partials, and a page in that list changes its path, title, summary, section, tags, headings, or frontmatter; when a file that it reads with `$assets.load` changes; when an asset that it links changes, or a module or stylesheet that the asset imports; when the config has `$hooks.transform` and an output file is added, deleted, or changes its frontmatter; or when its file in `public/` changed or is gone.
 
-Every page renders again when the config changes, or a local file that it imports, `data/`, `layouts/`, `partials/`, the lockfile, the version of bongo, the runtime, or `--minify`. Output files and data modules render on every build. `bongo dev` names each script and stylesheet by its entry, not by its content, so an edit to one renders only the pages that inline it or use its CSS module classes.
+Every page renders again when the config changes, or a local file that it imports, `data/`, `layouts/`, `partials/`, the lockfile, the version of bongo, the runtime, `--minify`, or `--drafts`. Output files and data modules render on every build. `bongo dev` names each script and stylesheet by its entry, not by its content, so an edit to one renders only the pages that inline it or use its CSS module classes.
 
 bongo cannot see a change that keeps the size and the mtime of a source file, as `cp -p` or `rsync -t` can make, or what a template, a hook, or a loader reads by itself, such as the time, an environment variable, or a file that it opens. Use `--fresh` to render every page for such a build. A build that fails empties `public/`, so the next build renders every page.
 
@@ -193,8 +194,9 @@ await build({ cwd: 'site', minify: true });
 - `minify` — the same as `--minify`.
 - `debug` — the same as `--debug`.
 - `fresh` — the same as `--fresh`.
+- `drafts` — the same as `--drafts`.
 
-`dev(options)` starts the dev server, as `bongo dev` does. It resolves after the first build, and the server keeps running. It takes `cwd`, `debug`, `fresh`, `port`, `host`, and `write`, the same as the `bongo dev` options:
+`dev(options)` starts the dev server, as `bongo dev` does. It resolves after the first build, and the server keeps running. It takes `cwd`, `debug`, `drafts`, `fresh`, `port`, `host`, and `write`, the same as the `bongo dev` options:
 
 ```ts
 import { dev } from 'bongo';
@@ -235,6 +237,8 @@ bongo reads a small subset of YAML:
 An error names the file and the line, for example `content/blog/post.md: Invalid frontmatter: duplicate key "title" at line 3`.
 
 `$page.title` and `$page.summary` are always text, so `title: 2024` gives `"2024"`. `$page.tags` takes a list or a comma-separated string.
+
+A page is a draft when it has `draft: true`, or a `date` after the build starts, unless it has `draft: false`. `bongo build` leaves drafts out: no file, and no entry in `$pages`, `$section`, or `$tags`, so sitemaps, feeds, and data modules never see them. `bongo build --drafts` builds them, and `bongo dev` builds them unless `--no-drafts`. A `date` with no time is 00:00 UTC, and a time with no offset is in UTC; a `date` that is not an ISO date schedules nothing. A page whose `date` passes joins the first build after that moment, so run a build then, for example from a scheduled job in CI. `$page.draft` is `true` for a draft.
 
 `url` sets a custom path for a page. `url: /about/` writes `about/index.html`. A path that ends in `.html`, such as `url: /404.html`, writes that file.
 
@@ -478,8 +482,8 @@ A `.hbs` partial declares the arguments that it reads with `{{#expect title, dat
 ## Template Variables
 
 - `$site` — global site config.
-- `$page` — current page. Includes `path`, `url`, `title`, `summary`, `params`, `section`, `tags`, `headings`, and `content`. `headings` lists `{ level, id, text, html }` from the page's loader; `.html` and `.hbs` content has none.
-- `$pages` — every page in the build, sorted by path. In output files and data modules, each entry also has `alternates`, the `<bongo:alternate>` elements of the page by type, such as `{ 'text/markdown': '/about.md' }`.
+- `$page` — current page. Includes `path`, `url`, `title`, `summary`, `params`, `section`, `tags`, `headings`, `draft`, and `content`. `headings` lists `{ level, id, text, html }` from the page's loader; `.html` and `.hbs` content has none.
+- `$pages` — every page in the build, sorted by path, without drafts unless the build has them. In output files and data modules, each entry also has `alternates`, the `<bongo:alternate>` elements of the page by type, such as `{ 'text/markdown': '/about.md' }`.
 - `$section` — pages scoped to the current page's section directory.
 - `$tags` — array of `{ tag, pages }` entries.
 - `$assets` — `load(filename, encoding?)` reads a file from `assets/` and returns a promise. `render(template, output?, options?)` draws a partial as an image and returns a promise of its URL path. See [Dynamic Images](#dynamic-images).
