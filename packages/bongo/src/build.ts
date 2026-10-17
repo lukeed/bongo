@@ -5,6 +5,7 @@ import * as mime from 'mrmime';
 
 import * as attrs from './utils/attrs';
 import * as data from './utils/data';
+import { draft } from './utils/draft';
 import * as fs from './utils/fs';
 import * as images from './utils/images';
 import * as log from './utils/log';
@@ -89,6 +90,7 @@ type ScanItem = {
 	headings: Template.Heading[];
 	hash: string;            // of the source file, to compare with the memo
 	record?: string;         // a hash of its entry in the registries; from the memo for a page whose source it had
+	draft?: boolean;         // `draft: true`, or a `date` after the build started, unless `draft: false`
 };
 
 // Frontmatter is typed, so `title: 2024` is a number; page text fields take any scalar as text.
@@ -149,6 +151,7 @@ function pageOf(item: ScanItem): Template.Page {
 		section: item.section,
 		tags: item.tags,
 		headings: item.headings,
+		draft: item.draft ?? false,
 		scripts: '',
 		styles: '',
 	};
@@ -488,6 +491,10 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		throw new Error(`${join('content', rel)}: ${reason}`, { cause: err });
 	}));
 
+	// a draft goes no further without `--drafts`: it makes no file, and no registry lists it
+	for (let item of scanned) item.draft = item.kind !== 'data' && draft(item.params, t0);
+	if (!argv.drafts) scanned = scanned.filter(item => !item.draft);
+
 	// Between walks — build Pages and Sections registries.
 	let Pages: Template.PageInfo[] = [];
 	// a short hash of each page, which the memo keeps, so the three registries join 40 bytes for a page, not its whole record
@@ -511,10 +518,12 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			tags: item.tags,
 			headings: item.headings,
 			params: item.params,
+			draft: item.draft ?? false,
 		};
 		Pages.push(info);
 		item.record ??= memo.hash(JSON.stringify([info.path, info.url, info.title, info.summary, info.section, info.tags, info.headings, info.params]));
-		records.set(info, item.record);
+		// a page stops being a draft when its date passes, with its source as it was
+		records.set(info, info.draft ? item.record + ' draft' : item.record);
 
 		let list = Sections.get(item.section);
 		if (!list) {
@@ -578,8 +587,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	rendered.set('', loose);
 
 	// Nothing that the page read or links changed, and its file is as the last build left it.
-	async function clean(item: ScanItem, page: memo.Page): Promise<boolean> {
-		if (!last || links(page)) return false;
+	async function clean(item: ScanItem, old: memo.Item, page: memo.Page): Promise<boolean> {
+		if (!last || links(page) || old.draft !== item.draft) return false;
 		// `$hooks.transform` gets the output files, so with one, a page renders again when they change
 		if (config.$hooks.transform && last.registries.outputs !== next.registries.outputs) return false;
 		for (let read of page.reads) {
@@ -703,7 +712,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		}
 		let inline = placeholders.filter(placeholder => rendered_content.includes(`data-bongo-inline="${placeholder}"`));
 		let page: memo.Page = { reads: [...reads], loads, placeholders, inline, renders: [], found, stat: [0, 0] };
-		next.items[item.rel] = { hash: item.hash, kind: item.kind, ext: item.ext, params: item.params, path: item.path, url: item.url, output: item.output, section: item.section, tags: item.tags, headings: item.headings, record: item.record ?? '', page };
+		next.items[item.rel] = { hash: item.hash, kind: item.kind, ext: item.ext, params: item.params, path: item.path, url: item.url, output: item.output, section: item.section, tags: item.tags, headings: item.headings, record: item.record ?? '', draft: item.draft ?? false, page };
 		pages.push({ output: item.output, html: writes ? undefined : rendered_content, path: item.path, params: item.params, from: chain.join(' → '), rel: item.rel });
 		await writes?.add(() => sink.write(item.output, rendered_content));
 	}
@@ -726,7 +735,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	let cleans = await Promise.all(scanned.map(item => {
 		let old = last?.items[item.rel];
-		return item.kind === 'page' && old?.page && old.hash === item.hash ? clean(item, old.page) : false;
+		return item.kind === 'page' && old?.page && old.hash === item.hash ? clean(item, old, old.page) : false;
 	}));
 	for (let [i, item] of scanned.entries()) {
 		if (item.kind === 'data') {

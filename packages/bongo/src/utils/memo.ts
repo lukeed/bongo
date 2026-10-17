@@ -41,6 +41,8 @@ export type Item = {
 	headings: Template.Heading[];
 	/** A hash of its entry in the registries. */
 	record: string;
+	/** Whether it was a draft when it rendered, which a date that passes changes. */
+	draft: boolean;
 	page?: Page;
 };
 
@@ -66,7 +68,7 @@ export type Memo = {
 	made: string[];
 };
 
-const FORMAT = '6';
+const FORMAT = '7';
 
 // the items of the memo that one write holds
 const LINES = 1000;
@@ -110,7 +112,7 @@ async function folder(dir: string): Promise<string[]> {
  */
 export async function key(argv: Required<Argv>, inputs: string[]): Promise<string> {
 	let sum = createHash('sha1');
-	sum.update(JSON.stringify([await code(), process.versions.bun ?? process.version, argv.minify, argv.dev, argv.dest]));
+	sum.update(JSON.stringify([await code(), process.versions.bun ?? process.version, argv.minify, argv.dev, argv.drafts, argv.dest]));
 	let lock = lockfile(argv.cwd);
 	let files = [...new Set([...inputs, ...await folder(argv.layouts), ...await folder(argv.partials), ...lock ? [lock] : []])].sort();
 	for (let file of files) {
@@ -124,20 +126,20 @@ export async function key(argv: Required<Argv>, inputs: string[]): Promise<strin
 // An item is a row, not an object: no key names, a heading's `html` only where it differs from its text, outputs relative to `public/`, and placeholder lists by index in one shared table.
 type Heading = [level: number, id: string, text: string, html?: string];
 type PageRow = [reads: Read[], loads: [file: string, hash: string][], placeholders: number, inline: string[], renders: [name: string, key: string][], found: Alternate[], stat: [size: number, mtime: number]];
-type Row = [rel: string, hash: string, kind: Item['kind'], ext: string, params: Template.Params, path: string, url: string, output: string, section: string, tags: string[], headings: Heading[], record: string, page?: PageRow];
+type Row = [rel: string, hash: string, kind: Item['kind'], ext: string, params: Template.Params, path: string, url: string, output: string, section: string, tags: string[], headings: Heading[], record: string, draft: boolean, page?: PageRow];
 
 function encode(rel: string, item: Item, dest: string, lists: Map<string, number>): Row {
 	let output = item.output.startsWith(dest + sep) ? item.output.slice(dest.length + 1) : item.output;
 	let headings = item.headings.map(({ level, id, text, html }): Heading => html === text ? [level, id, text] : [level, id, text, html]);
-	let row: Row = [rel, item.hash, item.kind, item.ext, item.params, item.path, item.url, output, item.section, item.tags, headings, item.record];
+	let row: Row = [rel, item.hash, item.kind, item.ext, item.params, item.path, item.url, output, item.section, item.tags, headings, item.record, item.draft];
 	let page = item.page;
 	if (page) row.push([page.reads, page.loads, lists.get(page.placeholders.join('\n')) ?? -1, page.inline, page.renders, page.found, page.stat]);
 	return row;
 }
 
 function decode(row: Row, dest: string, lists: string[][]): [string, Item] {
-	let [rel, hash, kind, ext, params, path, url, output, section, tags, headings, record, page] = row;
-	let item: Item = { hash, kind, ext, params, path, url, output: isAbsolute(output) ? output : dest + sep + output, section, tags, headings: headings.map(([level, id, text, html]) => ({ level, id, text, html: html ?? text })), record };
+	let [rel, hash, kind, ext, params, path, url, output, section, tags, headings, record, draft, page] = row;
+	let item: Item = { hash, kind, ext, params, path, url, output: isAbsolute(output) ? output : dest + sep + output, section, tags, headings: headings.map(([level, id, text, html]) => ({ level, id, text, html: html ?? text })), record, draft };
 	if (page) {
 		let [reads, loads, index, inline, renders, found, stat] = page;
 		item.page = { reads, loads, placeholders: lists[index] ?? [], inline, renders, found, stat };

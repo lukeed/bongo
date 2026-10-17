@@ -30,6 +30,7 @@ function item(argv: Required<Argv>, path: string, placeholders: string[]): memo.
 			{ level: 2, id: 'code', text: 'The run() call', html: 'The <code>run()</code> call' },
 		],
 		record: memo.hash('record ' + path),
+		draft: false,
 		page: { reads: ['section'], loads: [], placeholders, inline: [], renders: [], found: [], stat: [120, 1700000000000.5] },
 	};
 }
@@ -48,7 +49,7 @@ describe('save and load', () => {
 			items: {
 				'blog/a.md': item(argv, '/blog/a/', shared),
 				'blog/b.md': item(argv, '/blog/b/', [...shared]),
-				'blog/c.md': item(argv, '/blog/c/', []),
+				'blog/c.md': { ...item(argv, '/blog/c/', []), draft: true },
 				'feed.xml.hbs': { ...item(argv, '/feed.xml', []), kind: 'output', output: join(argv.dest, 'feed.xml'), page: undefined },
 			},
 			files: { 'files/data.csv': ['h', join(argv.dest, 'files/data.csv'), 3, 1700000000000] },

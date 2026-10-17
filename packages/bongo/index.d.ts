@@ -8,6 +8,8 @@ export interface Argv {
 	write?: boolean;
 	/** Render every page, and ignore what the last build kept. @default false */
 	fresh?: boolean;
+	/** Build each draft: a page with `draft: true`, or a `date` after the build starts, unless it has `draft: false`. @default false, and true for `bongo dev` */
+	drafts?: boolean;
 	// added via normalize
 	src?: string;
 	dest?: string;
@@ -125,6 +127,8 @@ export namespace Template {
 		tags: string[];
 		headings: Heading[];
 		params: Params;
+		/** Whether the page is a draft: it has `draft: true`, or a `date` after the build started, unless it has `draft: false`. Only a build with drafts has one. */
+		draft: boolean;
 		content: string;
 		scripts: string;
 		styles: string;
@@ -139,6 +143,8 @@ export namespace Template {
 		tags: string[];  // parsed from frontmatter
 		headings: Heading[]; // from the page's loader; empty for .html and .hbs content
 		params: Params;  // full frontmatter
+		/** Whether the page is a draft: it has `draft: true`, or a `date` after the build started, unless it has `draft: false`. Only a build with drafts has one. */
+		draft: boolean;
 		/** The `<bongo:alternate>` elements of the page, as `{ type: href }`, such as `{ 'text/markdown': '/config.md' }`. Only output files and data modules see it, since a page's elements are found after its layouts render. */
 		alternates?: Record<string, string>;
 	};
