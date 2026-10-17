@@ -118,10 +118,14 @@ pre {
 	border: 1.5px solid var(--icode-line);
 	border-radius: 6px;
 	padding: .08em .36em;
-	/* one piece, so `--minify` never breaks after its dashes; a code wider than the line still wraps */
-	display: inline-block;
-	max-width: 100%;
 	overflow-wrap: anywhere;
+	-webkit-box-decoration-break: clone;
+	box-decoration-break: clone;
+}
+
+/* a short span stays on one line, so `--minify` never breaks after its dashes; it stays inline, so a comma after it does too */
+:not(pre) > code.short {
+	white-space: nowrap;
 }
 
 kbd {
