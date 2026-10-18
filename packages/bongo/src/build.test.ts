@@ -981,6 +981,88 @@ describe('page writes', () => {
 	});
 });
 
+describe('drafts', () => {
+	let sources = (): Record<string, string> => ({
+		'layouts/html.hbs': '<html data-draft="{{ $page.draft }}">{{{ $page.content }}}</html>',
+		'content/index.hbs': '---\ntitle: Home\n---\n{{#each $pages as p}}<a href="{{ p.path }}" data-draft="{{ p.draft }}">{{ p.title }}</a>{{/each}}',
+		'content/sitemap.xml.hbs': '{{#each $pages as p}}<url>{{ p.path }}</url>{{/each}}',
+		'content/live.html': '---\ntitle: Live\ndate: 2026-01-01\n---\n<p>live</p>',
+		'content/wip.html': '---\ntitle: Wip\ndraft: true\n---\n<p>wip</p>',
+		'content/soon.html': '---\ntitle: Soon\ndate: 2026-12-01T09:00\n---\n<p>soon</p>',
+		'content/event.html': '---\ntitle: Event\ndate: 2026-12-24\ndraft: false\n---\n<p>event</p>',
+		'content/hidden.xml.hbs': '---\ndraft: true\n---\n<x/>',
+	});
+
+	let clock = (iso: string) => spyOn(Date, 'now').mockReturnValue(Date.parse(iso));
+	let has = (root: string, rel: string) => existsSync(join(root, 'public', rel));
+
+	test('bongo build leaves out each draft: draft: true, or a date after the build starts, unless draft: false', async () => {
+		let root = await site(sources());
+		let now = clock('2026-10-17T00:00Z');
+		try {
+			await build({ cwd: root });
+			expect(['live/index.html', 'event/index.html', 'wip/index.html', 'soon/index.html', 'hidden.xml'].map(rel => has(root, rel))).toEqual([true, true, false, false, false]);
+			expect(await read(root, 'index.html')).toBe('<html data-draft="false"><a href="/" data-draft="false">Home</a><a href="/event/" data-draft="false">Event</a><a href="/live/" data-draft="false">Live</a></html>');
+			expect(await read(root, 'sitemap.xml')).toBe('<url>/</url><url>/event/</url><url>/live/</url>');
+		} finally {
+			now.mockRestore();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('--drafts builds each draft, and $page.draft and $pages mark it', async () => {
+		let root = await site(sources());
+		let now = clock('2026-10-17T00:00Z');
+		try {
+			await build({ cwd: root, drafts: true });
+			expect(await read(root, 'wip/index.html')).toMatch(/^<html data-draft="true">\s*<p>wip<\/p><\/html>$/);
+			expect(await read(root, 'soon/index.html')).toMatch(/^<html data-draft="true">\s*<p>soon<\/p><\/html>$/);
+			expect(await read(root, 'event/index.html')).toMatch(/^<html data-draft="false">\s*<p>event<\/p><\/html>$/);
+			expect(await read(root, 'index.html')).toContain('<a href="/soon/" data-draft="true">Soon</a><a href="/wip/" data-draft="true">Wip</a>');
+			expect(has(root, 'hidden.xml')).toBe(true);
+		} finally {
+			now.mockRestore();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('dev builds each draft, unless drafts: false', async () => {
+		let root = await site(sources());
+		let now = clock('2026-10-17T00:00Z');
+		try {
+			await build({ cwd: root, dev: true });
+			expect([has(root, 'wip/index.html'), has(root, 'soon/index.html')]).toEqual([true, true]);
+			await build({ cwd: root, dev: true, drafts: false });
+			expect([has(root, 'wip/index.html'), has(root, 'soon/index.html')]).toEqual([false, false]);
+		} finally {
+			now.mockRestore();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	for (let dev of [false, true]) {
+		test(`once its date passes, ${dev ? 'dev renders a page as no draft' : 'bongo build adds a page'}, and the pages that list it, with no file changed`, async () => {
+			let root = await site(sources());
+			let now = clock('2026-10-17T00:00Z');
+			try {
+				await build({ cwd: root, dev });
+				expect(await read(root, 'index.html')).toContain(dev ? '<a href="/soon/" data-draft="true">Soon</a>' : '<a href="/live/"');
+				now.mockReturnValue(Date.parse('2026-12-01T09:00:01Z'));
+				await build({ cwd: root, dev });
+				let after = await Promise.all(['index.html', 'soon/index.html', 'sitemap.xml'].map(rel => read(root, rel)));
+				expect(after[0]).toContain('<a href="/soon/" data-draft="false">Soon</a>');
+				expect(after[1]).toMatch(/^<html data-draft="false">\s*<p>soon<\/p><\/html>/);
+				expect(after[2]).toContain('<url>/soon/</url>');
+				await build({ cwd: root, dev, fresh: true });
+				expect(await Promise.all(['index.html', 'soon/index.html', 'sitemap.xml'].map(rel => read(root, rel)))).toEqual(after);
+			} finally {
+				now.mockRestore();
+				await rm(root, { recursive: true, force: true });
+			}
+		});
+	}
+});
+
 describe('headings', () => {
 	test('a loader gives the headings of a page to $page, $pages, $section, and data modules', async () => {
 		let root = await site({

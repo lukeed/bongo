@@ -5,6 +5,8 @@ export function normalize(argv: Argv): asserts argv is Required<Argv> {
 	argv.cwd = resolve(argv.cwd);
 	argv.debug = !!argv.debug;
 	argv.dev = !!argv.dev;
+	// dev shows drafts, and `bongo build` leaves them out, unless the flag says otherwise
+	argv.drafts = argv.drafts ?? argv.dev;
 	argv.fresh = !!argv.fresh;
 	argv.minify = !!argv.minify;
 	argv.write = !!argv.write;

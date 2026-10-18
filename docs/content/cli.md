@@ -29,6 +29,7 @@ bongo dev -C site --host --port 3000
 bongo dev --write
 bongo build --debug
 bongo build --fresh
+bongo build --drafts
 ```
 
 | Option | Default | Description |
@@ -40,6 +41,7 @@ bongo build --fresh
 | `-d`, `--debug` | off | Log each build stage and its time. See [Debug](#debug). |
 | `-w`, `--write` | off | `bongo dev` only. Also write the output to `public/`. See [Output folder](#output-folder). |
 | `-f`, `--fresh` | off | Render every page, not only the pages that a change reaches. See [Incremental builds](#incremental-builds). |
+| `--drafts` | off; on for `bongo dev` | Build drafts: pages with `draft: true`, or a `date` after the build starts. `--no-drafts` leaves them out. See [Drafts](/content/#drafts). |
 | `-v`, `--version` | | Show the version. |
 | `-h`, `--help` | | Show the help. |
 
@@ -101,9 +103,10 @@ Each build compares the size and the mtime of each source file with the record. 
 - a file that it reads with `$assets.load` changes,
 - a script, a stylesheet, an image, or another asset that it links changes, or a module or stylesheet that one of them imports, since the name of the output file changes. `bongo dev` names each script and stylesheet by its entry, not by its content. There, an edit to one renders only the pages that inline it or use its CSS module classes. The other pages reload and get the new file,
 - the config has `$hooks.transform`, and an output file is added, deleted, or changes its frontmatter, since the hook gets the list of output files,
+- it was a draft by its `date`, and that moment has passed,
 - its file in `public/` changed or is gone since the last build.
 
-Every page renders again when the config changes, or a local file that it imports, a file in `data/`, `layouts/`, or `partials/`, the lockfile, the version of bongo, the runtime, or `--minify`. [Output files](/output-files/) and [data modules](/data-modules/) render on every build, since they can read every page.
+Every page renders again when the config changes, or a local file that it imports, a file in `data/`, `layouts/`, or `partials/`, the lockfile, the version of bongo, the runtime, `--minify`, or `--drafts`. [Output files](/output-files/) and [data modules](/data-modules/) render on every build, since they can read every page.
 
 bongo cannot see a change that keeps the size and the mtime of a source file, as `cp -p` or `rsync -t` can make. It also cannot see what a template, a hook, or a loader reads by itself, such as the time, an environment variable, or a file that it opens. A page that uses one keeps its last file until something else makes it render. Use `--fresh` for such a build, as at the turn of a year for a footer that prints the year:
 
@@ -135,8 +138,9 @@ await build({ cwd: 'site', minify: true });
 - `minify` — the same as `--minify`.
 - `debug` — the same as `--debug`.
 - `fresh` — the same as `--fresh`.
+- `drafts` — the same as `--drafts`.
 
-`dev(options)` starts the dev server, as `bongo dev` does. It resolves after the first build, and the server keeps running. It takes `cwd`, `debug`, `fresh`, `port`, `host`, and `write`, the same as the `bongo dev` options:
+`dev(options)` starts the dev server, as `bongo dev` does. It resolves after the first build, and the server keeps running. It takes `cwd`, `debug`, `drafts`, `fresh`, `port`, `host`, and `write`, the same as the `bongo dev` options:
 
 ```ts
 import { dev } from 'bongo';

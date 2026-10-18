@@ -30,6 +30,10 @@ A workspace package, or any package linked into `node_modules` from outside it, 
 
 If the config or a data file fails to load, the error overlay shows the error, and the last good build keeps serving until you fix it. The same is true for a rebuild that fails. If the first build fails, there is no good build yet: `bongo dev` keeps running, and answers each request with a page that shows the error. When a fix builds, that page reloads.
 
+## Drafts
+
+`bongo dev` builds [drafts](/content/#drafts), so you see a page while you write it. `bongo dev --no-drafts` leaves them out, as `bongo build` does. When the `date` of a scheduled page passes, the next rebuild marks it as no draft.
+
 ## Output in memory
 
 The dev server keeps each build in memory and serves it from there, as Vite does. It does not read or write `public/`. Thus you can run `bongo build` while `bongo dev` runs: neither one changes the output of the other.

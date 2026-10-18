@@ -75,8 +75,15 @@ export const fence: Fence = (html, block) => {
 	return `<figure class="code"><div class="bar">${label}<button class="copy" type="button" data-copy-code>Copy</button></div>${html}</figure>`;
 };
 
+// A code span this short never wraps, so `--minify` keeps its dashes, and a comma after it stays on its line.
+const SHORT = 30;
+
 /**
- * Let wide tables scroll.
+ * Let wide tables scroll, and mark each short code span, which stays on one line.
  * @example $hooks: { transform }
  */
-export const transform: Build.Transform = (text, ctx) => ctx.kind === 'page' ? text.replace(/<table>[\s\S]*?<\/table>/g, table => `<div class="tbl">${table}</div>`) : text;
+export const transform: Build.Transform = (text, ctx) => ctx.kind === 'page'
+	? text
+		.replace(/<table>[\s\S]*?<\/table>/g, table => `<div class="tbl">${table}</div>`)
+		.replace(/<code>([^<]*)<\/code>/g, (span, inner: string) => inner.length > SHORT ? span : `<code class="short">${inner}</code>`)
+	: text;

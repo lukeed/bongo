@@ -54,6 +54,7 @@ An object with data about the current page. For the example `content/blog/hello.
 		{ level: 2, id: 'why-bongo', text: 'Why bongo', html: 'Why bongo' },
 		{ level: 3, id: 'setup', text: 'Setup', html: 'Setup' },
 	],
+	draft: false,
 	content: '<p>Static sites with a good beat.</p>\n<h2 id="why-bongo">…',
 }
 ```
@@ -68,6 +69,7 @@ An object with data about the current page. For the example `content/blog/hello.
 | `tags` | The `tags` frontmatter, as a list. The frontmatter can be a list or a comma-separated string. See [Tags](/content/#tags). |
 | `params` | All the frontmatter, with typed values. See [Frontmatter](/frontmatter/). |
 | `headings` | The headings that the page's [loader](/loaders/) reports, each with its `level`, `id`, plain `text`, and inner `html`. [@bongo/markdown](/markdown/#headings) reports every Markdown heading. `.html` and `.hbs` content has none. |
+| `draft` | `true` when the page is a [draft](/content/#drafts): it has `draft: true`, or a `date` after the build started, unless it has `draft: false`. Only a build with drafts, such as `bongo dev`, has a draft. |
 | `content` | The body of the page, as HTML. Print it with `{{{ $page.content }}}`. While the page's own `.hbs` body compiles, `content` is empty. |
 
 A table of contents from `headings`:
@@ -82,7 +84,7 @@ A table of contents from `headings`:
 
 ## `$pages`
 
-Every page of the build, sorted by `path`. Each entry has the fields of `$page`, except `content`. Output files and data modules are not in it.
+Every page of the build, sorted by `path`. Each entry has the fields of `$page`, except `content`. Output files and data modules are not in it, and neither are [drafts](/content/#drafts), unless the build has them.
 
 ```ts
 [
@@ -95,6 +97,7 @@ Every page of the build, sorted by `path`. Each entry has the fields of `$page`,
 		tags: [],
 		params: { title: 'Home' },
 		headings: [{ level: 1, id: 'home', text: 'Home', html: 'Home' }],
+		draft: false,
 	},
 	{ path: '/about/', title: 'About', section: '', … },
 	{ path: '/blog/', title: 'Blog', section: 'blog', … },

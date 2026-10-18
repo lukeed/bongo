@@ -59,6 +59,7 @@ describe('bongo cli', () => {
 		expect(help.code).toBe(0);
 		expect(help.out).toContain('bongo <command> [options]');
 		expect(help.out).toContain('-p, --port');
+		expect(help.out).toContain('--drafts     Build drafts; --no-drafts leaves them out');
 	});
 
 	test('fails on an unknown option, a port that is not a number, or a missing command', async () => {
@@ -83,6 +84,22 @@ describe('bongo cli', () => {
 			expect(existsSync(join(root, 'public/index.html'))).toBe(true);
 			expect(out).toContain('[DEBUG]');
 			expect(out).toMatch(/minify: true/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+
+	test('builds a draft only with --drafts', async () => {
+		let root = await site();
+		try {
+			await writeFile(join(root, 'content/wip.html'), '---\ndraft: true\n---\n<p>wip</p>');
+			let built = [];
+			for (let flags of [[], ['--drafts'], ['--no-drafts']]) {
+				let { code, out } = await run(['build', '-C', root, ...flags]);
+				if (code !== 0) throw new Error(out);
+				built.push(existsSync(join(root, 'public/wip/index.html')));
+			}
+			expect(built).toEqual([false, true, false]);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

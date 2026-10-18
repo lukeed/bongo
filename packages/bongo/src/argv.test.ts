@@ -42,6 +42,14 @@ describe('normalize', () => {
 		expect(argv.write).toBe(false);
 	});
 
+	test('leaves drafts out of a build and in dev, unless set', () => {
+		let build: any = { cwd: '/tmp' };
+		let dev: any = { cwd: '/tmp', dev: true };
+		let both: any[] = [{ cwd: '/tmp', drafts: true }, { cwd: '/tmp', dev: true, drafts: false }];
+		for (let argv of [build, dev, ...both]) normalize(argv);
+		expect([build.drafts, dev.drafts, both[0].drafts, both[1].drafts]).toEqual([false, true, true, false]);
+	});
+
 	test('preserves truthy debug and dev', () => {
 		let argv: any = { cwd: '/tmp', debug: true, dev: true };
 		normalize(argv);
