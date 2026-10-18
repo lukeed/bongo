@@ -5,8 +5,6 @@ summary: How bongo's monorepo is structured with Bun workspaces, and why we chos
 tags: bun, architecture, ssg
 ---
 
-# Shipping bongo on Bun Workspaces
-
 bongo is a monorepo. The core `bongo` package lives alongside `@bongo/markdown` and an `example` site that doubles as a build benchmark. Getting the toolchain right took a few iterations.
 
 ## Why Bun workspaces

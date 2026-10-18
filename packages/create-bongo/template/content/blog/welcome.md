@@ -5,8 +5,6 @@ summary: What bongo is, why it exists, and what makes it different from the crow
 tags: ssg, bun, architecture
 ---
 
-# Welcome to bongo
-
 Every static site generator solves the same basic problem: turn source files into HTML. The question is always which tradeoffs you're willing to make — and for whom.
 
 bongo started from a simple premise: what if you built an SSG today, with today's tooling, and optimised ruthlessly for developer experience and build speed? No compatibility shims, no pluggable renderers, no kitchen-sink feature sets. Just a fast, minimal pipeline that gets out of your way.

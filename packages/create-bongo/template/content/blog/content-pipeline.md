@@ -5,8 +5,6 @@ summary: How bongo's $pages, $section, and $tags registries are built, and how t
 tags: ssg, architecture, tempura
 ---
 
-# The Content Pipeline
-
 After walk 1 completes, bongo has a flat list of compiled pages. Before walk 2 begins, it assembles three registries that layouts can query. Understanding these registries is the key to building index pages, tag clouds, and related-post lists.
 
 ## $pages

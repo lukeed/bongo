@@ -5,8 +5,6 @@ summary: How bongo's two-walk build pipeline separates content compilation from 
 tags: architecture, ssg
 ---
 
-# The Two-Pass Render
-
 bongo builds pages in two passes. Understanding why makes it easier to write templates that work.
 
 ## Walk 1 — content scan

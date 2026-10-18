@@ -5,8 +5,6 @@ summary: "Tracing and fixing a bug where nested #each loops produced incorrect s
 tags: tempura, bun, ssg
 ---
 
-# The Nested #each Fix in tempura
-
 While building out bongo's blog index layout, we hit a subtle tempura bug: nested `#each` loops were shadowing the outer loop variable in a way that produced garbled output. Here's how we traced it and what the fix looked like.
 
 ## The symptom
