@@ -5,6 +5,8 @@
 	--accent: #2563eb;
 	--rule: #e2e8f0;
 	--code-bg: #f1f5f9;
+	--draft: #b45309;
+	--draft-bg: #fef3c7;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -15,6 +17,8 @@
 		--accent: #60a5fa;
 		--rule: #1e293b;
 		--code-bg: #1e293b;
+		--draft: #fbbf24;
+		--draft-bg: #422006;
 	}
 }
 
@@ -157,6 +161,19 @@ pre code {
 	color: var(--muted);
 	text-transform: lowercase;
 	font-variant-numeric: normal;
+}
+
+/* bongo dev shows drafts, which bongo build leaves out */
+.meta .draft {
+	padding: 0.15rem 0.5rem;
+	background: var(--draft-bg);
+	border: 1px solid var(--draft);
+	border-radius: 4px;
+	font-size: 0.72rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--draft);
 }
 
 /* ---- Blog index ---- */
