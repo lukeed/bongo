@@ -5,8 +5,6 @@ summary: Where bongo's dev server stands today — fast full reload via Bun's HT
 tags: rolldown, bun, performance
 ---
 
-# Dev Server and HMR Readiness
-
 bongo's dev mode is a work in progress, but it's already useful. Here's where things stand.
 
 ## Current implementation

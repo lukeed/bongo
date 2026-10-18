@@ -5,8 +5,6 @@ summary: Why bongo chose LightningCSS over PostCSS for CSS processing, and how C
 tags: lightningcss, performance, ssg
 ---
 
-# LightningCSS Notes
-
 [LightningCSS](https://lightningcss.dev) is a CSS parser, transformer, and bundler written in Rust. bongo uses it to process `assets/*.css` files. Here are some things worth knowing.
 
 ## What it does automatically
