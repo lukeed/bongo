@@ -38,10 +38,10 @@ You write one config file, `bongo.config.ts`, and put your files in a small set 
 | `@bongo/feed` | RSS and Atom feed plugin. See [@bongo/feed](/feed/). |
 | `create-bongo` | Project scaffolding CLI. See [Quick start](/quick-start/). |
 
-The core package is published as `@lukeed/bongo`. Install it and import it through the `bongo` alias:
+The core package is published as `@bongo/bongo`. Install it and import it through the `bongo` alias:
 
 ```sh
-bun add bongo@npm:@lukeed/bongo
+bun add bongo@npm:@bongo/bongo
 ```
 
 All examples in these docs use the name `bongo`.

@@ -1,10 +1,10 @@
 // Ambient JSX augmentation for bongo's template namespace.
 //
-// Loaded automatically when a project extends `@lukeed/bongo/tsconfig`
-// (which pins `compilerOptions.types: ["@lukeed/bongo/jsx"]`). Can also
+// Loaded automatically when a project extends `@bongo/bongo/tsconfig`
+// (which pins `compilerOptions.types: ["@bongo/bongo/jsx"]`). Can also
 // be pulled in explicitly:
 //
-//   /// <reference types="@lukeed/bongo/jsx" />
+//   /// <reference types="@bongo/bongo/jsx" />
 
 type BongoTransitions = boolean | 'fade' | 'initial' | 'slide' | (string & {});
 type BongoPrefetchMode = boolean | 'hover' | 'tap';

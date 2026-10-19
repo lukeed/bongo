@@ -1,6 +1,6 @@
 {
   "version": "0.0.13",
-  "name": "@lukeed/bongo",
+  "name": "@bongo/bongo",
   "repository": "lukeed/bongo",
   "description": "WIP",
   "types": "index.d.ts",

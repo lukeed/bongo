@@ -80,7 +80,7 @@ The `package.json` has two scripts, and installs `bongo`, `@bongo/markdown`, and
   },
   "devDependencies": {
     "@bongo/markdown": "latest",
-    "bongo": "npm:@lukeed/bongo",
+    "bongo": "npm:@bongo/bongo",
     "shiki": "^4.0.2"
   }
 }
@@ -110,7 +110,7 @@ Without `--force`, `create-bongo` refuses to write into a folder that exists, an
 Install bongo through its `bongo` alias, and the Markdown plugin:
 
 ```sh
-bun add bongo@npm:@lukeed/bongo
+bun add bongo@npm:@bongo/bongo
 bun add @bongo/markdown
 ```
 

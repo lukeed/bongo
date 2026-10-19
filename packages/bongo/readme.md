@@ -2,10 +2,10 @@
 
 > A static site generator built on Rolldown and LightningCSS.
 
-Published as `@lukeed/bongo`, but projects should install and reference it through the `bongo` alias:
+Published as `@bongo/bongo`, but projects should install and reference it through the `bongo` alias:
 
 ```sh
-bun add bongo@npm:@lukeed/bongo
+bun add bongo@npm:@bongo/bongo
 ```
 
 All examples below use `bongo`.

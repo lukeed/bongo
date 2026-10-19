@@ -7,7 +7,7 @@
   },
   "devDependencies": {
     "@bongo/markdown": "workspace:*",
-    "bongo": "workspace:@lukeed/bongo@*",
+    "bongo": "workspace:@bongo/bongo@*",
     "shiki": "^4.5.0"
   }
 }
