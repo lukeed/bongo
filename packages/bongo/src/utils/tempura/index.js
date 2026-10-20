@@ -9,6 +9,7 @@ const ESCAPE = /[&"<]/g, CHARS = {
 const ENDLINES = /[\r\n]+$/g;
 const VAR = /(?:^|[-*+^|%/&=\s])([a-zA-Z$_][\w$]*)(?:(?=$|[-*+^|%/&=\s]))/g;
 const NAME = /[a-zA-Z$_][^\s=]*/y;
+const LITERAL = /[\\`]|\$\{/g;
 
 function space(char) {
 	return char === ' ' || char === '\t' || char === '\n' || char === '\r';
@@ -108,7 +109,7 @@ function gen(input, options) {
 	}
 
 	while (match = tag(input, last)) {
-		wip += input.substring(last, match.index).replace(ENDLINES, '');
+		wip += input.substring(last, match.index).replace(ENDLINES, '').replace(LITERAL, '\\$&');
 		last = match.index + match.text.length;
 
 		inner = match.inner.trim();
@@ -191,7 +192,7 @@ function gen(input, options) {
 	}
 
 	if (last < input.length) {
-		wip += input.substring(last).replace(ENDLINES, '');
+		wip += input.substring(last).replace(ENDLINES, '').replace(LITERAL, '\\$&');
 	}
 
 	close();
