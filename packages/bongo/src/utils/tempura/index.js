@@ -118,7 +118,7 @@ function gen(input, options) {
 			// comment, continue
 		} else if (char === '#') {
 			close();
-			[, action, inner] = /^#\s*(\w[\w\d./]+)\s*([^]*)/.exec(inner);
+			[, action, inner] = /^#\s*(\w[\w./]*)\s*([^]*)/.exec(inner);
 
 			if (action === 'expect') {
 				inner.split(/[\n\r\s\t]*,[\n\r\s\t]*/g).forEach(key => {
