@@ -6,33 +6,33 @@ For each change that was measured, and what each one found, see [the bench histo
 
 ## Latest numbers
 
-Apple M1 Max (10 cores), 64 GB, macOS (darwin 24.6.0), Bun 1.4.3. The build numbers are from #74, and the dev numbers are from #75.
+bongo at [`9398aff`](https://github.com/lukeed/bongo/commit/9398aff), on an idle Apple M1 Max (10 cores), 64 GB, macOS (darwin 24.6.0), Bun 1.4.3.
 
 ### bongo build, 10,000 pages
 
 | build | wall | peak RSS | files written |
 | --- | --- | --- | --- |
-| fresh | 2.31 s | 503 MB | 10,105 |
-| no change | 267 ms | 217 MB | 4 |
-| body edit | 265 ms | 218 MB | 5 |
-| title edit | 351 ms | 282 MB | 205 |
-| new page | 345 ms | 280 MB | 206 |
-| stylesheet edit | 2.34 s | 589 MB | 10,105 |
-| layout edit | 2.35 s | 593 MB | 10,105 |
+| fresh | 2.19 s | 506 MB | 10,105 |
+| no change | 239 ms | 217 MB | 4 |
+| body edit | 248 ms | 220 MB | 5 |
+| title edit | 337 ms | 280 MB | 205 |
+| new page | 335 ms | 284 MB | 206 |
+| stylesheet edit | 2.19 s | 608 MB | 10,105 |
+| layout edit | 2.17 s | 606 MB | 10,105 |
 
 A body edit renders only its page. A title edit also renders the 100 pages of its section, since each links its neighbours, and each section index and the sitemap, since they list every page. A stylesheet or layout edit renders every page. A build with no change still writes the 3 bundles and the sitemap.
 
-The docs site, 109 files, builds fresh in 224 ms, with a peak RSS of 187 MB.
+The docs site, 109 files, builds fresh in 218 ms, with a peak RSS of 190 MB.
 
 ### bongo dev, 10,000 pages
 
 | step | time | footprint after |
 | --- | --- | --- |
-| first build | 1.70 s | 306 MB |
-| layout edit | 1.60 s | 175 MB |
-| page edit | 90–100 ms | 175 MB |
-| stylesheet edit | 90 ms | 175 MB |
-| new page | 150 ms | 174 MB |
+| first build | 1.60 s | 308 MB |
+| layout edit | 1.50 s | 168 MB |
+| page edit | 88–95 ms | 168 MB |
+| stylesheet edit | 87–89 ms | 168 MB |
+| new page | 151 ms | 168 MB |
 
 Footprint is the memory that Activity Monitor shows. dev names each stylesheet by its entry, not by its content, so a stylesheet edit renders no page.
 
@@ -42,13 +42,13 @@ The same 10,000 pages, layouts, and assets, built with Astro 7.4.1 from [`astro/
 
 | build | wall | peak RSS | output |
 | --- | --- | --- | --- |
-| bongo, fresh | **2.31 s** | **503 MB** | 10,105 files · 90 MB |
-| bongo, no change | **267 ms** | **217 MB** | |
-| Astro, fresh, Node 26.11 | 15.47 s | 3066 MB | 10,106 files · 104 MB |
-| Astro, fresh, Bun 1.4.3 | 13.45 s | 3338 MB | |
-| Astro, no change, Node 26.11 | 9.15 s | 2643 MB | |
+| bongo, fresh | **2.19 s** | **506 MB** | 10,105 files · 90 MB |
+| bongo, no change | **239 ms** | **217 MB** | |
+| Astro, fresh, Node 26.11 | 14.05 s | 2970 MB | 10,106 files · 104 MB |
+| Astro, fresh, Bun 1.4.3 | 12.04 s | 3082 MB | |
+| Astro, no change, Node 26.11 | 7.69 s | 2735 MB | |
 
-A fresh bongo build is 6–7× faster than Astro, with a sixth of its memory. With no change, bongo is about 34× faster: Astro keeps its parsed Markdown in a cache, but it still renders every page.
+A fresh bongo build is about 6× faster than Astro (5.5× on Bun, 6.4× on Node), with a sixth of its memory. With no change, bongo is about 32× faster: Astro keeps its parsed Markdown in a cache, but it still renders every page.
 
 Both sites have the same table of contents, pager, tags, dates, sitemap, stylesheet, script, view transitions, and prefetch. The stylesheet is an external file in both. bongo highlights code with twinkleplop, and Astro with Shiki, its default.
 

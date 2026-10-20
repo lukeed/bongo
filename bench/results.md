@@ -10,7 +10,7 @@ Machine: Apple M1 Max (10 cores), 64 GB, macOS (darwin 24.6.0), Bun 1.4.3.
 
 ## bench/site/, 10,000 pages
 
-Each run builds over the output of the run before it, as a repeat build does. The sha256 of `public/` must not change: it is `bb8044b9dc500b15` up to #68. From #66 on, it is `8a3eb4b55617cb67`, since scripts name their modules from the site root, not from the folder that the build runs in.
+Each run builds over the output of the run before it, as a repeat build does. The sha256 of `public/` must not change: it is `bb8044b9dc500b15` up to #68. From #66 on, it is `8a3eb4b55617cb67`, since scripts name their modules from the site root, not from the folder that the build runs in. From #76 on, it is `71e146856b298c20`, since tempura 1.0 keeps line breaks in text, and a page body no longer starts with the line break after its frontmatter.
 
 | stage | wall | user | sys | peak RSS |
 | --- | --- | --- | --- | --- |
@@ -22,6 +22,7 @@ Each run builds over the output of the run before it, as a repeat build does. Th
 | #68 free the last build | 2.82 s | 3.35 s | 6.68 s | 519 MB |
 | #66 incremental builds | 2.40 s | 3.02 s | 4.06 s | 508 MB |
 | #74 sync tempura fixes | 2.31 s | 3.08 s | 3.47 s | 503 MB |
+| #76 use tempura 1.0 | 2.19 s | 2.98 s | 3.66 s | 506 MB |
 
 ## docs/
 
@@ -37,6 +38,7 @@ The output hash of the docs site changes with its content, such as the docs edit
 | #68 free the last build | 227 ms | 348 ms | 120 ms | 185 MB |
 | #66 incremental builds | 225 ms | 336 ms | 108 ms | 188 MB |
 | #74 sync tempura fixes | 224 ms | 340 ms | 108 ms | 187 MB |
+| #76 use tempura 1.0 | 218 ms | 331 ms | 106 ms | 190 MB |
 
 ## bongo build after an edit, on bench/site/
 
@@ -49,6 +51,7 @@ Wall time:
 | #68 free the last build | 2.82 s | 2.82 s | 2.82 s | 2.82 s | 2.82 s | 2.82 s | 2.82 s |
 | #66 incremental builds | 2.33 s | 246 ms | 246 ms | 334 ms | 330 ms | 2.30 s | 2.24 s |
 | #74 sync tempura fixes | 2.28 s | 267 ms | 265 ms | 351 ms | 345 ms | 2.34 s | 2.35 s |
+| #76 use tempura 1.0 | 2.14 s | 239 ms | 248 ms | 337 ms | 335 ms | 2.19 s | 2.17 s |
 
 Peak RSS, and the files that the build wrote, of 10,105:
 
@@ -57,6 +60,7 @@ Peak RSS, and the files that the build wrote, of 10,105:
 | #68 free the last build | 519 MB · all | 519 MB · all | 519 MB · all | 519 MB · all | 519 MB · all | 519 MB · all | 519 MB · all |
 | #66 incremental builds | 513 MB · all | 213 MB · 4 | 214 MB · 5 | 281 MB · 205 | 286 MB · 206 | 574 MB · all | 571 MB · all |
 | #74 sync tempura fixes | 504 MB · all | 217 MB · 4 | 218 MB · 5 | 282 MB · 205 | 280 MB · 206 | 589 MB · all | 593 MB · all |
+| #76 use tempura 1.0 | 499 MB · all | 217 MB · 4 | 220 MB · 5 | 280 MB · 205 | 284 MB · 206 | 608 MB · all | 606 MB · all |
 
 The peak RSS of a full build swings from run to run: 478–544 MB in the first table, 513 MB for the same build here. A build with no memo lists `public/`; a build with one reads the list from it, and reads only the sources whose size or mtime changed. The bench lists `public/` once after each build, to count the files that it wrote, so that no listing warms the cache of the folder before a build. A build with no change still writes the 3 bundles and the sitemap: output files render on every build. A title edit renders the 100 pages of its section, since each links its neighbours through `$section`, and each section index and the sitemap, since they read `$pages`.
 
@@ -93,6 +97,7 @@ Steps: the first build, 3 full rebuilds from an edit to `layouts/html.hbs`, then
 | #68, with the steps of #66 | 2.00 s | 1.80 s | 0.82 s | 259 MB | 184 MB | 139 MB | 131 MB | 1554 MB |
 | #66 incremental builds | 1.70 s | 1.50 s | 0.08–0.09 s | 310 MB | 186 MB | 185 MB | 177 MB | 1620 MB |
 | #74 sync tempura fixes | 1.70 s | 1.60 s | 0.09–0.10 s | 829 MB | 262 MB | 261 MB | 177 MB | 2184 MB |
+| #76 use tempura 1.0, with #75 | 1.60 s | 1.50 s | 0.09–0.10 s | 308 MB | 168 MB | 168 MB | 174 MB | 1567 MB |
 
 Before #68, the footprint of dev depends on when the garbage collector runs, so those rows swing from run to run.
 
