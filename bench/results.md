@@ -1,8 +1,10 @@
-# Bench results
+# Bench history
 
-`bun run bench` builds a generated site of 10,000 Markdown pages (`bench/site/`) and the docs site, and runs `bongo dev` on the generated site. After a change that can affect speed or memory, run it on the same machine, and add a row to each table. A row that is much worse than the row above it is a regression to explain before the change merges.
+Each row below is a change that can affect speed or memory, measured with `bun run bench` on the same machine. For what the bench builds, how to run it, and the latest numbers, see [the bench readme](./readme.md).
 
-Each row is a median of 5 runs, except for dev, which runs once. All rows use the same bench and the same generated site, so they compare only the build code. "Baseline" is the build code of `main` before #63. From #66 on, the full builds run with `--fresh`, since a repeat build renders only what changed.
+After such a change, run the bench, and add a row to each table. A row that is much worse than the row above it is a regression to explain before the change merges.
+
+Each row is a median of 5 runs, except for dev, which runs once. All rows use the same bench and the same generated site, so they compare only the build code. The first row, "before #63", is `main` at [`780d855`](https://github.com/lukeed/bongo/commit/780d855), the last commit before the first change in these tables. From #66 on, the full builds run with `--fresh`, since a repeat build renders only what changed.
 
 Machine: Apple M1 Max (10 cores), 64 GB, macOS (darwin 24.6.0), Bun 1.4.3.
 
@@ -12,7 +14,7 @@ Each run builds over the output of the run before it, as a repeat build does. Th
 
 | stage | wall | user | sys | peak RSS |
 | --- | --- | --- | --- | --- |
-| baseline | 6.92 s | 4.21 s | 19.85 s | 1179 MB |
+| before #63 | 6.92 s | 4.21 s | 19.85 s | 1179 MB |
 | #63 stream page writes | 5.90 s | 4.52 s | 15.34 s | 775 MB |
 | #64 summarize size report | 4.99 s | 3.92 s | 16.22 s | 672 MB |
 | #65 cache date formatters | 4.29 s | 3.26 s | 16.48 s | 576 MB |
@@ -27,7 +29,7 @@ The output hash of the docs site changes with its content, such as the docs edit
 
 | stage | wall | user | sys | peak RSS |
 | --- | --- | --- | --- | --- |
-| baseline | 265 ms | 363 ms | 184 ms | 193 MB |
+| before #63 | 265 ms | 363 ms | 184 ms | 193 MB |
 | #63 stream page writes | 271 ms | 370 ms | 192 ms | 196 MB |
 | #64 summarize size report | 237 ms | 341 ms | 191 ms | 189 MB |
 | #65 cache date formatters | 229 ms | 334 ms | 177 ms | 188 MB |
@@ -82,7 +84,7 @@ Steps: the first build, 3 full rebuilds from an edit to `layouts/html.hbs`, then
 
 | stage | first build | full rebuild | page edit | footprint, first build | footprint, 3rd full rebuild | footprint, end | JS heap, end | RSS, end |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| baseline | 2.70 s | 2.50 s | 0.86 s | 937 MB | 1800 MB | 759 MB | 442 MB | 3263 MB |
+| before #63 | 2.70 s | 2.50 s | 0.86 s | 937 MB | 1800 MB | 759 MB | 442 MB | 3263 MB |
 | #63 stream page writes | 2.70 s | 2.50 s | 0.85 s | 836 MB | 880 MB | 413 MB | 251 MB | 2483 MB |
 | #64 summarize size report | 2.70 s | 2.50 s | 0.83 s | 796 MB | 1399 MB | 1004 MB | 910 MB | 3219 MB |
 | #65 cache date formatters | 2.00 s | 1.80 s | 0.87 s | 811 MB | 814 MB | 426 MB | 248 MB | 2747 MB |
@@ -96,26 +98,4 @@ Before #68, the footprint of dev depends on when the garbage collector runs, so 
 
 With the steps of #66, a stylesheet edit and a new page each take 1.80 s on #68. On #66, a stylesheet edit takes 0.08 s and a new page 0.14 s: dev names each stylesheet by its entry, so the edit renders no page. Against #68, dev holds about 45 MB more JS heap, the memo of 10,000 pages.
 
-The footprint of the first build is 783–829 MB on #74, and 800–801 MB on `main` before it, in 2 runs each. So the rise from 310 MB on #66 comes from a change between #66 and #74, not from #74.
-
-## Astro on bench/site/
-
-`bench/astro/` is the site of `bench/site/` in Astro: the same pages from the same generated `bench/site/content/`, the same layouts, table of contents, pager, tags, dates, sitemap, stylesheet, script, view transitions, and prefetch. Astro highlights code with Shiki, its default; bongo highlights it with twinkleplop. The stylesheet is an external file in both.
-
-Write the content with `bun run bench site` first, then:
-
-```sh
-cd bench/astro
-bun install
-node node_modules/.bin/astro build
-```
-
-Each row is a median of 5 runs. A fresh build deletes `dist/`, `.astro/`, and `node_modules/.astro/` before it runs. A build with no change keeps the content cache in `node_modules/.astro/`, so Astro does not parse the Markdown again, but it still renders every page.
-
-| build | wall | peak RSS | output |
-| --- | --- | --- | --- |
-| bongo #74, fresh | 2.31 s | 503 MB | 10,105 files · 90 MB |
-| bongo #74, no change | 267 ms | 217 MB | |
-| Astro 7.4.1, fresh, Node 26.11 | 15.47 s | 3066 MB | 10,106 files · 104 MB |
-| Astro 7.4.1, fresh, Bun 1.4.3 | 13.45 s | 3338 MB | |
-| Astro 7.4.1, no change, Node 26.11 | 9.15 s | 2643 MB | |
+The footprint of the first build is 783–829 MB on #74, and 800–801 MB on `main` before it, in 2 runs each. The rise from 310 MB on #66 came from [`f99d81a`](https://github.com/lukeed/bongo/commit/f99d81a), which kept the whole last build alive in dev until the next build. #75 fixes it.
