@@ -43,6 +43,11 @@ describe('compile', () => {
 		expect(await render({ x: 1 })).toBe('<p>1</p><b>2</b>');
 	});
 
+	test('a block name may be one character', () => {
+		let render = tempura.compile('{{#b}}', { blocks: { b: () => 'ok' } });
+		expect(render({})).toBe('ok');
+	});
+
 	test('esc prints a missing value as nothing', () => {
 		expect(tempura.esc(null)).toBe('');
 		expect(tempura.esc(undefined)).toBe('');
