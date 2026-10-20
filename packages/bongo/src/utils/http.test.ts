@@ -290,7 +290,10 @@ describe('start', () => {
 			try {
 				expect(opts.port).toBe(port + 1);
 				expect(server.listenerCount('listening')).toBe(createServer().listenerCount('listening'));
-				let res = await fetch(`http://localhost:${opts.port}/`);
+				// the address that localhost resolved to, since an old fetch() may try only the other one
+				let info = server.address();
+				if (!info || typeof info === 'string') throw new Error('no address');
+				let res = await fetch(`http://${info.family === 'IPv6' ? `[${info.address}]` : info.address}:${opts.port}/`);
 				expect(await res.text()).toBe('<h1>ok</h1>');
 			} finally {
 				server.close();
