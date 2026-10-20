@@ -450,6 +450,24 @@ describe('$assets.load', () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test('a loader that reads a file of assets/ runs again when the file changes', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $loaders: { txt: async (file, content, utils) => ({ filename: file + '.html', content: await utils.render('box', {}) }) } };`,
+			'partials/box.hbs': `<b>{{ await $assets.load('word.txt', 'utf8') }}</b>`,
+			'assets/word.txt': 'one',
+			'content/a.txt': '',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'a/index.html')).toBe('<html><b>one</b></html>');
+			await writeFile(join(root, 'assets/word.txt'), 'two');
+			await build({ cwd: root });
+			expect(await read(root, 'a/index.html')).toBe('<html><b>two</b></html>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });
 
 describe('scripts and styles', () => {

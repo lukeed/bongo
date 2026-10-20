@@ -380,6 +380,26 @@ describe('assets/ files that a build reads outside the bundler', () => {
 		}
 	}, 30_000);
 
+	test('rebuild when a file that a loader reads changes', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $loaders: { txt: async (file, content, utils) => ({ filename: file + '.html', content: await utils.render('box', {}) }) } };`,
+			'layouts/html.hbs': '{{{ $page.content }}}',
+			'partials/box.hbs': `<b>{{ await $assets.load('word.txt', 'utf8') }}</b>`,
+			'assets/word.txt': 'one',
+			'content/index.txt': '',
+		});
+		let server = await serve(root);
+		try {
+			await until(async () => (await server.page()).includes('<b>one</b>'), 'the first build', server);
+			await writeFile(join(root, 'assets/word.txt'), 'two');
+			await until(async () => (await server.page()).includes('<b>two</b>'), 'an edit to a file that a loader reads', server);
+			expect(server.messages.filter(m => m.type === 'error')).toEqual([]);
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+
 	test('rebuild when a missing file appears, which clears the error', async () => {
 		let root = await site({
 			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' } };`,
