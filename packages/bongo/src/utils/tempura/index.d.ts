@@ -1,8 +1,5 @@
 export type Args = Record<string, any>;
-export type Block = Compiler & {
-	setup?<T extends Args>(data: T): Promise<void> | void;
-}
-export type Blocks = Record<string, Block>;
+export type Blocks = Record<string, Compiler>;
 
 export type Compiler<T extends Args = Args> = (data: T, blocks?: Blocks) => Promise<string> | string;
 
@@ -14,7 +11,6 @@ export interface Options {
 }
 
 export function esc(value: unknown): string;
-export function transform(input: string, options?: Options & { format?: 'esm' | 'cjs' }): string;
 
 type CompileOptions = Options & { escape?: typeof esc };
 export function compile(input: string, options?: CompileOptions & { async: true }): <T extends Args> (data?: T, blocks?: Blocks) => Promise<string>;
