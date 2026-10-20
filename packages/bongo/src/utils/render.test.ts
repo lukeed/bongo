@@ -267,7 +267,9 @@ describe('$assets.render', () => {
 		try {
 			await build({ cwd: root });
 			let cache = join(root, 'node_modules/.cache/bongo/render');
-			let [entry] = await readdir(cache);
+			let pngs = (await readdir(cache)).filter(name => name.endsWith('.png'));
+			expect(pngs).toHaveLength(1);
+			let [entry] = pngs;
 			expect(entry).toMatch(/^[a-f0-9]{16}\.png$/);
 			await writeFile(join(cache, entry), 'cached');
 			// fresh, since a page that nothing changed for does not render again
