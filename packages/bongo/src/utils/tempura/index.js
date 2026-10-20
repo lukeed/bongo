@@ -9,6 +9,7 @@ const ESCAPE = /[&"<]/g, CHARS = {
 const ENDLINES = /[\r\n]+$/g;
 const VAR = /(?:^|[-*+^|%/&=\s])([a-zA-Z$_][\w$]*)(?:(?=$|[-*+^|%/&=\s]))/g;
 const NAME = /[a-zA-Z$_][^\s=]*/y;
+const KEYWORDS = new Set('await delete false in instanceof new null this true typeof undefined void yield'.split(' '));
 const LITERAL = /[\\`]|\$\{/g;
 
 function space(char) {
@@ -181,7 +182,7 @@ function gen(input, options) {
 			else wip += '${$$1(' + inner + ')}';
 			if (options.loose) {
 				while (tmp = VAR.exec(inner)) {
-					initials.add(tmp[1]);
+					if (!KEYWORDS.has(tmp[1])) initials.add(tmp[1]);
 				}
 			}
 		}

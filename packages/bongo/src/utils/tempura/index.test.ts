@@ -48,6 +48,11 @@ describe('compile', () => {
 		expect(Object.prototype.toString.call(render)).toBe('[object AsyncFunction]');
 	});
 
+	test('loose skips keywords', () => {
+		let render = tempura.compile('{{ x === null }}|{{ typeof x }}', { loose: true });
+		expect(render({ x: 1 })).toBe('false|number');
+	});
+
 	test('a block name may be one character', () => {
 		let render = tempura.compile('{{#b}}', { blocks: { b: () => 'ok' } });
 		expect(render({})).toBe('ok');
