@@ -165,11 +165,6 @@ function gen(input, options) {
 				}
 				inner = inner || '{}';
 				tmp = options.async ? 'await ' : '';
-				if (extra[action].setup) {
-					// TODO: try / catch ?
-					let json = Function('return ' + inner)();
-					extra[action].setup(json);
-				}
 				wip += '${' + tmp + '$$2["' + action + '"](' + inner + ',$$2)}';
 			} else {
 				throw new Error(`Unknown "${action}" block`);
@@ -222,14 +217,4 @@ export function compile(input, options={}) {
 	);
 	let escape = options.escape || esc;
 	return (data, blocks) => render(escape, blocks || options.blocks, data);
-}
-
-export function transform(input, options={}) {
-	return (
-		options.format === 'cjs'
-		? 'var $$1=require("tempura").esc;module.exports='
-		: 'import{esc as $$1}from"tempura";export default '
-	) + (
-		options.async ? 'async ' : ''
-	) + 'function($$3,$$2){'+gen(input, options)+'}';
 }
