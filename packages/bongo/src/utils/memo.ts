@@ -15,7 +15,7 @@ export type Read = 'pages' | 'section' | 'tags';
 /** What the last build rendered for one page, to tell if the next build must render it again. */
 export type Page = {
 	reads: Read[];
-	/** Each file that `$assets.load` read, and a hash of it. */
+	/** Each file that `$assets.load` or `$assets.render` read, and a hash of it. */
 	loads: [file: string, hash: string][];
 	placeholders: string[];
 	/** The placeholders that the page inlines, whose content is in the page itself. */

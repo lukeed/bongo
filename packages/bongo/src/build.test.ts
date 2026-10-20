@@ -1119,7 +1119,7 @@ describe('incremental builds', () => {
 		`};`,
 	].join('\n');
 
-	// a site with each input an incremental build must follow: registries, partials, data, loaded assets, bundles, loaders, copies, output files, and data modules
+	// a site with each input an incremental build must follow: registries, partials, data, loaded assets, rendered images, bundles, loaders, copies, output files, and data modules
 	let sources = (): Record<string, string> => ({
 		'bongo.config.ts': config('Site'),
 		'data/meta.json': '{ "motto": "hello" }',
@@ -1128,10 +1128,12 @@ describe('incremental builds', () => {
 		'assets/main.ts': 'import { n } from "./util";\nconsole.log(n);',
 		'assets/util.ts': 'export let n = 1;',
 		'assets/icon.svg': '<svg id="v1"/>',
+		'assets/dot.svg': '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="red"/></svg>',
 		'layouts/html.hbs': '<html><title>{{ $page.title }} · {{ $site.title }}</title><bongo:alternate type="text/markdown" /><bongo:style src="style.css" />{{{ $page.content }}}{{#partial src="foot"}}<bongo:script src="main.ts" /></html>',
 		'layouts/blog/single.hbs': '{{#var at = $section.findIndex(p => p.path === $page.path)}}<article>{{{ $page.content }}}<a href="{{ $section[at + 1]?.path }}">next</a></article>',
+		'partials/card.hbs': '<div style="display: flex; width: 100%; height: 100%"><img src="dot.svg" width="8" height="8"></div>',
 		'partials/foot.hbs': '<footer>{{ $data.meta.motto }} {{{ await $assets.load("icon.svg", "utf8") }}}</footer>',
-		'content/index.hbs': '---\ntitle: Home\n---\n{{#each $pages as p}}<a href="{{ p.path }}">{{ p.title }}</a>{{/each}}',
+		'content/index.hbs': '---\ntitle: Home\n---\n{{#each $pages as p}}<a href="{{ p.path }}">{{ p.title }}</a>{{/each}}<meta content="{{ await $assets.render(\'card\', \'og/home.png\') }}">',
 		'content/tags.hbs': '---\ntitle: Tags\n---\n{{#each $tags as t}}<h2>{{ t.tag }}</h2>{{#each t.pages as p}}{{ p.title }}{{/each}}{{/each}}',
 		'content/about.html': '---\ntitle: About\n---\n<p>about</p><bongo:style src="inline.css" inline />',
 		'content/blog/a.html': '---\ntitle: A\ntags: x\n---\n<p>a</p>',
@@ -1163,6 +1165,7 @@ describe('incremental builds', () => {
 		{ name: 'a partial', change: edit('partials/foot.hbs', '<footer>', '<footer class="f">'), build: ['/', '/about/', '/blog/a/', '/blog/c/', '/notes/n/', '/tags/'] },
 		{ name: 'a data file', change: edit('data/meta.json', 'hello', 'hi'), build: ['/', '/about/', '/blog/a/', '/blog/c/', '/notes/n/', '/tags/'] },
 		{ name: 'a loaded asset', change: edit('assets/icon.svg', 'v1', 'v2'), build: ['/', '/about/', '/blog/a/', '/blog/c/', '/notes/n/', '/tags/'] },
+		{ name: 'an image that a render draws', change: edit('assets/dot.svg', 'red', 'blue'), build: ['/'] },
 		{ name: 'a stylesheet', change: edit('assets/style.css', 'red', 'blue'), build: ['/', '/about/', '/blog/a/', '/blog/c/', '/notes/n/', '/tags/'], dev: [] },
 		{ name: 'a new output file', change: root => writeFile(join(root, 'content/feed.xml.hbs'), '<feed/>'), build: ['/', '/about/', '/blog/a/', '/blog/c/', '/notes/n/', '/tags/'] },
 		{ name: 'a stylesheet that a page inlines', change: edit('assets/inline.css', 'red', 'blue'), build: ['/about/'] },

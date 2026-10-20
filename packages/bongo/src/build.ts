@@ -133,7 +133,7 @@ function assetsFor(dir: string, renders: render.Context, base: string): (from: s
 		},
 		async render(template, output, options = {}) {
 			let { html, file } = await templates.partial(template, options.args ?? {}, page);
-			let name = await render.add(renders, { html, file, template, output, options, from });
+			let name = await render.add(renders, { html, file, template, output, options, from, loads });
 			made.push(name);
 			return bundler.href(base, name);
 		},

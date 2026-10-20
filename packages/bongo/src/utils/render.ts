@@ -5,6 +5,7 @@ import * as mime from 'mrmime';
 
 import * as fs from './fs';
 import * as images from './images';
+import * as memo from './memo';
 
 import type { Template } from 'bongo';
 import type { SatoriOptions } from 'satori';
@@ -33,6 +34,8 @@ export type Request = {
 	options: Template.Render;
 	/** The page that asks, for errors. */
 	from: string;
+	/** Gets each file in `assets/` that the render reads, and its `memo.hash`. */
+	loads?: [file: string, hash: string][];
 };
 
 type Job = {
@@ -46,7 +49,7 @@ type Job = {
 	cache: string;
 };
 
-type Read = { data: Buffer; hash: string };
+type Read = { data: Buffer; hash: string; sum: string };
 
 /** One build's renders, by output path. */
 export type Context = {
@@ -232,7 +235,7 @@ function read(ctx: Context, rel: string): Promise<Read> {
 	if (hit) return hit;
 	let file = join(ctx.assets, rel);
 	fs.assert(file, `Missing "${rel}" asset!`);
-	hit = fs.read(file).then(data => ({ data, hash: sha256(data) }));
+	hit = fs.read(file).then(data => ({ data, hash: sha256(data), sum: memo.hash(data) }));
 	ctx.reads.set(rel, hit);
 	return hit;
 }
@@ -246,18 +249,22 @@ function uri(ctx: Context, rel: string): Promise<string> {
 	return hit;
 }
 
-async function inline(ctx: Context, node: Element): Promise<Element> {
+async function inline(ctx: Context, node: Element, used: Set<string>): Promise<Element> {
 	let { style, children, ...props } = node.props;
 	let out: Element['props'] = { ...props };
 
 	let src = node.type === 'img' && typeof props.src === 'string' ? props.src : undefined;
 	let rel = src === undefined ? undefined : local(src);
-	if (rel !== undefined) out.src = await uri(ctx, rel);
+	if (rel !== undefined) {
+		used.add(rel);
+		out.src = await uri(ctx, rel);
+	}
 	if (style) {
 		let entries = await Promise.all(Object.entries(style).map(async ([name, value]): Promise<[string, string]> => {
 			let parts: Promise<string>[] = [];
 			value.replace(URL_FN, (match, a?: string, b?: string, c?: string) => {
 				let rel = local(a ?? b ?? c ?? '');
+				if (rel !== undefined) used.add(rel);
 				parts.push(rel === undefined ? Promise.resolve(match) : uri(ctx, rel).then(data => `url("${data}")`));
 				return match;
 			});
@@ -266,7 +273,7 @@ async function inline(ctx: Context, node: Element): Promise<Element> {
 		}));
 		out.style = Object.fromEntries(entries);
 	}
-	let child = (node: Node) => typeof node === 'string' ? node : inline(ctx, node);
+	let child = (node: Node) => typeof node === 'string' ? node : inline(ctx, node, used);
 	if (children !== undefined) out.children = Array.isArray(children) ? await Promise.all(children.map(child)) : await child(children);
 	return { type: node.type, props: out };
 }
@@ -350,7 +357,7 @@ export function context(opts: Pick<Context, 'assets' | 'cache' | 'quality'>): Co
  * @example await render.add(ctx, { html, file: 'partials/og.hbs', template: 'og', output: '/og/home.png', options: {}, from: '/' }) //=> 'og/home.png'
  */
 export async function add(ctx: Context, request: Request): Promise<string> {
-	let { html, file, template, output, options, from } = request;
+	let { html, file, template, output, options, from, loads } = request;
 	let label = output ?? template;
 	let width = options.width ?? 1200, height = options.height ?? 630;
 	for (let [name, value] of [['width', width], ['height', height]] as const) {
@@ -367,10 +374,12 @@ export async function add(ctx: Context, request: Request): Promise<string> {
 		throw new Error(`Cannot render "${output}": JPEG and WebP need Bun, since Bun.Image encodes them; use .png or .svg, or run bongo with Bun`);
 	}
 
+	let used: Set<string> = new Set();
 	try {
 		let parsed = parse(html);
+		parsed.fonts.forEach(face => used.add(face.src));
 		if (!parsed.fonts.length && texts(parsed.root)) throw new Error('it has text, but declares no fonts; add an @font-face rule in a <style> element');
-		var root = await inline(ctx, parsed.root);
+		var root = await inline(ctx, parsed.root, used);
 		var fonts = await Promise.all(parsed.fonts.map(async ({ src, ...face }) => {
 			let { data, hash } = await read(ctx, src);
 			if (data.toString('latin1', 0, 4) === 'wOF2') throw new Error(`"${src}" is WOFF2, which Satori cannot read; use a WOFF, TTF, or OTF file`);
@@ -380,6 +389,7 @@ export async function add(ctx: Context, request: Request): Promise<string> {
 		let reason = err instanceof Error ? err.message : String(err);
 		throw new Error(`Cannot render "${label}" from ${file}: ${reason}`, { cause: err });
 	}
+	for (let rel of used) loads?.push([join(ctx.assets, rel), (await read(ctx, rel)).sum]);
 
 	let engine = [`satori ${(await satori()).version}`];
 	if (format !== 'svg') engine.push(`resvg ${(await resvg()).version}`);
