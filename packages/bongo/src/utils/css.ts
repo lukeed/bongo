@@ -69,7 +69,7 @@ function locate(url: string, from: string): [file: string, suffix: string] {
 	try { path = decodeURIComponent(path); } catch { /* keep as written */ }
 	let file = resolve(dirname(from), path);
 	if (!fs.exists(file)) {
-		throw new Error(`Missing "${url}" referenced in ${resolve(from)}`);
+		throw new fs.MissingError(`Missing "${url}" referenced in ${resolve(from)}`, file);
 	}
 	return [file, cut < 0 ? '' : url.slice(cut)];
 }

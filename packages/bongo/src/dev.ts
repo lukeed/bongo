@@ -6,6 +6,7 @@ import * as http from './utils/http';
 import * as log from './utils/log';
 import * as fs from './utils/fs';
 import * as output from './utils/output';
+import * as utils from './utils/index';
 import { build, imports, loaded, prepare } from './build';
 import { LoadError } from './utils/config';
 import { normalize } from './utils/argv';
@@ -76,12 +77,6 @@ function rebuildLabel(cwd: string, file: string): string {
 
 type Change = 'assets' | 'content' | 'inputs' | 'templates';
 
-function causeOf<T extends Error>(err: unknown, type: new (...args: never[]) => T): T | undefined {
-	for (let e = err; e instanceof Error; e = e.cause) {
-		if (e instanceof type) return e;
-	}
-}
-
 export async function dev(argv: Argv) {
 	argv.dev = true;
 	bundler.preload();
@@ -123,7 +118,7 @@ export async function dev(argv: Argv) {
 			// Success: reload the page to pick up new output.
 			http.send({ type: 'reload' });
 		} catch (err) {
-			let missing = causeOf(err, fs.MissingError);
+			let missing = utils.cause(err, fs.MissingError);
 			if (missing?.file.startsWith(flags.assets + sep)) loads.add(missing.file);
 			// Bundler errors: bundler.flush() already pushed { type: 'error' } via
 			// HMR_SEND, so the overlay is already mounted in the existing page.
@@ -208,7 +203,7 @@ export async function dev(argv: Argv) {
 		try {
 			var next = await prepare(argv);
 		} catch (err) {
-			let failed = causeOf(err, LoadError);
+			let failed = utils.cause(err, LoadError);
 			let message = err instanceof Error ? err.message : String(err);
 			failed?.files.forEach(file => tracked.add(file));
 			stop();

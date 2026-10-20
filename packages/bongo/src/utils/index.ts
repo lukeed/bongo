@@ -1,3 +1,13 @@
+/**
+ * The first error of `type` in the cause chain of `err`.
+ * @example let missing = cause(err, fs.MissingError);
+ */
+export function cause<T extends Error>(err: unknown, type: new (...args: never[]) => T): T | undefined {
+	for (let e = err; e instanceof Error; e = e.cause) {
+		if (e instanceof type) return e;
+	}
+}
+
 export function debounce<T extends Function>(fn: T, delay: number): T {
 	let timer: NodeJS.Timeout | null;
 	// @ts-ignore
