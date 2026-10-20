@@ -278,9 +278,10 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	let assets = assetsFor(argv.assets, renders, base);
 
-	// renders outside a page, as from a loader that calls a partial
+	// renders and loads outside a page, as from a loader that calls a partial
 	let loose: string[] = [];
-	const context: templates.Context = { ...config, $data, $assets: assets('a loader', loose) };
+	let loose_loads: [string, string][] = [];
+	const context: templates.Context = { ...config, $data, $assets: assets('a loader', loose, undefined, loose_loads) };
 
 	// sets `templates` caches
 	watch.step('compiling layouts and partials');
@@ -599,7 +600,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 	// Nothing that the page read or links changed, and its file is as the last build left it.
 	async function clean(item: ScanItem, old: memo.Item, page: memo.Page): Promise<boolean> {
-		if (!last || links(page) || old.draft !== item.draft) return false;
+		if (!last || last.loose || links(page) || old.draft !== item.draft) return false;
 		// `$hooks.transform` gets the output files, so with one, a page renders again when they change
 		if (config.$hooks.transform && last.registries.outputs !== next.registries.outputs) return false;
 		for (let read of page.reads) {
@@ -972,9 +973,9 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	}
 	next.marks = Object.fromEntries(await Promise.all([...marks].map(async ([placeholder, mark]) => [placeholder, [mark, inlines.has(placeholder) ? await inner(placeholder) : '']])));
 	if (writes) next.made = [...files].filter(file => file.startsWith(dest + sep)).map(file => relative(dest, file).split(sep).join('/'));
-	next.loose = loose.length > 0;
+	next.loose = loose.length > 0 || loose_loads.length > 0;
 	MEMOS.set(sink, next);
-	let loads = [...Object.values(next.items).flatMap(item => item.page?.loads ?? []), ...output_loads];
+	let loads = [...Object.values(next.items).flatMap(item => item.page?.loads ?? []), ...output_loads, ...loose_loads];
 	LOADS = [...new Set(loads.map(([file]) => file))];
 	if (writes) await memo.save(argv, next);
 

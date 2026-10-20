@@ -57,7 +57,7 @@ export type Memo = {
 	assets: Record<string, [file: string, hash: string][]>;
 	/** What each placeholder put in a page: a hash of the name, exports, and image of its output, and of its content when a page inlines it. */
 	marks: Record<string, [link: string, inline: string]>;
-	/** A loader rendered an image, which a skipped loader would not register, so every loader runs. */
+	/** A loader rendered an image or read a file of assets/, which a skipped loader would not register, so every loader runs. */
 	loose: boolean;
 	items: Record<string, Item>;
 	/** Each content file that walk 1 wrote itself, as a loader's non-page result or a copy: its hash, its output, and the output's size and mtime. */
