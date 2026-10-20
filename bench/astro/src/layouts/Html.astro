@@ -1,0 +1,34 @@
+---
+import { ClientRouter } from 'astro:transitions';
+
+import Footer from '../components/Footer.astro';
+import Nav from '../components/Nav.astro';
+import { SITE } from '../lib';
+import '../../../site/assets/style.css';
+
+let { title, summary, url } = Astro.props as { title: string; summary?: string; url: string };
+---
+<!doctype html>
+<html lang={SITE.lang}>
+<head>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1"/>
+	<title>{title} — {SITE.title}</title>
+	<meta name="description" content={summary || SITE.description}/>
+	<link rel="canonical" href={url}/>
+	<meta property="og:type" content="article"/>
+	<meta property="og:site_name" content={SITE.title}/>
+	<meta property="og:title" content={title}/>
+	<meta property="og:description" content={summary || SITE.description}/>
+	<meta property="og:url" content={url}/>
+	<ClientRouter />
+</head>
+<body>
+<Nav />
+<main>
+<slot />
+</main>
+<Footer />
+<script src="../scripts/main.ts"></script>
+</body>
+</html>
