@@ -1,6 +1,7 @@
 {
   "name": "create-bongo",
   "version": "0.0.13",
+  "description": "Create a new bongo site from the starter template",
   "author": {
     "name": "Luke Edwards",
     "email": "luke.edwards05@gmail.com",
@@ -12,7 +13,6 @@
     "directory": "packages/create-bongo"
   },
   "bin": "bin.js",
-  "description": "WIP",
   "engines": {
     "node": ">=24"
   },

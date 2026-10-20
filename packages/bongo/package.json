@@ -1,12 +1,12 @@
 {
   "version": "0.0.13",
   "name": "@bongo/bongo",
+  "description": "Hit it — static sites with a good beat~!",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lukeed/bongo.git",
     "directory": "packages/bongo"
   },
-  "description": "WIP",
   "types": "index.d.ts",
   "license": "MIT",
   "bin": {

@@ -1,12 +1,12 @@
 {
   "version": "0.0.13",
   "name": "@bongo/markdown",
+  "description": "Markdown loader for bongo",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lukeed/bongo.git",
     "directory": "packages/plugin.markdown"
   },
-  "description": "WIP",
   "types": "index.d.ts",
   "license": "MIT",
   "exports": {
