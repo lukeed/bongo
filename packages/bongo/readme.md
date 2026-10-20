@@ -12,7 +12,7 @@ All examples below use `bongo`.
 
 ## Overview
 
-`bongo` processes content files through a loader pipeline, applies layouts and partials with a tempura-based template engine, and bundles client assets with Rolldown for JavaScript and LightningCSS for CSS.
+`bongo` processes content files through a loader pipeline, applies layouts and partials with [tempura](https://github.com/lukeed/tempura), and bundles client assets with Rolldown for JavaScript and LightningCSS for CSS.
 
 ## Usage
 
