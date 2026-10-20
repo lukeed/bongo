@@ -6,7 +6,11 @@
     "email": "luke.edwards05@gmail.com",
     "url": "https://lukeed.com"
   },
-  "repository": "lukeed/bongo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lukeed/bongo.git",
+    "directory": "packages/create-bongo"
+  },
   "bin": "bin.js",
   "description": "WIP",
   "engines": {

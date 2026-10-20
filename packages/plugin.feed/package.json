@@ -1,7 +1,11 @@
 {
   "version": "0.0.13",
   "name": "@bongo/feed",
-  "repository": "lukeed/bongo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lukeed/bongo.git",
+    "directory": "packages/plugin.feed"
+  },
   "description": "RSS and Atom feeds for bongo",
   "types": "index.d.ts",
   "license": "MIT",
