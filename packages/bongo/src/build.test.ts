@@ -732,6 +732,22 @@ describe('layouts', () => {
 	});
 });
 
+describe('layout text', () => {
+	test('backticks, backslashes, and "${" print as they are', async () => {
+		let script = '<script>let n = 1; console.log(`n=${n}`, /\\d+/);</script>';
+		let root = await site({
+			'layouts/html.hbs': `<html>{{{ $page.content }}}${script}</html>`,
+			'content/index.html': '<p>hi</p>',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toBe(`<html><p>hi</p>${script}</html>`);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('layouts fallback', () => {
 	test('a page without a single.hbs uses the index.hbs of its folder, before any html.hbs', async () => {
 		let root = await site({
