@@ -289,8 +289,12 @@ export async function start(argv: Required<Argv>, sink: Memory): Promise<Server>
 
 	let last = argv.port + 10;
 	for (let port = argv.port; port <= last; port++) {
-		let checks = await Promise.all(addresses(argv.host).map(address => free(port, address)));
-		if (checks.includes(false)) continue;
+		// one probe at a time: on Linux, a probe on a wildcard address holds the port from a probe on a loopback
+		let open = true;
+		for (let address of addresses(argv.host)) {
+			if (!(open = await free(port, address))) break;
+		}
+		if (!open) continue;
 
 		// a fresh server for each try, since a server that failed to listen may not listen again
 		let server = createServer(respond);
