@@ -216,5 +216,7 @@ export function compile(input, options={}) {
 		'$$1', '$$2', '$$3', gen(input, options)
 	);
 	let escape = options.escape || esc;
-	return (data, blocks) => render(escape, blocks || options.blocks, data);
+	return options.async
+		? async (data, blocks) => render(escape, blocks || options.blocks, data)
+		: (data, blocks) => render(escape, blocks || options.blocks, data);
 }

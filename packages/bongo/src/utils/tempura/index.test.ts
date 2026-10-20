@@ -43,6 +43,11 @@ describe('compile', () => {
 		expect(await render({ x: 1 })).toBe('<p>1</p><b>2</b>');
 	});
 
+	test('an async template compiles to an AsyncFunction', () => {
+		let render = tempura.compile('', { async: true });
+		expect(Object.prototype.toString.call(render)).toBe('[object AsyncFunction]');
+	});
+
 	test('a block name may be one character', () => {
 		let render = tempura.compile('{{#b}}', { blocks: { b: () => 'ok' } });
 		expect(render({})).toBe('ok');
