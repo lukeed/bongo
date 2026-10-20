@@ -397,7 +397,7 @@ describe('integration: $data', () => {
 		try {
 			await build({ cwd: root });
 			let html = await readFile(join(root, 'public/index.html'), 'utf8');
-			expect(html).toBe('<main>\n<p>bongo: 2 months</p></main><footer><a href="https://github.com">GitHub</a></footer><i>30</i>');
+			expect(html).toBe('<main><p>bongo: 2 months</p></main><footer><a href="https://github.com">GitHub</a></footer><i>30</i>');
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

@@ -13,7 +13,7 @@
 
 ## What is bongo?
 
-bongo is a static site generator. It turns Markdown, templates, and assets into fast static HTML. Rolldown bundles your scripts, LightningCSS bundles your styles, and a template engine based on [tempura](https://github.com/lukeed/tempura) renders your templates.
+bongo is a static site generator. It turns Markdown, templates, and assets into fast static HTML. Rolldown bundles your scripts, LightningCSS bundles your styles, and [tempura](https://github.com/lukeed/tempura) renders your templates.
 
 You write one config file and put your files in a small set of folders. bongo writes plain HTML, CSS, and JS to `public/`.
 

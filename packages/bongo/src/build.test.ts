@@ -64,6 +64,7 @@ describe('output files', () => {
 				'<url>https://example.com/blog/a/</url>',
 				'<url>https://example.com/blog/b/</url>',
 				'</urlset>',
+				'',
 			].join('\n'));
 			expect(existsSync(join(root, 'public/sitemap.xml/index.html'))).toBe(false);
 		} finally {
@@ -81,8 +82,8 @@ describe('output files', () => {
 		try {
 			await build({ cwd: root });
 			expect(await read(root, 'blog/index.html')).toBe('<html><ul><li>/blog/</li><li>/blog/post/</li></ul><b>2</b><s>0</s></html>');
-			expect(await read(root, 'blog/index.xml')).toBe('<feed><i>/blog/</i><i>/blog/post/</i></feed>');
-			expect(await read(root, 'robots.txt')).toBe('Sitemap: https://example.com/sitemap.xml');
+			expect(await read(root, 'blog/index.xml')).toBe('<feed><i>/blog/</i><i>/blog/post/</i></feed>\n');
+			expect(await read(root, 'robots.txt')).toBe('Sitemap: https://example.com/sitemap.xml\n');
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -656,12 +657,12 @@ describe('alternates', () => {
 			'content/blog/b.md': 'B',
 			'layouts/misc/html.hbs': '{{{ $page.content }}}',
 			'content/misc/plain.html': '<p>plain</p>',
-			'content/llms.txt.hbs': `# Pages\n{{#each $pages as p}}\n- {{{ p.path }}} {{{ p.alternates['text/markdown'] ?? '-' }}}{{/each}}\n`,
+			'content/llms.txt.hbs': `# Pages\n{{#each $pages as p}}\n- {{{ p.path }}} {{{ p.alternates['text/markdown'] ?? '-' }}}\n{{/each}}\n`,
 			'content/list.json.ts': 'export default ({ $pages }) => $pages.map(page => page.alternates);',
 		});
 		try {
 			await build({ cwd: root });
-			expect(await read(root, 'llms.txt')).toBe('# Pages\n- /a/ /a.md\n- /blog/b/ /blog/b.md\n- /misc/plain/ -');
+			expect(await read(root, 'llms.txt')).toBe('# Pages\n- /a/ /a.md\n- /blog/b/ /blog/b.md\n- /misc/plain/ -\n');
 			expect(JSON.parse(await read(root, 'list.json'))).toEqual([
 				{ 'text/markdown': '/a.md' },
 				{ 'text/markdown': '/blog/b.md', 'application/rss+xml': '/blog/feed.xml' },
@@ -815,7 +816,7 @@ describe('partials', () => {
 		});
 		try {
 			await build({ cwd: root });
-			expect(await read(root, 'blog/a/index.html')).toBe('/blog/a/:2:2:1[A] </blog/a/> given a \n');
+			expect(await read(root, 'blog/a/index.html')).toBe('/blog/a/:2:2:1[A] </blog/a/> given a ');
 			expect(await read(root, 'blog/b/index.html')).toBe('/blog/b/:2:2:1[B] </blog/b/> given a [B]');
 		} finally {
 			await rm(root, { recursive: true, force: true });
@@ -875,7 +876,7 @@ describe('$hooks.transform', () => {
 		let info = async (rel: string) => JSON.parse((await read(root, rel)).split('|')[1]);
 		try {
 			await build({ cwd: root });
-			expect(await read(root, 'index.html')).toMatch(/^<html>\n<link rel="stylesheet" href="\/style\.[\w-]+\.css"\/><\/html>\|/);
+			expect(await read(root, 'index.html')).toMatch(/^<html><link rel="stylesheet" href="\/style\.[\w-]+\.css"\/><\/html>\|/);
 			expect(await info('index.html')).toEqual({ kind: 'page', path: '/', params: { title: 'Home' }, outputs, title: 'T', placeholders: false });
 			expect(await read(root, 'feed.xml')).toStartWith('<feed/>|');
 			expect(await info('feed.xml')).toEqual({ kind: 'output', path: '/feed.xml', params: { format: 'rss' }, outputs, title: 'T', placeholders: false });

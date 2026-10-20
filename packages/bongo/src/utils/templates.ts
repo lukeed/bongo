@@ -1,5 +1,7 @@
 import { parse, join } from 'node:path';
-import * as tempura from './tempura/index';
+
+import * as tempura from 'tempura';
+
 import { href } from './bundler';
 import { loadModule } from './config';
 import * as images from './images';
@@ -9,7 +11,7 @@ import * as tags from './tags';
 import * as yaml from './yaml';
 
 import type { Argv, Config, Template } from 'bongo';
-import type { Args } from './tempura/index';
+import type { Args } from 'tempura';
 import type { OutputInfo, Placeholder } from './bundler';
 import type { Read } from './memo';
 
@@ -171,7 +173,7 @@ export async function collect(argv: Required<Argv>, config: Context): Promise<vo
 	Object.assign(blocks, made);
 
 	let props = ['$site', '$page', '$pages', '$section', '$tags', '$assets', '$utils', '$data'];
-	// tempura blocks is typed as Blocks (Record<string, Block>); we cast through
+	// tempura types blocks as Blocks (Record<string, Compiler>); we cast through
 	// unknown to satisfy the index signature without using `any`.
 	let options: tempura.Options = { async: true, props, blocks: blocks as unknown as tempura.Blocks };
 	let partial: tempura.Options = { ...options, props: [...props, '$slot'] };

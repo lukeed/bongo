@@ -1,3 +1,5 @@
+import type { Args, Blocks } from 'tempura';
+
 type Promisable<T> = Promise<T> | T;
 
 export interface Argv {
@@ -73,13 +75,7 @@ export namespace Loader {
 	}
 }
 
-type Args = Record<string, any>;
-
-// TODO: import from tempura
-type Blocks = Record<string, Block>;
-type Block = Template.Compiler & {
-	setup?<T extends Args>(data: T): Promise<void> | void;
-}
+export type { Args, Blocks };
 
 export namespace Template {
 	// TODO: import from tempura
