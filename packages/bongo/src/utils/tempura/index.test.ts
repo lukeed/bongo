@@ -43,6 +43,12 @@ describe('compile', () => {
 		expect(await render({ x: 1 })).toBe('<p>1</p><b>2</b>');
 	});
 
+	test('esc prints a missing value as nothing', () => {
+		expect(tempura.esc(null)).toBe('');
+		expect(tempura.esc(undefined)).toBe('');
+		expect(tempura.esc(0)).toBe('0');
+	});
+
 	test('blocks given at call time replace the compile-time blocks', async () => {
 		let render = tempura.compile('{{#show a=1}}', { async: true, blocks: echo() });
 		expect(await render({})).toBe('{"a":1}');

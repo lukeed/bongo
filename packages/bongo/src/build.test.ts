@@ -116,6 +116,18 @@ describe('output files', () => {
 		}
 	});
 
+	test('{{ }} prints a missing value as nothing', async () => {
+		let root = await site({
+			'content/t.txt.hbs': '---\ntitle: T\n---\n[{{ params.subtitle }}][{{ params.none }}]',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 't.txt')).toBe('[][]');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('only a second extension with a known content type makes an output file', async () => {
 		let root = await site({
 			'content/v1.2.hbs': '<p>{{ $pages.length }}</p>',
