@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import * as fs from './fs';
@@ -308,6 +308,42 @@ describe('watch', () => {
 			await until(() => contents.length === 1);
 			writeFileSync(file, 'two');
 			await until(() => contents.at(-1) === 'two');
+		} finally {
+			stop();
+		}
+	});
+
+	test('starts on a folder that appears later, and reports the files it already holds', async () => {
+		let root = sandbox();
+		let dir = join(root, 'a/b');
+		let seen = new Set<string>();
+		let stop = await fs.watch([dir], file => { seen.add(file); });
+		try {
+			await new Promise(r => setTimeout(r, 100));
+			mkdirSync(join(dir, 'deep'), { recursive: true });
+			writeFileSync(join(dir, 'deep/first.css'), 'x');
+			await until(() => seen.has(join(dir, 'deep/first.css')));
+			writeFileSync(join(dir, 'second.css'), 'x');
+			await until(() => seen.has(join(dir, 'second.css')));
+		} finally {
+			stop();
+		}
+	});
+
+	test('follows a folder that goes away and comes back', async () => {
+		let root = sandbox();
+		let dir = join(root, 'assets');
+		mkdirSync(dir);
+		let seen = new Set<string>();
+		let stop = await fs.watch([dir], file => { seen.add(file); });
+		try {
+			await new Promise(r => setTimeout(r, 100));
+			rmSync(dir, { recursive: true });
+			await new Promise(r => setTimeout(r, 200));
+			mkdirSync(dir);
+			await new Promise(r => setTimeout(r, 200));
+			writeFileSync(join(dir, 'back.css'), 'x');
+			await until(() => seen.has(join(dir, 'back.css')));
 		} finally {
 			stop();
 		}

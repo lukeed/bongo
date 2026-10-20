@@ -308,17 +308,17 @@ export async function list(dir: string, callback: Caller, prefix='') {
 
 type Handler = (dir: string, type: string, filename: string | null) => any;
 
+function attach(watcher: FSWatcher): FSWatcher {
+	watcher.on('error', (err) => {
+		// Ignore ENOENT on removed paths — nothing to propagate.
+		let e = err as { code?: string };
+		if (e.code !== 'ENOENT') throw err;
+	});
+	return watcher;
+}
+
 async function setup(dir: string, onChange: Handler, recursive: boolean) {
 	let output: Record<string, FSWatcher> = {};
-
-	let attach = (watcher: FSWatcher) => {
-		watcher.on('error', (err) => {
-			// Ignore ENOENT on removed paths — nothing to propagate.
-			let e = err as { code?: string };
-			if (e.code !== 'ENOENT') throw err;
-		});
-		return watcher;
-	};
 
 	try {
 		output[dir] = attach(fsw(dir, { recursive }, onChange.bind(0, dir)));
@@ -344,13 +344,9 @@ export type WatchOptions = {
 	recursive?: boolean;
 };
 
-export async function watch(list: string[], callback: Callback, options: WatchOptions = {}): Promise<WatchDisposer> {
+export async function watch(dirs: string[], callback: Callback, options: WatchOptions = {}): Promise<WatchDisposer> {
 	const { recursive = true } = options;
-	const dirs = new Set(
-		list.filter(exists)
-	);
-
-	const Watchers = new Map<string, FSWatcher>();
+	let closed = false;
 
 	// debounced per file and run serially; a change during its own callback queues another pass
 	const Timers = new Map<string, NodeJS.Timeout>();
@@ -372,7 +368,7 @@ export async function watch(list: string[], callback: Callback, options: WatchOp
 
 	// TODO: Catch `EPERM` on Windows for removed dir
 	const onChange: Handler = function (dir, _type, filename) {
-		if (!filename) return;
+		if (!filename || closed) return;
 		let file = join(dir, filename);
 		clearTimeout(Timers.get(file));
 		Timers.set(file, setTimeout(() => {
@@ -382,21 +378,52 @@ export async function watch(list: string[], callback: Callback, options: WatchOp
 		}, 50));
 	};
 
-	let dir, output;
-	for (dir of dirs) {
-		output = await setup(dir, onChange, recursive);
-		for (let key in output) {
-			Watchers.set(key, output[key]);
+	// A folder is watched while it exists; its nearest parent that exists is watched for it to appear or go away.
+	async function follow(dir: string): Promise<WatchDisposer> {
+		let live: FSWatcher[] = [];
+		let scout: FSWatcher | undefined;
+		let at = '';
+		let queue = Promise.resolve();
+
+		async function check(late: boolean): Promise<void> {
+			let up = dirname(dir);
+			while (!exists(up) && dirname(up) !== up) up = dirname(up);
+			if (up !== at) {
+				scout?.close();
+				at = up;
+				scout = attach(fsw(up, (_type, name) => {
+					let path = name ? join(up, String(name)) : '';
+					if (path && (path === dir || dir.startsWith(path + sep))) queue = queue.then(() => closed ? undefined : check(true));
+				}));
+			}
+			let here = !!statSync(dir, { throwIfNoEntry: false })?.isDirectory();
+			if (here === live.length > 0) return;
+			live.forEach(watcher => watcher.close());
+			live = here ? Object.values(await setup(dir, onChange, recursive)) : [];
+			if (!here || !late) return;
+			// the files that it held before its watcher started
+			if (recursive) return list(dir, (_file, rel) => onChange(dir, 'rename', rel));
+			for (let entry of await fs.readdir(dir, { withFileTypes: true })) {
+				if (entry.isFile()) onChange(dir, 'rename', entry.name);
+			}
 		}
+
+		await check(false);
+		return () => {
+			scout?.close();
+			live.forEach(watcher => watcher.close());
+		};
 	}
 
+	let stops = await Promise.all([...new Set(dirs)].map(follow));
+
 	return () => {
+		closed = true;
 		for (let t of Timers.values()) clearTimeout(t);
 		Timers.clear();
 		Queue.clear();
-		for (let w of Watchers.values()) {
-			try { w.close(); } catch { /* already closed */ }
+		for (let stop of stops) {
+			try { stop(); } catch { /* already closed */ }
 		}
-		Watchers.clear();
 	};
 }

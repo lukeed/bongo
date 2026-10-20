@@ -234,19 +234,9 @@ export async function dev(argv: Argv) {
 	bundler.watch(diff => schedule(diff.file, 'assets'), flags.content);
 	await fs.watch([flags.layouts, flags.partials], file => schedule(file, 'templates'));
 	await fs.watch([flags.content], file => schedule(file, 'content'));
-	let asset = (file: string) => {
+	await fs.watch([flags.assets], file => {
 		if (loads.has(file)) schedule(file, 'assets');
-	};
-	if (fs.exists(flags.assets)) await fs.watch([flags.assets], asset);
-	else {
-		// a new assets/ folder can hold a file before its own watcher starts
-		let wait = await fs.watch([dirname(flags.assets)], async file => {
-			if (file !== flags.assets || !fs.exists(file)) return;
-			wait();
-			await fs.watch([flags.assets], asset);
-			loads.forEach(file => fs.exists(file) && asset(file));
-		}, { recursive: false });
-	}
+	});
 	stop = await follow();
 
 	// Route bundle-time errors to the browser error overlay (Phase G).
