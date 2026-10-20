@@ -5,7 +5,9 @@
   "description": "WIP",
   "types": "index.d.ts",
   "license": "MIT",
-  "bin": "bin.js",
+  "bin": {
+    "bongo": "bin.js"
+  },
   "exports": {
     ".": {
       "types": "./index.d.ts",
