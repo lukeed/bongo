@@ -344,6 +344,66 @@ describe('$assets.render', () => {
 	}, 30_000);
 });
 
+describe('assets/ files that a build reads outside the bundler', () => {
+	let rebuilds = (server: Server) => server.output().split('\n').filter(line => line.startsWith('[')).length;
+
+	test('rebuild when they change, and not for a file that no build read', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' } };`,
+			'layouts/html.hbs': '{{{ $page.content }}}',
+			'assets/hi.txt': 'one',
+			'assets/dot.svg': '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="red"/></svg>',
+			'assets/other.txt': 'unused',
+			'partials/card.hbs': '<div style="display: flex; width: 100%; height: 100%"><img src="dot.svg" width="8" height="8"></div>',
+			'content/index.hbs': `<p>{{ await $assets.load('hi.txt', 'utf8') }}</p><i>{{ await $assets.render('card', 'og/a.png') }}</i>`,
+		});
+		let server = await serve(root);
+		let png = () => fetch(server.url + '/og/a.png').then(res => res.arrayBuffer()).then(buf => Buffer.from(buf).toString('base64'));
+		try {
+			await until(async () => (await server.page()).includes('<p>one</p>'), 'the first build', server);
+
+			await writeFile(join(root, 'assets/hi.txt'), 'two');
+			await until(async () => (await server.page()).includes('<p>two</p>'), 'an edit to a loaded file', server);
+
+			let before = await png();
+			await writeFile(join(root, 'assets/dot.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="blue"/></svg>');
+			await until(async () => await png() !== before, 'an edit to an image that a render draws', server);
+
+			let count = rebuilds(server);
+			await writeFile(join(root, 'assets/other.txt'), 'still unused');
+			await new Promise(r => setTimeout(r, 1000));
+			expect(rebuilds(server)).toBe(count);
+			expect(server.messages.filter(m => m.type === 'error')).toEqual([]);
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+
+	test('rebuild when a missing file appears, which clears the error', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' } };`,
+			'layouts/html.hbs': '{{{ $page.content }}}',
+			'content/index.hbs': '<main>home</main>',
+		});
+		let server = await serve(root);
+		try {
+			await until(async () => (await server.page()).includes('<main>home</main>'), 'the first build', server);
+
+			await writeFile(join(root, 'content/index.hbs'), '<main>home</main><bongo:asset src="img/new.txt" />');
+			await until(() => server.messages.some(m => m.errors?.some(e => e.message.includes('Missing "assets/img/new.txt"'))), 'the missing file error', server);
+
+			await mkdir(join(root, 'assets/img'), { recursive: true });
+			await writeFile(join(root, 'assets/img/new.txt'), 'new');
+			await until(() => server.messages.at(-1)?.type === 'reload', 'the file to appear', server);
+			expect(await server.page()).toMatch(/<main>home<\/main>\/new\.\w+\.txt/);
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+});
+
 describe('<bongo:alternate>', () => {
 	test('serves each Markdown copy, keeps the others on a narrow rebuild, and drops one that no layout names', async () => {
 		let root = await site({

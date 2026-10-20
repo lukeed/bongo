@@ -37,6 +37,9 @@ let OUTPUT: Map<output.Sink, Output> = new Map();
 // Local files outside content/ that the last build's data modules read.
 let IMPORTS: string[] = [];
 
+// The assets/ files that the last good build read outside the bundler.
+let LOADS: string[] = [];
+
 // `search.json.ts` writes `search.json`
 const DATA_MODULE = /\.json\.[jt]s$/;
 
@@ -233,6 +236,14 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
  */
 export function imports(): string[] {
 	return IMPORTS;
+}
+
+/**
+ * The `assets/` files that the last good build read outside the bundler, with `$assets.load` and `$assets.render`, for dev to watch.
+ * @example for (let file of loaded()) watch(file);
+ */
+export function loaded(): string[] {
+	return LOADS;
 }
 
 async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog, writes: utils.Pool | undefined): Promise<void> {
@@ -782,10 +793,11 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	let $sections = new Map([...Sections].map(([name, list]) => [name, swap(list)]));
 	let $tagged = $tags.map(entry => ({ tag: entry.tag, pages: swap(entry.pages) }));
 
+	let output_loads: [string, string][] = [];
 	for (let item of later) {
 		let made: string[] = [];
 		rendered.set(item.rel, made);
-		let scope = templates.scope({ $page: pageOf(item), $pages, $section: $sections.get(item.section) || [], $tags: $tagged }, page => assets(item.path, made, page));
+		let scope = templates.scope({ $page: pageOf(item), $pages, $section: $sections.get(item.section) || [], $tags: $tagged }, page => assets(item.path, made, page, output_loads));
 		let html = await rendering(`content/${item.rel}`, async () => (await templates.compileContent(item.body ?? ''))(
 			{ ...context, ...scope.values, params: item.params },
 			scope.blocks,
@@ -962,6 +974,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	if (writes) next.made = [...files].filter(file => file.startsWith(dest + sep)).map(file => relative(dest, file).split(sep).join('/'));
 	next.loose = loose.length > 0;
 	MEMOS.set(sink, next);
+	let loads = [...Object.values(next.items).flatMap(item => item.page?.loads ?? []), ...output_loads];
+	LOADS = [...new Set(loads.map(([file]) => file))];
 	if (writes) await memo.save(argv, next);
 
 	// after this build's own files are out; a racing build re-encodes what it loses

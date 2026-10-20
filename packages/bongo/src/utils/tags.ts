@@ -304,7 +304,7 @@ export function scanBongoTags(
 			}
 		}
 		if (!exists(entry)) {
-			throw new Error(`Missing "${relative(argv.src, entry)}" for ${match.trim()}${where}`);
+			throw new fs.MissingError(`Missing "${relative(argv.src, entry)}" for ${match.trim()}${where}`, entry);
 		}
 
 		if (kind === 'image') {

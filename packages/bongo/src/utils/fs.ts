@@ -253,8 +253,20 @@ export async function mkdir(input: string) {
 	await fs.mkdir(input, { recursive: true });
 }
 
+/**
+ * A file that a build looked for and did not find; dev watches `file` to build again when it appears.
+ * @example throw new MissingError(`Missing "${rel}" asset!`, file);
+ */
+export class MissingError extends Error {
+	file: string;
+	constructor(message: string, file: string) {
+		super(message);
+		this.file = file;
+	}
+}
+
 export function assert(path: string, msg = ''): asserts path is string {
-	if (!exists(path)) throw new Error(msg || `Missing "${path}" file!`);
+	if (!exists(path)) throw new MissingError(msg || `Missing "${path}" file!`, path);
 }
 
 export async function write(file: string, data: string|Buffer|Uint8Array) {

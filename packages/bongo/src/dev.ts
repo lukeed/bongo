@@ -6,7 +6,7 @@ import * as http from './utils/http';
 import * as log from './utils/log';
 import * as fs from './utils/fs';
 import * as output from './utils/output';
-import { build, imports, prepare } from './build';
+import { build, imports, loaded, prepare } from './build';
 import { LoadError } from './utils/config';
 import { normalize } from './utils/argv';
 
@@ -76,9 +76,9 @@ function rebuildLabel(cwd: string, file: string): string {
 
 type Change = 'assets' | 'content' | 'inputs' | 'templates';
 
-function loadError(err: unknown): LoadError | undefined {
+function causeOf<T extends Error>(err: unknown, type: new (...args: never[]) => T): T | undefined {
 	for (let e = err; e instanceof Error; e = e.cause) {
-		if (e instanceof LoadError) return e;
+		if (e instanceof type) return e;
 	}
 }
 
@@ -106,6 +106,9 @@ export async function dev(argv: Argv) {
 	let good = false;
 	let inputs: Inputs | undefined;
 
+	// The assets/ files that the last build read outside the bundler, and each one that a failed build looked for.
+	let loads: Set<string> = new Set();
+
 	function report(errors: BuildError[]): void {
 		http.send({ type: 'error', errors });
 		if (!good) http.fail(errors);
@@ -114,11 +117,14 @@ export async function dev(argv: Argv) {
 	async function rebuild(opts: BuildOptions = {}): Promise<void> {
 		try {
 			await build(argv, { inputs, sink, ...opts });
+			loads = new Set(loaded());
 			good = true;
 			http.fail(undefined);
 			// Success: reload the page to pick up new output.
 			http.send({ type: 'reload' });
 		} catch (err) {
+			let missing = causeOf(err, fs.MissingError);
+			if (missing?.file.startsWith(flags.assets + sep)) loads.add(missing.file);
 			// Bundler errors: bundler.flush() already pushed { type: 'error' } via
 			// HMR_SEND, so the overlay is already mounted in the existing page.
 			// Non-bundler errors (template compile failures, etc.) need manual
@@ -202,7 +208,7 @@ export async function dev(argv: Argv) {
 		try {
 			var next = await prepare(argv);
 		} catch (err) {
-			let failed = loadError(err);
+			let failed = causeOf(err, LoadError);
 			let message = err instanceof Error ? err.message : String(err);
 			failed?.files.forEach(file => tracked.add(file));
 			stop();
@@ -228,6 +234,19 @@ export async function dev(argv: Argv) {
 	bundler.watch(diff => schedule(diff.file, 'assets'), flags.content);
 	await fs.watch([flags.layouts, flags.partials], file => schedule(file, 'templates'));
 	await fs.watch([flags.content], file => schedule(file, 'content'));
+	let asset = (file: string) => {
+		if (loads.has(file)) schedule(file, 'assets');
+	};
+	if (fs.exists(flags.assets)) await fs.watch([flags.assets], asset);
+	else {
+		// a new assets/ folder can hold a file before its own watcher starts
+		let wait = await fs.watch([dirname(flags.assets)], async file => {
+			if (file !== flags.assets || !fs.exists(file)) return;
+			wait();
+			await fs.watch([flags.assets], asset);
+			loads.forEach(file => fs.exists(file) && asset(file));
+		}, { recursive: false });
+	}
 	stop = await follow();
 
 	// Route bundle-time errors to the browser error overlay (Phase G).
