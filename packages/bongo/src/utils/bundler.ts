@@ -10,6 +10,7 @@ import * as fs from './fs';
 import * as images from './images';
 import * as loaders from './loaders';
 import * as output from './output';
+import * as utils from './index';
 
 import type { Loader } from 'bongo';
 import type { BundleError, Plugin, RolldownError } from 'rolldown';
@@ -84,6 +85,9 @@ type Registration = { entry: string; placeholder: Placeholder; cfg: BundleConfig
 let REGISTRATIONS: Map<string, Registration> = new Map();
 let GROUPS: Map<string, Registration[]> = new Map();
 let LAST_OUTPUTS: Map<Placeholder, OutputInfo> = new Map();
+
+// Each missing file that a failed entry of the last flush names, to build the entry again when the file appears.
+let MISSING: Map<string, Placeholder[]> = new Map();
 
 function cfgKey(cfg: BundleConfig): BundleConfig {
 	// Normalise for hashing: sort object keys, drop undefined.
@@ -495,10 +499,13 @@ export async function flush(opts: {
 		}));
 	});
 
+	MISSING = new Map();
 	let failures = await Promise.all(jobs.map(async job => {
 		try {
 			await job.run();
 		} catch (err) {
+			let missing = utils.cause(err, fs.MissingError);
+			if (missing) MISSING.set(missing.file, job.regs.map(reg => reg.placeholder));
 			return toBuildError(err, job.regs.map(r => r.entry).join(', '));
 		}
 	}));
@@ -526,7 +533,7 @@ export async function flush(opts: {
 	if (WATCH && WATCH.active) {
 		let files = [...REGISTRATIONS.values()].map(reg => reg.entry);
 		for (let info of outputs.values()) files.push(...info.dependencies);
-		await follow(WATCH, files);
+		await follow(WATCH, [...files, ...MISSING.keys()]);
 	}
 
 	return { outputs, warnings, errors, files: [...files], notices: [...ctx.images.notices] };
@@ -558,6 +565,7 @@ function changed(file: string): void {
 	for (let reg of REGISTRATIONS.values()) {
 		if (reg.entry === file) hits.add(reg.placeholder);
 	}
+	MISSING.get(file)?.forEach(placeholder => hits.add(placeholder));
 
 	if (hits.size === 0) return;
 
@@ -650,6 +658,7 @@ export function reset() {
 	REGISTRATIONS = new Map();
 	GROUPS = new Map();
 	LAST_OUTPUTS = new Map();
+	MISSING = new Map();
 	// WATCH is intentionally NOT cleared — the dev server keeps the watcher
 	// alive across rebuilds triggered by bundler.reset() + build().
 }

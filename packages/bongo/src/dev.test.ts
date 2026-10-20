@@ -424,6 +424,29 @@ describe('assets/ files that a build reads outside the bundler', () => {
 	}, 30_000);
 });
 
+describe('a stylesheet', () => {
+	test('builds again when a file that its url() names appears', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' } };`,
+			'layouts/html.hbs': '<bongo:style src="style.css" />{{{ $page.content }}}',
+			'assets/style.css': 'body { background: url(img/bg.svg) }',
+			'content/index.html': '<main>home</main>',
+		});
+		let server = await serve(root);
+		try {
+			await until(() => server.messages.some(m => m.errors?.some(e => e.message.includes('img/bg.svg'))), 'the missing file error', server);
+			await mkdir(join(root, 'assets/img'));
+			await writeFile(join(root, 'assets/img/bg.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+			await until(async () => (await server.page()).includes('<main>home</main>'), 'the file to appear', server);
+			let css = /href="([^"]+\.css)"/.exec(await server.page())?.[1] ?? '';
+			expect(await fetch(server.url + css).then(res => res.text())).toMatch(/url\("?\/bg\.\w+\.svg"?\)/);
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+});
+
 describe('<bongo:alternate>', () => {
 	test('serves each Markdown copy, keeps the others on a narrow rebuild, and drops one that no layout names', async () => {
 		let root = await site({
