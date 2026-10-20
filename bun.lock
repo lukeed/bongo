@@ -70,6 +70,7 @@
         "mrmime": "^2.0.1",
         "resolve.exports": "^2.0.4",
         "rolldown": "^1.2.14",
+        "tempura": "^1.0.0",
       },
       "devDependencies": {
         "@resvg/resvg-js": "^2.6.2",
@@ -612,6 +613,8 @@
     "sugar-high": ["sugar-high@2.6.1", "", {}, "sha512-LQrLBFWE/2Ge8dRtZR80lndFq3RDFCY3/M0sbPK28oM4c17TfpOaNTKzD/rzVGSvNC/bX+dbgH735Z5G9ZDtdw=="],
 
     "supports-color": ["supports-color@10.2.2", "", {}, "sha512-SS+jx45GF1QjgEXQx4NJZV9ImqmO2NPz5FNsIHrsDjh2YsHnawpan7SNQ1o8NuhrbHZy9AZhIoCUiCeaW/C80g=="],
+
+    "tempura": ["tempura@1.0.0", "", { "peerDependencies": { "esbuild": "*", "rolldown": "*", "vite": "*" }, "optionalPeers": ["esbuild", "rolldown", "vite"] }, "sha512-cC2oop3G6mN9HrjudKurpQllBLKJls4noaa5DyZ9yPSLvfFi7p8dHWhQ2BSaLmhdya3H4KUKkawgyCeX20RsEA=="],
 
     "tiny-inflate": ["tiny-inflate@1.0.3", "", {}, "sha512-pkY1fj1cKHb2seWDy0B16HeWyczlJA9/WW3u3c4z/NiWDsO3DOU5D7nhTLE9CF0yXv/QZFY7sEJmj24dK+Rrqw=="],
 

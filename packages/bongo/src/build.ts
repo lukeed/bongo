@@ -22,7 +22,7 @@ import { normalize } from './utils/argv';
 import { SCRIPT } from './utils/http';
 
 import type { Argv, Build, Config, Loader, Template } from 'bongo';
-import type { Blocks } from './utils/tempura/index';
+import type { Blocks } from 'tempura';
 
 // Per sink, the last good build's files, to delete the ones that the next build does not make.
 type Output = { files: Set<string>; dev: boolean };

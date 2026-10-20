@@ -64,6 +64,7 @@ describe('output files', () => {
 				'<url>https://example.com/blog/a/</url>',
 				'<url>https://example.com/blog/b/</url>',
 				'</urlset>',
+				'',
 			].join('\n'));
 			expect(existsSync(join(root, 'public/sitemap.xml/index.html'))).toBe(false);
 		} finally {
@@ -81,8 +82,8 @@ describe('output files', () => {
 		try {
 			await build({ cwd: root });
 			expect(await read(root, 'blog/index.html')).toBe('<html><ul><li>/blog/</li><li>/blog/post/</li></ul><b>2</b><s>0</s></html>');
-			expect(await read(root, 'blog/index.xml')).toBe('<feed><i>/blog/</i><i>/blog/post/</i></feed>');
-			expect(await read(root, 'robots.txt')).toBe('Sitemap: https://example.com/sitemap.xml');
+			expect(await read(root, 'blog/index.xml')).toBe('<feed><i>/blog/</i><i>/blog/post/</i></feed>\n');
+			expect(await read(root, 'robots.txt')).toBe('Sitemap: https://example.com/sitemap.xml\n');
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -656,12 +657,12 @@ describe('alternates', () => {
 			'content/blog/b.md': 'B',
 			'layouts/misc/html.hbs': '{{{ $page.content }}}',
 			'content/misc/plain.html': '<p>plain</p>',
-			'content/llms.txt.hbs': `# Pages\n{{#each $pages as p}}\n- {{{ p.path }}} {{{ p.alternates['text/markdown'] ?? '-' }}}{{/each}}\n`,
+			'content/llms.txt.hbs': `# Pages\n{{#each $pages as p}}\n- {{{ p.path }}} {{{ p.alternates['text/markdown'] ?? '-' }}}\n{{/each}}\n`,
 			'content/list.json.ts': 'export default ({ $pages }) => $pages.map(page => page.alternates);',
 		});
 		try {
 			await build({ cwd: root });
-			expect(await read(root, 'llms.txt')).toBe('# Pages\n- /a/ /a.md\n- /blog/b/ /blog/b.md\n- /misc/plain/ -');
+			expect(await read(root, 'llms.txt')).toBe('# Pages\n- /a/ /a.md\n- /blog/b/ /blog/b.md\n- /misc/plain/ -\n');
 			expect(JSON.parse(await read(root, 'list.json'))).toEqual([
 				{ 'text/markdown': '/a.md' },
 				{ 'text/markdown': '/blog/b.md', 'application/rss+xml': '/blog/feed.xml' },
