@@ -34,6 +34,7 @@
     "archive/**",
     "docs/public/**",
     "bench/site/public/**",
+    "bench/astro/**",
     "packages/**/*.js",
     "packages/create-bongo/template/**",
     "packages/bongo/test/fixtures/site-build-error/**"

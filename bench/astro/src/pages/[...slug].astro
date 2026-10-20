@@ -1,0 +1,69 @@
+---
+import { render } from 'astro:content';
+
+import Meta from '../components/Meta.astro';
+import Html from '../layouts/Html.astro';
+import { SITE, isIndex, pages, path, section } from '../lib';
+
+import type { Page } from '../lib';
+
+export async function getStaticPaths() {
+	let all = await pages();
+	let bySection = new Map<string, Page[]>();
+	for (let page of all) {
+		let name = section(page);
+		let list = bySection.get(name) || [];
+		list.push(page);
+		bySection.set(name, list);
+	}
+	let sections = all.filter(page => page.id !== 'index' && isIndex(page));
+	return all.map(page => {
+		let slug = path(page).slice(1, -1) || undefined;
+		return { params: { slug }, props: { page, peers: bySection.get(section(page)) || [], sections } };
+	});
+}
+
+let { page, peers, sections } = Astro.props as { page: Page; peers: Page[]; sections: Page[] };
+let { Content, headings } = await render(page);
+let url = new URL(path(page), SITE.url).href;
+let index = isIndex(page);
+let list = page.id === 'index' ? sections : peers.filter(item => item !== page);
+let at = peers.indexOf(page);
+let prev = peers[at - 1];
+let next = peers[at + 1];
+let heads = headings.filter(heading => heading.depth === 2);
+---
+<Html title={page.data.title} summary={page.data.summary} url={url}>
+	{index ? (
+		<div class="listing">
+			<h1>{page.data.title}</h1>
+			<Content />
+			{list.map(item => (
+				<article class="post-preview">
+					<h2><a href={path(item)}>{item.data.title}</a></h2>
+					{item.data.date && <Meta date={item.data.date} tags={item.data.tags} />}
+					<p class="summary">{item.data.summary}</p>
+				</article>
+			))}
+		</div>
+	) : (
+		<article class="post">
+			<header>
+				<h1>{page.data.title}</h1>
+				{page.data.date && <Meta date={page.data.date} tags={page.data.tags} />}
+			</header>
+			{heads.length > 0 && (
+				<nav class="toc" aria-label="On this page">
+					<ol>{heads.map(head => <li><a href={'#' + head.slug}>{head.text}</a></li>)}</ol>
+				</nav>
+			)}
+			<div class="post-body">
+				<Content />
+			</div>
+			<nav class="pager" aria-label="Pages">
+				{prev && <a href={path(prev)} rel="prev">← {prev.data.title}</a>}
+				{next && <a href={path(next)} rel="next">{next.data.title} →</a>}
+			</nav>
+		</article>
+	)}
+</Html>
