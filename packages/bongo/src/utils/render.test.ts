@@ -130,7 +130,7 @@ describe('$assets.render', () => {
 		});
 		try {
 			await build({ cwd: root });
-			expect(await readFile(join(root, 'public/index.html'), 'utf8')).toBe('<meta content="/docs/og/home.png">\n<p>home</p>');
+			expect(await readFile(join(root, 'public/index.html'), 'utf8')).toBe('<meta content="/docs/og/home.png"><p>home</p>');
 			let png = await readFile(join(root, 'public/og/home.png'));
 			expect(png.subarray(1, 4).toString()).toBe('PNG');
 			expect(size(png)).toEqual([1200, 630]);

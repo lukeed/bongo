@@ -815,7 +815,7 @@ describe('partials', () => {
 		});
 		try {
 			await build({ cwd: root });
-			expect(await read(root, 'blog/a/index.html')).toBe('/blog/a/:2:2:1[A] </blog/a/> given a \n');
+			expect(await read(root, 'blog/a/index.html')).toBe('/blog/a/:2:2:1[A] </blog/a/> given a ');
 			expect(await read(root, 'blog/b/index.html')).toBe('/blog/b/:2:2:1[B] </blog/b/> given a [B]');
 		} finally {
 			await rm(root, { recursive: true, force: true });
@@ -875,7 +875,7 @@ describe('$hooks.transform', () => {
 		let info = async (rel: string) => JSON.parse((await read(root, rel)).split('|')[1]);
 		try {
 			await build({ cwd: root });
-			expect(await read(root, 'index.html')).toMatch(/^<html>\n<link rel="stylesheet" href="\/style\.[\w-]+\.css"\/><\/html>\|/);
+			expect(await read(root, 'index.html')).toMatch(/^<html><link rel="stylesheet" href="\/style\.[\w-]+\.css"\/><\/html>\|/);
 			expect(await info('index.html')).toEqual({ kind: 'page', path: '/', params: { title: 'Home' }, outputs, title: 'T', placeholders: false });
 			expect(await read(root, 'feed.xml')).toStartWith('<feed/>|');
 			expect(await info('feed.xml')).toEqual({ kind: 'output', path: '/feed.xml', params: { format: 'rss' }, outputs, title: 'T', placeholders: false });

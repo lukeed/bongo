@@ -376,8 +376,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			if (offset > 0) {
 				Object.assign(params, value);
 				src = src.substring(offset);
-				// so an output file can start with `<?xml`
-				if (kind === 'output') src = src.replace(/^\r?\n/, '');
+				// so a body starts after the line break of its frontmatter, and an output file can start with `<?xml`
+				src = src.replace(/^\r?\n/, '');
 			}
 
 			// `.hbs` content is compiled in walk 2, once Pages/Sections/Tags
