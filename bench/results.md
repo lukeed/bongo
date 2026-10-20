@@ -19,6 +19,7 @@ Each run builds over the output of the run before it, as a repeat build does. Th
 | #67 write over public/ | 2.82 s | 3.31 s | 6.60 s | 540 MB |
 | #68 free the last build | 2.82 s | 3.35 s | 6.68 s | 519 MB |
 | #66 incremental builds | 2.40 s | 3.02 s | 4.06 s | 508 MB |
+| #74 sync tempura fixes | 2.31 s | 3.08 s | 3.47 s | 503 MB |
 
 ## docs/
 
@@ -33,6 +34,7 @@ The output hash of the docs site changes with its content, such as the docs edit
 | #67 write over public/ | 230 ms | 348 ms | 135 ms | 186 MB |
 | #68 free the last build | 227 ms | 348 ms | 120 ms | 185 MB |
 | #66 incremental builds | 225 ms | 336 ms | 108 ms | 188 MB |
+| #74 sync tempura fixes | 224 ms | 340 ms | 108 ms | 187 MB |
 
 ## bongo build after an edit, on bench/site/
 
@@ -44,6 +46,7 @@ Wall time:
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | #68 free the last build | 2.82 s | 2.82 s | 2.82 s | 2.82 s | 2.82 s | 2.82 s | 2.82 s |
 | #66 incremental builds | 2.33 s | 246 ms | 246 ms | 334 ms | 330 ms | 2.30 s | 2.24 s |
+| #74 sync tempura fixes | 2.28 s | 267 ms | 265 ms | 351 ms | 345 ms | 2.34 s | 2.35 s |
 
 Peak RSS, and the files that the build wrote, of 10,105:
 
@@ -51,8 +54,11 @@ Peak RSS, and the files that the build wrote, of 10,105:
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | #68 free the last build | 519 MB · all | 519 MB · all | 519 MB · all | 519 MB · all | 519 MB · all | 519 MB · all | 519 MB · all |
 | #66 incremental builds | 513 MB · all | 213 MB · 4 | 214 MB · 5 | 281 MB · 205 | 286 MB · 206 | 574 MB · all | 571 MB · all |
+| #74 sync tempura fixes | 504 MB · all | 217 MB · 4 | 218 MB · 5 | 282 MB · 205 | 280 MB · 206 | 589 MB · all | 593 MB · all |
 
 The peak RSS of a full build swings from run to run: 478–544 MB in the first table, 513 MB for the same build here. A build with no memo lists `public/`; a build with one reads the list from it, and reads only the sources whose size or mtime changed. The bench lists `public/` once after each build, to count the files that it wrote, so that no listing warms the cache of the folder before a build. A build with no change still writes the 3 bundles and the sitemap: output files render on every build. A title edit renders the 100 pages of its section, since each links its neighbours through `$section`, and each section index and the sitemap, since they read `$pages`.
+
+The #74 row is 15–21 ms slower than #66 for each small build. An A/B of #74 against `main`, in the same kind of session as below, 12 rounds, twice, had #74 4–8 ms slower. An A/A, with the code of #74 in both copies, had the same gap, 4–11 ms. So the copy of the site, not the code, makes the gap. Compiling every template of the bench site and the docs takes 0.12 ms before #74 and 0.14 ms with it.
 
 ### Steps within #66
 
@@ -84,7 +90,32 @@ Steps: the first build, 3 full rebuilds from an edit to `layouts/html.hbs`, then
 | #68 free the last build | 2.00 s | 1.80 s | 0.83 s | 259 MB | 162 MB | 159 MB | 174 MB | 1441 MB |
 | #68, with the steps of #66 | 2.00 s | 1.80 s | 0.82 s | 259 MB | 184 MB | 139 MB | 131 MB | 1554 MB |
 | #66 incremental builds | 1.70 s | 1.50 s | 0.08–0.09 s | 310 MB | 186 MB | 185 MB | 177 MB | 1620 MB |
+| #74 sync tempura fixes | 1.70 s | 1.60 s | 0.09–0.10 s | 829 MB | 262 MB | 261 MB | 177 MB | 2184 MB |
 
 Before #68, the footprint of dev depends on when the garbage collector runs, so those rows swing from run to run.
 
 With the steps of #66, a stylesheet edit and a new page each take 1.80 s on #68. On #66, a stylesheet edit takes 0.08 s and a new page 0.14 s: dev names each stylesheet by its entry, so the edit renders no page. Against #68, dev holds about 45 MB more JS heap, the memo of 10,000 pages.
+
+The footprint of the first build is 783–829 MB on #74, and 800–801 MB on `main` before it, in 2 runs each. So the rise from 310 MB on #66 comes from a change between #66 and #74, not from #74.
+
+## Astro on bench/site/
+
+`bench/astro/` is the site of `bench/site/` in Astro: the same pages from the same generated `bench/site/content/`, the same layouts, table of contents, pager, tags, dates, sitemap, stylesheet, script, view transitions, and prefetch. Astro highlights code with Shiki, its default; bongo highlights it with twinkleplop. The stylesheet is an external file in both.
+
+Write the content with `bun run bench site` first, then:
+
+```sh
+cd bench/astro
+bun install
+node node_modules/.bin/astro build
+```
+
+Each row is a median of 5 runs. A fresh build deletes `dist/`, `.astro/`, and `node_modules/.astro/` before it runs. A build with no change keeps the content cache in `node_modules/.astro/`, so Astro does not parse the Markdown again, but it still renders every page.
+
+| build | wall | peak RSS | output |
+| --- | --- | --- | --- |
+| bongo #74, fresh | 2.31 s | 503 MB | 10,105 files · 90 MB |
+| bongo #74, no change | 267 ms | 217 MB | |
+| Astro 7.4.1, fresh, Node 26.11 | 15.47 s | 3066 MB | 10,106 files · 104 MB |
+| Astro 7.4.1, fresh, Bun 1.4.3 | 13.45 s | 3338 MB | |
+| Astro 7.4.1, no change, Node 26.11 | 9.15 s | 2643 MB | |
