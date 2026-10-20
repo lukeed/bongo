@@ -72,6 +72,9 @@ const clients = new Set<Duplex>();
 let ready: Promise<void> = Promise.resolve();
 let failed: BuildError[] | undefined;
 
+// The last error that a build sent, for each socket that connects before a good build clears it.
+let error: HmrMessage | undefined;
+
 /**
  * Hold page requests until `task` settles, whether it succeeds or fails; the reload stream is never held.
  * @example http.hold(firstBuild);
@@ -89,6 +92,8 @@ export function fail(errors: BuildError[] | undefined): void {
 }
 
 export function send(msg: HmrMessage): void {
+	if (msg.type === 'error') error = msg;
+	else if (msg.type === 'reload' || msg.type === 'error-clear') error = undefined;
 	let data = frame(JSON.stringify(msg));
 	for (let socket of clients) {
 		if (socket.destroyed || !socket.writable) clients.delete(socket);
@@ -119,6 +124,7 @@ function upgrade(req: IncomingMessage, socket: Duplex): void {
 	(socket as Socket).setTimeout?.(0);
 	clients.add(socket);
 	if (new URLSearchParams(query).get('id') !== ID) socket.write(frame(JSON.stringify({ type: 'reload' })));
+	if (error) socket.write(frame(JSON.stringify(error)));
 
 	let drop = () => clients.delete(socket);
 	socket.on('close', drop);
@@ -229,6 +235,7 @@ async function deliver(req: IncomingMessage, res: ServerResponse, sink: Memory, 
  */
 export async function start(argv: Required<Argv>, sink: Memory): Promise<Server> {
 	clients.clear();
+	error = undefined;
 
 	const handler = async (req: IncomingMessage, res: ServerResponse) => {
 		let path = (req.url || '/').replace(/[?#].*/, '');

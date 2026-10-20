@@ -424,6 +424,42 @@ describe('assets/ files that a build reads outside the bundler', () => {
 	}, 30_000);
 });
 
+describe('a socket that connects after an error', () => {
+	test('gets the error, until a good build clears it', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' } };`,
+			'layouts/html.hbs': '{{{ $page.content }}}',
+			'content/index.html': '<main>home</main>',
+		});
+		let server = await serve(root);
+		let listen = async (): Promise<Message[]> => {
+			let messages: Message[] = [];
+			let ws = new WebSocket(server.url.replace(/^http/, 'ws') + '/~/reload');
+			ws.onmessage = e => messages.push(JSON.parse(String(e.data)));
+			await new Promise(resolve => ws.onopen = resolve);
+			await Bun.sleep(300);
+			ws.close();
+			return messages;
+		};
+		try {
+			await until(async () => (await server.page()).includes('<main>home</main>'), 'the first build', server);
+			await writeFile(join(root, 'layouts/html.hbs'), '{{#nope}}{{{ $page.content }}}');
+			await until(() => server.messages.some(m => m.type === 'error'), 'the error', server);
+
+			let late = await listen();
+			expect(late.some(m => m.type === 'error' && m.errors?.some(e => e.message.includes('nope')))).toBe(true);
+			expect(await server.page()).toContain('<main>home</main>');
+
+			await writeFile(join(root, 'layouts/html.hbs'), '<b>{{{ $page.content }}}</b>');
+			await until(async () => (await server.page()).includes('<b><main>home</main></b>'), 'the fix', server);
+			expect((await listen()).some(m => m.type === 'error')).toBe(false);
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+});
+
 describe('a stylesheet', () => {
 	test('builds again when a file that its url() names appears', async () => {
 		let root = await site({
