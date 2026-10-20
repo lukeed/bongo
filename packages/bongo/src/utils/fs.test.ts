@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, parse } from 'node:path';
 import * as fs from './fs';
 
 function sandbox(): string {
@@ -220,7 +220,9 @@ describe('unsafe', () => {
 
 		let home = realpathSync(homedir());
 		expect(fs.unsafe(home, join(home, 'site'), [])).toBe('it is the home folder');
-		expect(fs.unsafe(dirname(home), join(home, 'site'), [])).toBe('it holds the home folder');
+		// as root, the home folder is /root, so the folder above it is the file system root
+		let above = dirname(home);
+		expect(fs.unsafe(above, join(home, 'site'), [])).toBe(above === parse(above).root ? 'it is the file system root' : 'it holds the home folder');
 		expect(fs.unsafe(home, home, [])).toBe('it is the home folder');
 	});
 
