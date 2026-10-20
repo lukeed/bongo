@@ -15,9 +15,8 @@ const packages = join(import.meta.dirname, '../packages');
 const isDEV = process.argv.includes('--dev');
 
 const output: OutputOptions = {
-	format: 'cjs',
+	format: 'esm',
 	file: '~inject~',
-	esModule: false,
 	minify: !isDEV,
 };
 

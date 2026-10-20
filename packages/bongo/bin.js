@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { parseArgs } = require('node:util');
+import { parseArgs } from 'node:util';
 
 let args = process.argv.slice(2);
 // A bare `--host` exposes the server on every interface, as sirv-cli's does.
@@ -33,7 +33,7 @@ try {
 }
 
 if (values.version) {
-	const pkg = require('./package.json');
+	const { default: pkg } = await import('./package.json', { with: { type: 'json' } });
 	console.log(`${pkg.name}, v${pkg.version}`);
 	process.exit(0);
 }
@@ -69,7 +69,7 @@ if (values.help) {
 		let name = (positionals[0] || '').trim().toLowerCase();
 		if (!name) throw new Error('Missing <command> argument');
 
-		let command = require('.')[name];
+		let command = (await import('./index.js'))[name];
 		if (!command) throw new Error(`Unknown "${name}" command`);
 
 		let { cwd, host, minify, debug, write, fresh, drafts } = values;

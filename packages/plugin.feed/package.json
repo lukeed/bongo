@@ -1,6 +1,7 @@
 {
   "version": "0.0.13",
   "name": "@bongo/feed",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lukeed/bongo.git",

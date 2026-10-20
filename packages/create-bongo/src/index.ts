@@ -43,7 +43,7 @@ async function copy(src: string, dest: string) {
 export async function setup(dir: string, argv: Argv) {
 	argv.cwd = path.resolve(argv.cwd || '.');
 
-	let source = path.join(__dirname, 'template');
+	let source = path.join(import.meta.dirname, 'template');
 	let target = path.join(argv.cwd, dir);
 
 	if (fs.existsSync(target) && !argv.force) {

@@ -25,8 +25,8 @@ const BONGO_TAG = /<bongo:(script|style|client|asset|image|alternate)\b((?:"[^"]
 let CLIENT: string | undefined;
 function resolveBongoClient(): string {
 	if (CLIENT) return CLIENT;
-	let bundled = resolve(__dirname, 'client.js');
-	return CLIENT = fs.exists(bundled) ? bundled : resolve(__dirname, '..', '..', 'client.js');
+	let bundled = resolve(import.meta.dirname, 'client.js');
+	return CLIENT = fs.exists(bundled) ? bundled : resolve(import.meta.dirname, '..', '..', 'client.js');
 }
 
 // Whether each file that a tag names exists, checked once in a build, since every page names the same few.
