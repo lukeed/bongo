@@ -96,7 +96,7 @@ Before #68, the footprint of dev depends on when the garbage collector runs, so 
 
 With the steps of #66, a stylesheet edit and a new page each take 1.80 s on #68. On #66, a stylesheet edit takes 0.08 s and a new page 0.14 s: dev names each stylesheet by its entry, so the edit renders no page. Against #68, dev holds about 45 MB more JS heap, the memo of 10,000 pages.
 
-The footprint of the first build is 783–829 MB on #74, and 800–801 MB on `main` before it, in 2 runs each. So the rise from 310 MB on #66 comes from a change between #66 and #74, not from #74.
+The footprint of the first build is 783–829 MB on #74, and 800–801 MB on `main` before it, in 2 runs each. So the rise from 310 MB on #66 does not come from #74. It comes from f99d81a, which kept the whole last build alive in dev until the next build; #75 fixes it, and the first build is 306 MB again.
 
 ## Astro on bench/site/
 
