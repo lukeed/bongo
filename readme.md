@@ -34,3 +34,7 @@ bun run docs dev
 ```
 
 The package build uses Rolldown and writes the publishable package files in place.
+
+## License
+
+MIT © [Luke Edwards](https://lukeed.com)
