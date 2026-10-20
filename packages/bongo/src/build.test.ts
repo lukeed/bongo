@@ -116,6 +116,18 @@ describe('output files', () => {
 		}
 	});
 
+	test("{{ }} escapes ' so a value stays in its single-quoted attribute", async () => {
+		let root = await site({
+			'content/t.txt.hbs': "---\ntitle: \"x' onmouseover='alert(1)\"\n---\n<a title='{{ params.title }}'>",
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 't.txt')).toBe("<a title='x&#39; onmouseover=&#39;alert(1)'>");
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('{{ }} prints a missing value as nothing', async () => {
 		let root = await site({
 			'content/t.txt.hbs': '---\ntitle: T\n---\n[{{ params.subtitle }}][{{ params.none }}]',
