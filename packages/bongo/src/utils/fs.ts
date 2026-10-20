@@ -328,9 +328,11 @@ async function setup(dir: string, onChange: Handler, recursive: boolean) {
 		}
 
 		output[dir] = attach(fsw(dir, onChange.bind(0, dir)));
-		await list(dir, (rel, abs) => {
-			output[abs] = attach(fsw(abs, onChange.bind(0, abs)));
-		});
+		for (let entry of await fs.readdir(dir, { recursive: true, withFileTypes: true })) {
+			if (!entry.isDirectory()) continue;
+			let sub = join(entry.parentPath, entry.name);
+			output[sub] = attach(fsw(sub, onChange.bind(0, sub)));
+		}
 	}
 
 	return output;
