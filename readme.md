@@ -29,7 +29,7 @@ my-site/
 
 ## Why bongo?
 
-- **Fast**: 10,000 Markdown pages build in 2.2 s, about 6× faster than Astro, with a sixth of its memory. A repeat build renders only the pages that a change reaches. See [the bench](./bench/readme.md).
+- **Fast**: 10,000 Markdown pages build in 2.2 s, about 6× faster than Astro, with a sixth of its memory. A repeat build renders only the pages that a change reaches. See [Benchmarks](https://bongo.build/benchmarks/).
 - **Modern tools**: Rolldown for scripts, LightningCSS for styles, with bundling, nesting, autoprefixing, and CSS modules.
 - **Images**: resize, convert, and get a `srcset`, `width`, and `height` for free. Draw a partial as an image, such as an Open Graph card for each page.
 - **Content**: typed frontmatter, drafts, tags, sections, translations, sitemaps, feeds, and search indexes.
