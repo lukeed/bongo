@@ -54,7 +54,7 @@ function home(file: string): string {
 }
 
 // bongo stays a package even when it is linked, so only one copy of it runs.
-const SELF = home(realpathSync(__filename));
+const SELF = home(realpathSync(import.meta.filename));
 
 // The real folder of a package that `importer` reaches through a symlink in node_modules, like a workspace package.
 function link(id: string, importer: string): string | undefined {

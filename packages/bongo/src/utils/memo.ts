@@ -85,7 +85,7 @@ let CODE: string | undefined;
 
 // A hash of this bongo code and the format of its memo, which a memo must match to be read at all.
 async function code(): Promise<string> {
-	return CODE ??= hash(FORMAT + '\0' + await readFile(realpathSync(__filename), 'utf8'));
+	return CODE ??= hash(FORMAT + '\0' + await readFile(realpathSync(import.meta.filename), 'utf8'));
 }
 
 // The nearest lockfile above `dir`, which pins the version of each plugin and loader.

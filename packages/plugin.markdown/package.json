@@ -1,6 +1,7 @@
 {
   "version": "0.0.13",
   "name": "@bongo/markdown",
+  "type": "module",
   "description": "Markdown loader for bongo",
   "repository": {
     "type": "git",

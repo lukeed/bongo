@@ -1,6 +1,7 @@
 {
   "version": "0.0.13",
   "name": "@bongo/bongo",
+  "type": "module",
   "description": "Hit it — static sites with a good beat~!",
   "repository": {
     "type": "git",

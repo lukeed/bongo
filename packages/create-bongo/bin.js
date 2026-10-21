@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-const { parseArgs } = require('node:util');
+import { join } from 'node:path';
+import { parseArgs } from 'node:util';
 
 function exit(msg, code = 1) {
 	if (code) process.stderr.write(msg + '\n');
@@ -27,7 +28,7 @@ try {
 }
 
 if (values.version) {
-	let pkg = require('./package.json');
+	let { default: pkg } = await import('./package.json', { with: { type: 'json' } });
 	exit(`${pkg.name}, v${pkg.version}`, 0);
 }
 
@@ -57,9 +58,9 @@ if (values.help) {
 		if (!dir) throw new Error('Missing <name> argument');
 
 		let rel = dir;
-		if (values.cwd !== '.') rel = require('path').join(values.cwd, dir);
+		if (values.cwd !== '.') rel = join(values.cwd, dir);
 
-		await require('.').setup(dir, { cwd: values.cwd, force: values.force });
+		await (await import('./index.js')).setup(dir, { cwd: values.cwd, force: values.force });
 
 		let msg = '\n';
 		msg += '  \x1b[32m\x1b[1m✓\x1b[22m Created \x1b[1m' + rel + '\x1b[22m\x1b[39m\n';
