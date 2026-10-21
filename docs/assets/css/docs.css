@@ -45,8 +45,8 @@
 .grp a {
 	display: block;
 	margin: 2px 0;
-	padding: 6px 12px;
-	border: 2px solid transparent;
+	padding: 5.5px 11.5px;
+	border: var(--bw) solid transparent;
 	border-radius: 999px;
 	font: 500 15px/1.35 var(--sans);
 	color: var(--text);
@@ -60,7 +60,7 @@
 }
 
 .grp a[aria-current] {
-	margin: 6px 8px 8px 0;
+	margin: 2px 8px 2px 0;
 	background: var(--sun);
 	color: #141414;
 	font-weight: 700;

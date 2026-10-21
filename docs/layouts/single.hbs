@@ -3,7 +3,7 @@
 {{#var heads = $page.headings.filter(heading => heading.level === 2)}}
 {{#var md = $utils.url.ext($page.path, 'md')}}
 <div class="shell">
-	<aside class="side" id="side" aria-label="Docs" transition:persist="sidebar">
+	<aside class="side" id="side" aria-label="Docs" transition:persist="sidebar" transition:name="sidebar">
 		{{#each groups as group}}
 		<div class="grp" style="--c:var(--{{ group.color }})">
 			<h4><i></i>{{ group.title }}</h4>
