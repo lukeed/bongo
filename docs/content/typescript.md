@@ -34,6 +34,10 @@ Or reference the types directly:
 
 See [Special elements](/special-elements/), [View transitions](/view-transitions/), and [Opt out](/client-runtime/#opt-out).
 
+## Which tsconfig.json
+
+Rolldown reads a `tsconfig.json` when it compiles the config, data modules, partials, and scripts. For each file, it reads the nearest one, but only in the project folder, which holds the config, or in a folder below it. A `tsconfig.json` in a folder above the project is never read, since it can belong to another project. When the project folder has no `tsconfig.json`, Rolldown uses none.
+
 ## Exported types
 
 Import types from `bongo`:
