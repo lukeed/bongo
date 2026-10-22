@@ -84,7 +84,7 @@ const REMOTE = /^(?:[a-z][\w+.-]*:|\/\/)/i;
 const URL_FN = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)/gi;
 
 let SATORI: Promise<{ draw: typeof import('satori').default; version: string }> | undefined;
-let RESVG: Promise<{ Resvg: typeof import('@resvg/resvg-js').Resvg; version: string }> | undefined;
+let RESVG: Promise<{ renderAsync: typeof import('@resvg/resvg-js').renderAsync; version: string }> | undefined;
 let INFLIGHT: Map<string, Promise<Buffer>> = new Map();
 
 function sha256(input: string | Uint8Array): string {
@@ -297,15 +297,15 @@ function resvg(): NonNullable<typeof RESVG> {
 	return RESVG ||= Promise.all([
 		import('@resvg/resvg-js'),
 		import('@resvg/resvg-js/package.json', { with: { type: 'json' } }),
-	]).then(([mod, pkg]) => ({ Resvg: mod.Resvg, version: pkg.default.version }), err => {
+	]).then(([mod, pkg]) => ({ renderAsync: mod.renderAsync, version: pkg.default.version }), err => {
 		RESVG = undefined;
 		throw missing('@resvg/resvg-js', err);
 	});
 }
 
 /**
- * The options of each `new Resvg`. Satori draws text as paths, so resvg needs no fonts; by default, each `new Resvg` reads every font of the system, about 120 ms per image.
- * @example new Resvg(svg, raster(1200))
+ * The options of each resvg render. Satori draws text as paths, so resvg needs no fonts; by default, each render reads every font of the system, about 120 ms per image.
+ * @example await renderAsync(svg, raster(1200))
  */
 export function raster(width: number): ResvgRenderOptions {
 	return { fitTo: { mode: 'width', value: width }, font: { loadSystemFonts: false } };
@@ -316,8 +316,9 @@ async function draw(job: Job): Promise<Buffer> {
 	let svg = await draw(job.root, { width: job.width, height: job.height, fonts: job.fonts });
 	if (job.format === 'svg') return Buffer.from(svg);
 
-	let { Resvg } = await resvg();
-	let png = new Resvg(svg, raster(job.width)).render().asPng();
+	// renderAsync runs on the libuv thread pool, so the renders of images.slot run at the same time; new Resvg().render() blocks the main thread.
+	let { renderAsync } = await resvg();
+	let png = (await renderAsync(svg, raster(job.width))).asPng();
 	if (job.format === 'png') return png;
 
 	let options = job.format === 'jpeg' ? { quality: job.quality, progressive: true } : { quality: job.quality };
