@@ -174,6 +174,14 @@ if (import.meta.env.DEV) {
 }
 ```
 
+To type `import.meta.env`, reference the types in a script or in a `.d.ts` file:
+
+```ts
+/// <reference types="bongo/env" />
+```
+
+Bun's types also declare `import.meta.env`, so do not load both in one `tsconfig.json`. For `process.env.NODE_ENV`, use the types of Node.
+
 With `--minify`, the code in a branch that never runs is removed. Packages also resolve by mode: an import picks the `development` export of a package in `bongo dev`, and the `production` export in `bongo build`.
 
 ### Your own values
