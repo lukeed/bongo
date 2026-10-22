@@ -64,6 +64,24 @@ describe('normalize', () => {
 		expect(argv.host).toBe('localhost');
 	});
 
+	test('sets NODE_ENV by mode, unless it is set', () => {
+		let env = process.env.NODE_ENV;
+		try {
+			let modes = [];
+			for (let dev of [false, true]) {
+				delete process.env.NODE_ENV;
+				normalize({ cwd: '/tmp', dev });
+				modes.push(process.env.NODE_ENV);
+			}
+			process.env.NODE_ENV = 'staging';
+			normalize({ cwd: '/tmp', dev: true });
+			modes.push(process.env.NODE_ENV);
+			expect(modes).toEqual(['production', 'development', 'staging']);
+		} finally {
+			process.env.NODE_ENV = env;
+		}
+	});
+
 	test('preserves custom port and host', () => {
 		let argv: any = { cwd: '/tmp', port: 8080, host: '0.0.0.0' };
 		normalize(argv);
