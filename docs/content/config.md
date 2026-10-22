@@ -39,7 +39,7 @@ export default {
 
 ## The config file
 
-bongo looks for the config in the project folder: `bongo.config.ts`, `bongo.config.mjs`, `bongo.config.cjs`, or `bongo.config.js`, in that order. Rolldown bundles it with its local imports, so it can be TypeScript and import local files. See [How a build works](/project/#how-a-build-works).
+bongo looks for the config in the project folder: `bongo.config.ts`, `bongo.config.mjs`, `bongo.config.cjs`, or `bongo.config.js`, in that order. Rolldown bundles it with its local imports, so it can be TypeScript and import local files. An import can also use an alias from the `paths` of your `tsconfig.json`, such as `~/lib/menu`. See [How a build works](/project/#how-a-build-works).
 
 Export the config as the default export. Named exports for each field, such as `export const $loaders = {…}`, also work.
 
