@@ -280,6 +280,11 @@ export interface Config {
 		 * @example $build: { target: ['chrome >= 120', 'safari >= 17', 'firefox >= 121'] }
 		 */
 		target?: string | string[];
+		/**
+		 * Names to replace in scripts, each with the code of its value. It replaces the built-in `process.env.NODE_ENV`, `import.meta.env.DEV`, and `import.meta.env.PROD` too.
+		 * @example $build: { define: { __VERSION__: JSON.stringify('1.2.3') } }
+		 */
+		define?: Record<string, string>;
 	};
 	$images?: Images.Options;
 	$hooks?: Build.Hooks;

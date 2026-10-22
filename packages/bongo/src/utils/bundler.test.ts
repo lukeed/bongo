@@ -217,6 +217,64 @@ describe('flush() — JS', () => {
 	});
 });
 
+describe('flush() — mode', () => {
+	let source = 'console.log(process.env.NODE_ENV, import.meta.env.DEV, import.meta.env.PROD, import.meta.env.OTHER);';
+
+	test('replaces the mode in scripts: production for a build, development for dev', async () => {
+		let { dir, outDir } = await tmp({ 'entry.ts': source });
+		try {
+			let printed: string[] = [];
+			for (let dev of [false, true]) {
+				let p = bundler.register(join(dir, 'entry.ts'), { kind: 'js' });
+				let result = await bundler.flush({ outDir, dev });
+				expect(result.errors).toEqual([]);
+				let code = await readFile(join(outDir, result.outputs.get(p)!.filename), 'utf8');
+				expect(code).not.toMatch(/process\.env|import\.meta\.env/);
+				printed.push(code.match(/console\.log\((.*)\);/s)![1].replace(/\s+/g, ''));
+				bundler.reset();
+			}
+			expect(printed).toEqual(['"production",false,true,{"DEV":false,"PROD":true}.OTHER', '"development",true,false,{"DEV":true,"PROD":false}.OTHER']);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('resolves the package export of the mode', async () => {
+		let { dir, outDir } = await tmp({
+			'entry.ts': 'import mode from "pkg"; console.log(mode);',
+			'node_modules/pkg/package.json': JSON.stringify({ name: 'pkg', exports: { development: './dev.js', production: './prod.js', default: './prod.js' } }),
+			'node_modules/pkg/dev.js': 'export default "pkg-dev";',
+			'node_modules/pkg/prod.js': 'export default "pkg-prod";',
+		});
+		try {
+			let found: (string | undefined)[] = [];
+			for (let dev of [false, true]) {
+				let p = bundler.register(join(dir, 'entry.ts'), { kind: 'js' });
+				let result = await bundler.flush({ outDir, dev, cwd: dir });
+				expect(result.errors).toEqual([]);
+				found.push((await readFile(join(outDir, result.outputs.get(p)!.filename), 'utf8')).match(/pkg-\w+/)?.[0]);
+				bundler.reset();
+			}
+			expect(found).toEqual(['pkg-prod', 'pkg-dev']);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('define replaces names in scripts, over the mode', async () => {
+		let { dir, outDir } = await tmp({ 'entry.ts': 'console.log(__VERSION__, process.env.NODE_ENV);' });
+		try {
+			let p = bundler.register(join(dir, 'entry.ts'), { kind: 'js' });
+			let result = await bundler.flush({ outDir, define: { __VERSION__: '"1.2.3"', 'process.env.NODE_ENV': '"staging"' } });
+			expect(result.errors).toEqual([]);
+			let code = await readFile(join(outDir, result.outputs.get(p)!.filename), 'utf8');
+			expect(code).toContain('console.log("1.2.3", "staging")');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('flush() — CSS url() assets', () => {
 	test('emits each referenced file once with a content hash and rewrites urls under publicPath', async () => {
 		let { dir, outDir } = await tmp({

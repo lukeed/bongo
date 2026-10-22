@@ -515,6 +515,21 @@ describe('scripts and styles', () => {
 		}
 	});
 
+	test('$build.define and the mode replace names in scripts', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $build: { define: { __VERSION__: '"1.2.3"' } } };`,
+			'assets/a.ts': 'console.log(__VERSION__, process.env.NODE_ENV, import.meta.env.DEV);',
+			'layouts/html.hbs': '{{{ $page.content }}}<bongo:script src="a.ts" inline />',
+			'content/index.html': '<p>home</p>',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toContain('console.log("1.2.3", "production", false);');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('iife scripts build one at a time, with dynamic imports inlined', async () => {
 		let root = await site({
 			'assets/shared.ts': 'export function greet(name: string) { return document.title + " greets " + name; }',

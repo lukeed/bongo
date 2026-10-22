@@ -856,6 +856,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		utils: loader_utils,
 		cache,
 		dev: argv.dev,
+		define: config.$build.define,
 	});
 
 	if (flushResult.errors.length > 0) {

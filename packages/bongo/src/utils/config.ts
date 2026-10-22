@@ -232,7 +232,8 @@ export function merge(base: Required<Config>, custom: Partial<Config>) {
 	Object.assign(base.$loaders, custom.$loaders);
 	Object.assign(base.$partials, custom.$partials);
 	if (custom.$build) {
-		Object.assign(base.$build, custom.$build);
+		let define = custom.$build.define && { ...base.$build.define, ...custom.$build.define };
+		Object.assign(base.$build, custom.$build, define && { define });
 	}
 	if (custom.$images) {
 		Object.assign(base.$images, custom.$images);
