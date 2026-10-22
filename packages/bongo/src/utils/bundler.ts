@@ -434,8 +434,7 @@ export function toBuildError(err: unknown, fallbackFile?: string): BuildError {
 export function summary(error: BuildError, root: string): string {
 	if (!error.file) return error.message;
 	let file = error.file;
-	let dir = [root, realpathSync(root)].find(dir => file.startsWith(dir + path.sep));
-	if (dir) file = path.relative(dir, file);
+	if (file.startsWith(root + path.sep)) file = path.relative(root, file);
 	return `${error.message} (${file}${error.line ? `:${error.line}:${(error.column ?? 0) + 1}` : ''})`;
 }
 

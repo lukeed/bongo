@@ -1,8 +1,12 @@
 import { resolve } from 'node:path';
+
+import * as fs from './fs';
+
 import type { Argv } from 'bongo';
 
 export function normalize(argv: Argv): asserts argv is Required<Argv> {
-	argv.cwd = resolve(argv.cwd);
+	// Rolldown names modules by their real paths, so a symlink in cwd would change the bytes of scripts
+	argv.cwd = fs.real(argv.cwd);
 	argv.debug = !!argv.debug;
 	argv.dev = !!argv.dev;
 	// dev shows drafts, and `bongo build` leaves them out, unless the flag says otherwise

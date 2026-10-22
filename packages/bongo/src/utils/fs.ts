@@ -27,8 +27,11 @@ export function rm(file: string): Promise<void> {
 	return fs.rm(file, { force: true });
 }
 
-// The path with every symlink resolved; a part that does not exist yet is kept as written.
-function real(path: string): string {
+/**
+ * The path with every symlink resolved; a part that does not exist yet is kept as written.
+ * @example real('/tmp/site/public') //=> '/private/tmp/site/public'
+ */
+export function real(path: string): string {
 	let rest: string[] = [];
 	for (let at = resolve(path); ; at = dirname(at)) {
 		try {
