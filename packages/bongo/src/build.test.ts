@@ -1408,3 +1408,26 @@ describe('incremental builds', () => {
 		}
 	});
 });
+
+describe('tsconfig paths', () => {
+	test('the config, data modules, partials, and content data modules import through an alias', async () => {
+		let root = await site({
+			'tsconfig.json': '{ "compilerOptions": { "paths": { "~/*": ["./lib/*"] } } }',
+			'lib/title.ts': 'export const title = "aliased";',
+			'lib/n.ts': 'export const n = 7;',
+			'bongo.config.ts': `import { title } from '~/title';\nexport default { $site: { url: 'https://example.com/', title, lang: 'en' } };`,
+			'data/n.ts': `import { n } from '~/n';\nexport default n;`,
+			'partials/p.ts': `import { n } from '~/n';\nexport default () => 'partial' + n;`,
+			'content/n.json.ts': `import { n } from '~/n';\nexport default { n };`,
+			'layouts/html.hbs': '{{ $site.title }}:{{ $data.n }}:{{#partial src="p"}}',
+			'content/index.html': '<p>home</p>',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toBe('aliased:7:partial7');
+			expect(JSON.parse(await read(root, 'n.json'))).toEqual({ n: 7 });
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
