@@ -8,6 +8,7 @@ import * as images from './images';
 import * as memo from './memo';
 
 import type { Template } from 'bongo';
+import type { ResvgRenderOptions } from '@resvg/resvg-js';
 import type { SatoriOptions } from 'satori';
 
 type Format = 'svg' | 'png' | 'jpeg' | 'webp';
@@ -302,13 +303,21 @@ function resvg(): NonNullable<typeof RESVG> {
 	});
 }
 
+/**
+ * The options of each `new Resvg`. Satori draws text as paths, so resvg needs no fonts; by default, each `new Resvg` reads every font of the system, about 120 ms per image.
+ * @example new Resvg(svg, raster(1200))
+ */
+export function raster(width: number): ResvgRenderOptions {
+	return { fitTo: { mode: 'width', value: width }, font: { loadSystemFonts: false } };
+}
+
 async function draw(job: Job): Promise<Buffer> {
 	let { draw } = await satori();
 	let svg = await draw(job.root, { width: job.width, height: job.height, fonts: job.fonts });
 	if (job.format === 'svg') return Buffer.from(svg);
 
 	let { Resvg } = await resvg();
-	let png = new Resvg(svg, { fitTo: { mode: 'width', value: job.width } }).render().asPng();
+	let png = new Resvg(svg, raster(job.width)).render().asPng();
 	if (job.format === 'png') return png;
 
 	let options = job.format === 'jpeg' ? { quality: job.quality, progressive: true } : { quality: job.quality };

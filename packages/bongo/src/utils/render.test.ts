@@ -120,6 +120,15 @@ describe('parse', () => {
 	});
 });
 
+describe('raster', () => {
+	test('scales to the width, and never makes resvg read the fonts of the system', () => {
+		let options = render.raster(1200);
+		expect(options.fitTo).toEqual({ mode: 'width', value: 1200 });
+		expect(options.font?.loadSystemFonts).toBe(false);
+		expect(options.font?.fontFiles ?? []).toEqual([]);
+	});
+});
+
 describe('$assets.render', () => {
 	test('renders a partial with the page values to a PNG, and returns its URL path', async () => {
 		let root = await site({
