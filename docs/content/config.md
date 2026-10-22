@@ -76,7 +76,7 @@ export default define({
 | `$utils` | Helper functions that templates can call. See [`$utils`](#utils). |
 | `$partials` | Programmatic partial functions. See [Config partials](/partials/#config-partials). |
 | `$images` | Image defaults. See [Image config](/images/#image-config). |
-| `$build` | Build options. See [Build targets](#build-targets). |
+| `$build` | Build options. See [Build targets](#build-targets) and [Script values](#script-values). |
 | `$hooks` | Functions that change the build output. See [Hooks](/hooks/). |
 | `plugins` | An array of partial config objects, merged in order. See [Plugins](#plugins). |
 
@@ -157,6 +157,41 @@ bongo does not read a `.browserslistrc` file or the `browserslist` field of `pac
 ```
 
 The value is one query. Join more queries with commas. See [`<bongo:script>`](/special-elements/#bongoscript).
+
+## Script values
+
+Rolldown replaces some names in each `<bongo:script>` and `<bongo:client>` with values, so a script can tell `bongo dev` from `bongo build`:
+
+| Name | `bongo dev` | `bongo build` |
+| --- | --- | --- |
+| `process.env.NODE_ENV` | `"development"` | `"production"` |
+| `import.meta.env.DEV` | `true` | `false` |
+| `import.meta.env.PROD` | `false` | `true` |
+
+```ts [assets/main.ts]
+if (import.meta.env.DEV) {
+	console.log('dev build');
+}
+```
+
+With `--minify`, the code in a branch that never runs is removed. Packages also resolve by mode: an import picks the `development` export of a package in `bongo dev`, and the `production` export in `bongo build`.
+
+### Your own values
+
+Set `$build.define` to replace more names. Each value is code, so put a string through `JSON.stringify()`:
+
+```ts [bongo.config.ts]
+export default {
+	$site: { url: 'https://example.com/', title: 'My site', lang: 'en' },
+	$build: {
+		define: {
+			__VERSION__: JSON.stringify('1.2.3'),
+		},
+	},
+};
+```
+
+Your values replace the built-in ones of the same name. The `define` maps of plugins and the config merge, and the config's values win.
 
 ## Plugins
 
