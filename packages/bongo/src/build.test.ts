@@ -495,6 +495,36 @@ describe('$assets.load', () => {
 	});
 });
 
+describe('tsconfig', () => {
+	test('a tsconfig.json above the project is never read', async () => {
+		let parent = join(tmpdir(), `bongo-parent-${randomBytes(6).toString('hex')}`);
+		await mkdir(parent, { recursive: true });
+		await writeFile(join(parent, 'tsconfig.json'), '{ "extends": "missing-package/tsconfig" }');
+		let root = join(parent, 'lane');
+		let files: Record<string, string> = {
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' } };`,
+			'data/n.ts': 'export default 1;',
+			'partials/p.ts': 'export default () => "partial";',
+			'content/data.json.ts': 'export default { ok: true };',
+			'assets/a.ts': 'console.log("script");',
+			'layouts/html.hbs': '{{{ $page.content }}}{{ $data.n }}{{#partial src="p"}}<bongo:script src="a.ts" inline />',
+			'content/index.html': '<p>home</p>',
+		};
+		for (let [rel, text] of Object.entries(files)) {
+			await mkdir(join(root, rel, '..'), { recursive: true });
+			await writeFile(join(root, rel), text);
+		}
+		try {
+			await build({ cwd: root });
+			let html = await read(root, 'index.html');
+			expect(html).toContain('1partial');
+			expect(html).toContain('console.log("script")');
+		} finally {
+			await rm(parent, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('scripts and styles', () => {
 	test('an inline script builds alone, so it imports nothing, even when it shares code with another script', async () => {
 		let root = await site({

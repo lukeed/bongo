@@ -160,6 +160,22 @@ describe('loadModule', () => {
 		}
 	});
 
+	test('reads the tsconfig of the project, but none above it', async () => {
+		let root = await sandbox({
+			'tsconfig.json': '{ "extends": "missing-package/tsconfig" }',
+			'bare/entry.ts': 'export default 1;',
+			'site/tsconfig.json': '{ "extends": "./missing.json" }',
+			'site/entry.ts': 'export default 2;',
+		});
+		try {
+			expect((await config.loadModule(join(root, 'bare/entry.ts'), join(root, 'bare'))).exports.default).toBe(1);
+			let err = await failure(config.loadModule(join(root, 'site/entry.ts'), join(root, 'site')));
+			expect(err.message).toContain('missing.json');
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
 	test('module-relative values point at each source file', async () => {
 		let root = await sandbox({
 			'entry.ts': [

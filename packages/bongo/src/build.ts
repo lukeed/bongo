@@ -198,7 +198,7 @@ export async function prepare(argv: Argv): Promise<Inputs> {
 	let watch = log.watchdog({ debug: argv.debug });
 	watch.step('loading the config and data/');
 	try {
-		var [loaded, store] = await Promise.all([load(argv.cwd), data.load(argv.data)]);
+		var [loaded, store] = await Promise.all([load(argv.cwd), data.load(argv.data, argv.cwd)]);
 	} finally {
 		watch.stop();
 	}
