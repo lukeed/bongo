@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+import * as html from './html';
 import * as styles from './styles';
 
 export type Mode = 'hover' | 'tap';
@@ -8,7 +9,7 @@ export type Options = boolean | Mode | undefined;
 // here — relying on the browser's HTTP cache doesn't work for servers that
 // don't set Cache-Control (static hosts often don't), so the double request
 // would negate the prefetch.
-type Entry = { html: Promise<string>; expires: number };
+type Entry = { html: Promise<string | undefined>; expires: number };
 const CACHE = new Map<string, Entry>();
 
 // How long a prefetched entry stays hot. Balances useful hover-before-click
@@ -29,7 +30,7 @@ export function resolve(opt: Options): Mode | undefined {
  * Retrieve a prefetched HTML body for `href`, or `undefined` if there is no
  * live entry. Called by `internal.fetchPage()` so navigations reuse the body.
  */
-export function get(href: string): Promise<string> | undefined {
+export function get(href: string): Promise<string | undefined> | undefined {
 	let entry = CACHE.get(href);
 	if (!entry) return;
 	if (Date.now() > entry.expires) {
@@ -49,6 +50,7 @@ function prefetchable(anchor: HTMLAnchorElement | null | undefined): anchor is H
 	let url: URL;
 	try { url = new URL(anchor.href); } catch { return false; }
 	if (url.origin !== location.origin) return false;
+	if (!html.page(url)) return false;
 	if (url.href === location.href) return false; // current page
 	if (get(url.href)) return false;               // already live in the cache
 	return true;
@@ -57,17 +59,18 @@ function prefetchable(anchor: HTMLAnchorElement | null | undefined): anchor is H
 /** @internal — also called from event handlers below */
 export function warm(href: string): void {
 	if (get(href)) return;
-	let html = fetch(href, { headers: { Accept: 'text/html' } })
+	let text = fetch(href, { headers: { Accept: 'text/html' } })
 		.then(r => {
 			if (!r.ok) throw new Error(`prefetch: ${r.status}`);
-			return r.text();
+			return html.read(r);
 		})
 		.catch(err => { CACHE.delete(href); throw err; });
-	CACHE.set(href, { html, expires: Date.now() + TTL });
+	CACHE.set(href, { html: text, expires: Date.now() + TTL });
 
 	// Warm the HTTP cache for the page's new stylesheets; a failed page fetch resurfaces on navigation.
-	html.then(text => {
-		let doc = new DOMParser().parseFromString(text, 'text/html');
+	text.then(body => {
+		if (body === undefined) return;
+		let doc = new DOMParser().parseFromString(body, 'text/html');
 		for (let url of styles.missing(document, doc, href)) {
 			fetch(url).then(r => r.blob()).catch(() => {});
 		}

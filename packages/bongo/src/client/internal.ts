@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+import * as html from './html';
 import * as prefetch from './prefetch';
 import type { BongoEvent, BongoEventDetails } from './index';
 
@@ -47,6 +48,7 @@ export function shouldIntercept(event: NavigateEvent): boolean {
 
 	let url = new URL(event.destination.url);
 	if (url.origin !== location.origin) return false;
+	if (!html.page(url)) return false;
 
 	if (event.sourceElement?.hasAttribute('transition:disable')) {
 		return false;
@@ -55,7 +57,7 @@ export function shouldIntercept(event: NavigateEvent): boolean {
 	return true;
 }
 
-export async function fetchPage(url: URL, signal?: AbortSignal): Promise<string> {
+export async function fetchPage(url: URL, signal?: AbortSignal): Promise<string | undefined> {
 	let cached = prefetch.get(url.href);
 	if (cached) {
 		try { return await cached; }
@@ -63,7 +65,7 @@ export async function fetchPage(url: URL, signal?: AbortSignal): Promise<string>
 	}
 	let res = await fetch(url.href, { headers: { Accept: 'text/html' }, signal });
 	if (!res.ok) throw new Error(`Navigation fetch failed: ${res.status} ${res.statusText}`);
-	return res.text();
+	return html.read(res);
 }
 
 // The key of a `transition:persist` element: the attribute's value, or else its id.

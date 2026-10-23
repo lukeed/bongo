@@ -79,6 +79,19 @@ describe('prefetch.get() / warm()', () => {
 		expect(prefetch.get('https://example.com/missing')).toBeUndefined();
 	});
 
+	test('warm() keeps no text of a file that is no HTML page, and fetches nothing more', async () => {
+		let urls: string[] = [];
+		spy.mockImplementation(Object.assign(async (input: RequestInfo | URL) => {
+			urls.push(String(input));
+			return new Response('<link rel="stylesheet" href="/b.css">', { headers: { 'content-type': 'text/plain' } });
+		}, { preconnect }));
+
+		prefetch.warm('https://example.com/notes');
+		expect(await prefetch.get('https://example.com/notes')).toBeUndefined();
+		await Bun.sleep(0);
+		expect(urls).toEqual([ 'https://example.com/notes' ]);
+	});
+
 	test('warm() also fetches the new stylesheets of the page, without applying them', async () => {
 		let urls: string[] = [];
 		let head = '<link rel="stylesheet" href="/core.css"><link rel="stylesheet" href="/b.css">';

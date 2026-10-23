@@ -129,6 +129,8 @@ Turn off prefetch without forcing a full-page load:
 <a href="/logout" prefetch:disable>Log out</a>
 ```
 
+A link to a file, such as `/llms.txt` or `/feed.xml`, loads as it would without the client, and prefetch skips it. The client takes a link whose path ends in a folder, a name with no extension, or `.html`. When the response to such a link is not HTML, the browser loads it instead.
+
 ## Stylesheets
 
 On navigation, the runtime compares the `<link rel="stylesheet">` and `<style>` elements in the `<head>` of the two pages. It keeps the stylesheets that both pages use. It adds the new stylesheets in the order of the new page, but keeps them disabled, so the current page does not change. When each new stylesheet loads or fails, or after 3 seconds, the swap enables the new stylesheets, replaces `<body>`, and removes the stylesheets that the new page does not use. A view transition starts only after this wait.

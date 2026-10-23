@@ -1,6 +1,6 @@
-import { describe, expect, test, beforeEach, spyOn } from 'bun:test';
+import { afterEach, describe, expect, test, beforeEach, spyOn } from 'bun:test';
 import { on, off } from './index';
-import { emit, reset, getBypassNext, setBypassNext } from './internal';
+import { emit, reset, getBypassNext, setBypassNext, shouldIntercept } from './internal';
 
 describe('event bus', () => {
 	beforeEach(() => {
@@ -182,5 +182,35 @@ describe('transition', () => {
 			},
 		};
 		expect(stub(doc, () => transition(true, () => {}))).rejects.toBe(boom);
+	});
+});
+
+describe('shouldIntercept', () => {
+	let event = (path: string) => ({
+		canIntercept: true,
+		hashChange: false,
+		downloadRequest: null,
+		navigationType: 'push',
+		sourceElement: null,
+		destination: { url: location.origin + path },
+	}) as unknown as NavigateEvent;
+
+	let saved = Reflect.get(globalThis, 'location');
+
+	beforeEach(() => {
+		reset();
+		Reflect.set(globalThis, 'location', new URL('https://example.com/'));
+	});
+
+	afterEach(() => {
+		if (saved === undefined) Reflect.deleteProperty(globalThis, 'location');
+		else Reflect.set(globalThis, 'location', saved);
+	});
+
+	test('takes pages, and leaves files to the browser', () => {
+		let pages = ['/', '/about/', '/about', '/404.html', '/v1.2/', '/a.b/c'];
+		let files = ['/llms.txt', '/feed.xml', '/img/logo.png', '/config.md', '/search.json'];
+		expect(pages.filter(path => !shouldIntercept(event(path)))).toEqual([]);
+		expect(files.filter(path => shouldIntercept(event(path)))).toEqual([]);
 	});
 });

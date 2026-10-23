@@ -173,7 +173,9 @@ describe('client() navigation', () => {
 			Reflect.set(globalThis, key, values[ i ]);
 		});
 		spy.mockImplementation(Object.assign(async (input: RequestInfo | URL) => {
-			return new Response(html(new URL(String(input)).pathname));
+			let path = new URL(String(input)).pathname;
+			if (path === '/feed') return new Response('<rss></rss>', { headers: { 'content-type': 'application/rss+xml' } });
+			return new Response(html(path), { headers: { 'content-type': 'text/html; charset=utf-8' } });
 		}, { preconnect: fetch.preconnect }));
 		load('/core.css');
 		await w.happyDOM.waitUntilComplete();
@@ -194,6 +196,16 @@ describe('client() navigation', () => {
 		gates.clear();
 		log = [];
 		await win?.happyDOM.close();
+	});
+
+	test('hands a response that is no HTML page back to the browser', async () => {
+		await boot();
+		let internal = await import('./internal');
+		let replace = spyOn(location, 'replace').mockImplementation(() => {});
+		await go('/feed').done;
+		expect(replace).toHaveBeenCalledWith('https://example.com/feed');
+		expect(internal.getBypassNext()).toBe(true);
+		expect(heading()).toBe('A');
 	});
 
 	test('loads new stylesheets before the view transition starts', async () => {

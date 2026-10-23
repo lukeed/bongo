@@ -72,6 +72,38 @@
 	box-shadow: 3px 3px 0 #141414;
 }
 
+.side-llms {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin: 4px 8px 0 4px;
+	padding-top: 16px;
+	border-top: 2px dashed color-mix(in srgb, var(--line) 30%, transparent);
+	font: 600 12.5px/1.2 var(--sans);
+	color: var(--muted);
+	text-decoration: none;
+}
+
+.side-llms code {
+	padding: 4px 8px;
+	font: 600 12.5px/1 var(--mono);
+	color: var(--icode-ink);
+	background: var(--icode);
+	border: 1.5px solid var(--icode-line);
+	border-radius: 7px;
+}
+
+.side-llms:hover {
+	color: var(--ink);
+}
+
+.side-llms:hover code {
+	color: #141414;
+	background: var(--sun);
+	border-color: #141414;
+}
+
 .grp a code {
 	font: 500 13px var(--mono);
 	color: inherit;

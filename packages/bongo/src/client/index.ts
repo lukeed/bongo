@@ -76,6 +76,11 @@ export function client(opts: ClientOptions = {}): void {
 					internal.emit('bongo:navigate', { to, from });
 					let html = await internal.fetchPage(to, signal);
 					if (signal.aborted) return;
+					// a file of another type, such as a feed: the browser shows it, as it would without bongo
+					if (html === undefined) {
+						internal.setBypassNext(true);
+						return location.replace(to.href);
+					}
 					let doc = new DOMParser().parseFromString(html, 'text/html');
 					internal.emit('bongo:replace', { to, from, doc });
 
