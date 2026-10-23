@@ -202,7 +202,7 @@ describe('output files', () => {
 			expect(await read(root, 'index.html')).toBe('<html><p>home page</p></html>');
 			expect(await read(root, 'feed.xml')).toBe('<feed>  spaced  </feed>');
 			let args = (await readFile(calls, 'utf8')).trim().split('\n').at(-1)!.split(' ');
-			expect(args.slice(2)).toEqual([join(root, 'public/index.html')]);
+			expect(args.slice(2)).toEqual([join(realpathSync(root), 'public/index.html')]);
 		} finally {
 			process.env.PATH = path;
 			await rm(root, { recursive: true, force: true });
@@ -535,6 +535,27 @@ describe('scripts and styles', () => {
 				expect(code).not.toMatch(/\bimport\b/);
 			}
 		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a script has the same bytes when cwd is a symlink', async () => {
+		let root = realpathSync(await site({
+			'assets/a.ts': 'console.log(document.title);',
+			'layouts/html.hbs': '{{{ $page.content }}}<bongo:script src="a.ts" inline />',
+			'content/index.html': '<p>home</p>',
+		}));
+		try {
+			await symlink(root, root + '-link');
+			let scripts = [];
+			for (let cwd of [root, root + '-link']) {
+				await build({ cwd, fresh: true });
+				scripts.push(/<script type="module">([\s\S]*?)<\/script>/.exec(await read(root, 'index.html'))?.[1]);
+			}
+			expect(scripts[0]).toStartWith('//#region assets/a.ts');
+			expect(scripts[1]).toBe(scripts[0]);
+		} finally {
+			await rm(root + '-link', { force: true });
 			await rm(root, { recursive: true, force: true });
 		}
 	});

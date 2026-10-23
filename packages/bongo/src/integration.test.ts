@@ -1,6 +1,6 @@
 import { describe, expect, test, beforeEach, spyOn } from 'bun:test';
 import { mkdir, mkdtemp, cp, rm, readFile, readdir, symlink, utimes, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
@@ -1138,7 +1138,7 @@ describe('output folder', () => {
 		try {
 			let before = await readdir(join(root, 'content'));
 			await symlink(join(root, 'content'), join(root, 'public'));
-			await expect(build({ cwd: root })).rejects.toThrow(`Refusing to empty the output folder "${join(root, 'public')}": it is content/`);
+			await expect(build({ cwd: root })).rejects.toThrow(`Refusing to empty the output folder "${join(realpathSync(root), 'public')}": it is content/`);
 			expect(await readdir(join(root, 'content'))).toEqual(before);
 		} finally {
 			await rm(root, { recursive: true, force: true });
