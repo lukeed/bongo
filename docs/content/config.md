@@ -67,6 +67,22 @@ export default define({
 });
 ```
 
+### Dev or build
+
+bongo sets the `NODE_ENV` environment variable before it loads the config: `development` for `bongo dev`, and `production` for `bongo build`. When you set `NODE_ENV` yourself, bongo keeps your value. Thus the config, and each module that it imports, can read the mode, also as the module loads:
+
+```ts [bongo.config.ts]
+const dev = process.env.NODE_ENV === 'development';
+
+export default {
+	$site: {
+		title: dev ? 'My Site (dev)' : 'My Site',
+		url: 'https://example.com/',
+		lang: 'en',
+	},
+};
+```
+
 ## Fields
 
 | Field | Description |

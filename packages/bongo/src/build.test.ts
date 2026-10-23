@@ -1288,8 +1288,8 @@ describe('incremental builds', () => {
 			`await build({ cwd: ${JSON.stringify(root)} });`,
 			`process.stdout.write(JSON.stringify(globalThis.__rendered ?? []));`,
 		].join('\n');
-		let run = async (): Promise<string[]> => {
-			let child = Bun.spawn([process.execPath, '-e', script], { stdout: 'pipe', stderr: 'pipe' });
+		let run = async (env = process.env): Promise<string[]> => {
+			let child = Bun.spawn([process.execPath, '-e', script], { env, stdout: 'pipe', stderr: 'pipe' });
 			let [out, err, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
 			if (code !== 0) throw new Error(err || out);
 			return [...new Set<string>(JSON.parse(out))].sort();
@@ -1299,6 +1299,7 @@ describe('incremental builds', () => {
 			expect(await run()).toEqual([]);
 			await edit('content/about.html', '<p>about</p>', '<p>about us</p>')(root);
 			expect(await run()).toEqual(['/about/']);
+			expect(await run({ ...process.env, NODE_ENV: 'staging' })).toEqual(all);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

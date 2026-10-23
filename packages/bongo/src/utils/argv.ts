@@ -10,6 +10,8 @@ export function normalize(argv: Argv): asserts argv is Required<Argv> {
 	argv.fresh = !!argv.fresh;
 	argv.minify = !!argv.minify;
 	argv.write = !!argv.write;
+	// before the config loads, so the modules it imports can read the mode
+	process.env.NODE_ENV ||= argv.dev ? 'development' : 'production';
 
 	// attach path directories
 	argv.src = resolve(argv.cwd, argv.src || '.');
