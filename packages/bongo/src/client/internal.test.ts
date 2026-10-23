@@ -208,8 +208,8 @@ describe('shouldIntercept', () => {
 	});
 
 	test('takes pages, and leaves files to the browser', () => {
-		let pages = ['/', '/about/', '/about', '/404.html', '/v1.2/', '/a.b/c'];
-		let files = ['/llms.txt', '/feed.xml', '/img/logo.png', '/config.md', '/search.json'];
+		let pages = ['/', '/about/', '/about', '/404.html', '/v1.2/', '/a.b/c', '/releases/v1.1.0'];
+		let files = ['/llms.txt', '/feed.xml', '/img/logo.png', '/config.md', '/search.json', '/clip.mp4', '/font.woff2'];
 		expect(pages.filter(path => !shouldIntercept(event(path)))).toEqual([]);
 		expect(files.filter(path => shouldIntercept(event(path)))).toEqual([]);
 	});
