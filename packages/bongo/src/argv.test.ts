@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
+import { mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+
 import { normalize } from './utils/argv';
-import { resolve } from 'node:path';
 
 describe('normalize', () => {
 	test('resolves cwd to absolute path', () => {
@@ -9,8 +12,24 @@ describe('normalize', () => {
 		expect(argv.cwd).toBe(resolve('.'));
 	});
 
+	test('resolves the symlinks of cwd, so its paths match the real paths of modules', () => {
+		let dir = realpathSync(mkdtempSync(join(tmpdir(), 'bongo-argv-')));
+		try {
+			symlinkSync(dir, dir + '-link');
+			let argv = { cwd: dir + '-link' };
+			normalize(argv);
+			expect(argv.cwd).toBe(dir);
+			let missing = { cwd: join(dir + '-link', 'new') };
+			normalize(missing);
+			expect(missing.cwd).toBe(join(dir, 'new'));
+		} finally {
+			rmSync(dir + '-link', { force: true });
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
 	test('sets default paths relative to cwd', () => {
-		let cwd = '/tmp/test-project';
+		let cwd = join(realpathSync(tmpdir()), 'test-project');
 		let argv: any = { cwd };
 		normalize(argv);
 
@@ -23,7 +42,7 @@ describe('normalize', () => {
 	});
 
 	test('resolves custom src directory', () => {
-		let cwd = '/tmp/test-project';
+		let cwd = join(realpathSync(tmpdir()), 'test-project');
 		let argv: any = { cwd, src: 'site' };
 		normalize(argv);
 
@@ -62,6 +81,24 @@ describe('normalize', () => {
 		normalize(argv);
 		expect(argv.port).toBe(3000);
 		expect(argv.host).toBe('localhost');
+	});
+
+	test('sets NODE_ENV by mode, unless it is set', () => {
+		let env = process.env.NODE_ENV;
+		try {
+			let modes = [];
+			for (let dev of [false, true]) {
+				delete process.env.NODE_ENV;
+				normalize({ cwd: '/tmp', dev });
+				modes.push(process.env.NODE_ENV);
+			}
+			process.env.NODE_ENV = 'staging';
+			normalize({ cwd: '/tmp', dev: true });
+			modes.push(process.env.NODE_ENV);
+			expect(modes).toEqual(['production', 'development', 'staging']);
+		} finally {
+			process.env.NODE_ENV = env;
+		}
 	});
 
 	test('preserves custom port and host', () => {

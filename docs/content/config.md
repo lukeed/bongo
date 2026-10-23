@@ -39,7 +39,7 @@ export default {
 
 ## The config file
 
-bongo looks for the config in the project folder: `bongo.config.ts`, `bongo.config.mjs`, `bongo.config.cjs`, or `bongo.config.js`, in that order. Rolldown bundles it with its local imports, so it can be TypeScript and import local files. See [How a build works](/project/#how-a-build-works).
+bongo looks for the config in the project folder: `bongo.config.ts`, `bongo.config.mjs`, `bongo.config.cjs`, or `bongo.config.js`, in that order. Rolldown bundles it with its local imports, so it can be TypeScript and import local files. An import can also use an alias from the `paths` of your `tsconfig.json`, such as `~/lib/menu`. See [How a build works](/project/#how-a-build-works).
 
 Export the config as the default export. Named exports for each field, such as `export const $loaders = {…}`, also work.
 
@@ -67,6 +67,22 @@ export default define({
 });
 ```
 
+### Dev or build
+
+bongo sets the `NODE_ENV` environment variable before it loads the config: `development` for `bongo dev`, and `production` for `bongo build`. When you set `NODE_ENV` yourself, bongo keeps your value. Thus the config, and each module that it imports, can read the mode, also as the module loads:
+
+```ts [bongo.config.ts]
+const dev = process.env.NODE_ENV === 'development';
+
+export default {
+	$site: {
+		title: dev ? 'My Site (dev)' : 'My Site',
+		url: 'https://example.com/',
+		lang: 'en',
+	},
+};
+```
+
 ## Fields
 
 | Field | Description |
@@ -91,6 +107,33 @@ export default define({
 - `menu` — optional. Named links, as `{ name, href }` objects.
 
 bongo itself reads only `url`. Templates get every field as it is. [@bongo/feed](/feed/) also reads `title` and `lang`.
+
+### Define custom `$site` fields
+
+Templates also get each field that you add, such as `{{ $site.icon }}`. To type-check your fields, add them to the `Site` type of `bongo`:
+
+```ts [bongo.config.ts]
+import type { Config } from 'bongo';
+
+declare module 'bongo' {
+	namespace Template {
+		interface Site {
+			icon: string;
+		}
+	}
+}
+
+export default {
+	$site: {
+		title: 'My Site',
+		url: 'https://example.com/',
+		lang: 'en',
+		icon: '/icon.svg',
+	},
+} satisfies Config;
+```
+
+Without this, `satisfies Config` reports each new field as an error. The type change applies to all of the project, so data modules and hooks also see `$site.icon`.
 
 ### `$utils`
 

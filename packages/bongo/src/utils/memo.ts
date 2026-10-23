@@ -112,7 +112,7 @@ async function folder(dir: string): Promise<string[]> {
  */
 export async function key(argv: Required<Argv>, inputs: string[]): Promise<string> {
 	let sum = createHash('sha1');
-	sum.update(JSON.stringify([await code(), process.versions.bun ?? process.version, argv.minify, argv.dev, argv.drafts, argv.dest]));
+	sum.update(JSON.stringify([await code(), process.versions.bun ?? process.version, process.env.NODE_ENV, argv.minify, argv.dev, argv.drafts, argv.dest]));
 	let lock = lockfile(argv.cwd);
 	let files = [...new Set([...inputs, ...await folder(argv.layouts), ...await folder(argv.partials), ...lock ? [lock] : []])].sort();
 	for (let file of files) {
