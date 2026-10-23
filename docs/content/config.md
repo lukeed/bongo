@@ -92,7 +92,7 @@ export default {
 | `$utils` | Helper functions that templates can call. See [`$utils`](#utils). |
 | `$partials` | Programmatic partial functions. See [Config partials](/partials/#config-partials). |
 | `$images` | Image defaults. See [Image config](/images/#image-config). |
-| `$build` | Build options. See [Build targets](#build-targets) and [Script values](#script-values). |
+| `$build` | Build options. See [Build targets](#build-targets), [Script values](#script-values), and [Without trailing slashes](/content/#without-trailing-slashes). |
 | `$hooks` | Functions that change the build output. See [Hooks](/hooks/). |
 | `plugins` | An array of partial config objects, merged in order. See [Plugins](#plugins). |
 

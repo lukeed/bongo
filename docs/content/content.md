@@ -33,9 +33,31 @@ A page's URL path is its path in `content/` without the extension, with a traili
 | `content/blog/post.md` | `/blog/post/` | `public/blog/post/index.html` |
 | `content/404.md` | `/404/` | `public/404/index.html` |
 
+### Without trailing slashes
+
+Set `$build.trailingSlash: false` for URL paths that end without a slash. bongo then writes each page to an `.html` file of that path:
+
+```ts [bongo.config.ts]
+export default {
+	$site: { url: 'https://example.com/', title: 'My Site', lang: 'en' },
+	$build: { trailingSlash: false },
+};
+```
+
+| File | URL path | Output |
+| --- | --- | --- |
+| `content/index.md` | `/` | `public/index.html` |
+| `content/about.md` | `/about` | `public/about.html` |
+| `content/blog/index.hbs` | `/blog` | `public/blog.html` |
+| `content/blog/post.md` | `/blog/post` | `public/blog/post.html` |
+
+Most static hosts serve `public/blog/post.html` at `/blog/post`. On Firebase Hosting, set `"cleanUrls": true` and `"trailingSlash": false`.
+
+A relative URL in a page resolves as a browser resolves it, from the folder of the page path. On `/blog/post`, `hero.jpg` is `/blog/hero.jpg`, and with a trailing slash it is `/blog/post/hero.jpg`. See [Images in content](#images-in-content).
+
 ### Custom URLs
 
-Set `url` in the frontmatter to give a page another path. bongo adds the trailing slash and writes `index.html` in that folder. A path that ends in `.html` writes that exact file.
+Set `url` in the frontmatter to give a page another path. bongo adds the trailing slash and writes `index.html` in that folder. With `$build.trailingSlash: false`, bongo removes the trailing slash instead, so `url: /about-us/` writes `public/about-us.html`. A path that ends in `.html` writes that exact file.
 
 | Frontmatter | URL path | Output |
 | --- | --- | --- |
