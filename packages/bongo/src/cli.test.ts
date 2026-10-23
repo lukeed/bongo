@@ -10,8 +10,8 @@ import pkg from '../package.json';
 
 const BIN = join(import.meta.dirname, '../bin.js');
 
-async function run(args: string[]): Promise<{ code: number; out: string }> {
-	let proc = Bun.spawn(['node', BIN, ...args], { stdout: 'pipe', stderr: 'pipe' });
+async function run(args: string[], env = process.env): Promise<{ code: number; out: string }> {
+	let proc = Bun.spawn(['node', BIN, ...args], { env, stdout: 'pipe', stderr: 'pipe' });
 	let [out, err] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
 	return { code: await proc.exited, out: out + err };
 }
@@ -84,6 +84,22 @@ describe('bongo cli', () => {
 			expect(existsSync(join(root, 'public/index.html'))).toBe(true);
 			expect(out).toContain('[DEBUG]');
 			expect(out).toMatch(/minify: true/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+
+	test('sets NODE_ENV before it loads the config', async () => {
+		let root = await site();
+		try {
+			await writeFile(join(root, 'mode.mjs'), `export const mode = process.env.NODE_ENV;`);
+			await writeFile(join(root, 'bongo.config.mjs'), `import { mode } from './mode.mjs';\nexport default { $site: { url: 'https://example.com/', title: String(mode), lang: 'en' } };`);
+			await writeFile(join(root, 'layouts/html.hbs'), '{{ $site.title }}');
+			let env = { ...process.env };
+			delete env.NODE_ENV;
+			let { code, out } = await run(['build', '-C', root], env);
+			if (code !== 0) throw new Error(out);
+			expect(await Bun.file(join(root, 'public/index.html')).text()).toBe('production');
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

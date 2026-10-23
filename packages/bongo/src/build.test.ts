@@ -202,7 +202,7 @@ describe('output files', () => {
 			expect(await read(root, 'index.html')).toBe('<html><p>home page</p></html>');
 			expect(await read(root, 'feed.xml')).toBe('<feed>  spaced  </feed>');
 			let args = (await readFile(calls, 'utf8')).trim().split('\n').at(-1)!.split(' ');
-			expect(args.slice(2)).toEqual([join(root, 'public/index.html')]);
+			expect(args.slice(2)).toEqual([join(realpathSync(root), 'public/index.html')]);
 		} finally {
 			process.env.PATH = path;
 			await rm(root, { recursive: true, force: true });
@@ -545,6 +545,21 @@ describe('scripts and styles', () => {
 		}
 	});
 
+	test('$build.define and the mode replace names in scripts', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $build: { define: { __VERSION__: '"1.2.3"' } } };`,
+			'assets/a.ts': 'console.log(__VERSION__, process.env.NODE_ENV, import.meta.env.DEV);',
+			'layouts/html.hbs': '{{{ $page.content }}}<bongo:script src="a.ts" inline />',
+			'content/index.html': '<p>home</p>',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toContain('console.log("1.2.3", "production", false);');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('iife scripts build one at a time, with dynamic imports inlined', async () => {
 		let root = await site({
 			'assets/shared.ts': 'export function greet(name: string) { return document.title + " greets " + name; }',
@@ -565,6 +580,27 @@ describe('scripts and styles', () => {
 				expect(code).not.toMatch(/\bimport\b/);
 			}
 		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a script has the same bytes when cwd is a symlink', async () => {
+		let root = realpathSync(await site({
+			'assets/a.ts': 'console.log(document.title);',
+			'layouts/html.hbs': '{{{ $page.content }}}<bongo:script src="a.ts" inline />',
+			'content/index.html': '<p>home</p>',
+		}));
+		try {
+			await symlink(root, root + '-link');
+			let scripts = [];
+			for (let cwd of [root, root + '-link']) {
+				await build({ cwd, fresh: true });
+				scripts.push(/<script type="module">([\s\S]*?)<\/script>/.exec(await read(root, 'index.html'))?.[1]);
+			}
+			expect(scripts[0]).toStartWith('//#region assets/a.ts');
+			expect(scripts[1]).toBe(scripts[0]);
+		} finally {
+			await rm(root + '-link', { force: true });
 			await rm(root, { recursive: true, force: true });
 		}
 	});
@@ -1318,8 +1354,8 @@ describe('incremental builds', () => {
 			`await build({ cwd: ${JSON.stringify(root)} });`,
 			`process.stdout.write(JSON.stringify(globalThis.__rendered ?? []));`,
 		].join('\n');
-		let run = async (): Promise<string[]> => {
-			let child = Bun.spawn([process.execPath, '-e', script], { stdout: 'pipe', stderr: 'pipe' });
+		let run = async (env = process.env): Promise<string[]> => {
+			let child = Bun.spawn([process.execPath, '-e', script], { env, stdout: 'pipe', stderr: 'pipe' });
 			let [out, err, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
 			if (code !== 0) throw new Error(err || out);
 			return [...new Set<string>(JSON.parse(out))].sort();
@@ -1329,6 +1365,7 @@ describe('incremental builds', () => {
 			expect(await run()).toEqual([]);
 			await edit('content/about.html', '<p>about</p>', '<p>about us</p>')(root);
 			expect(await run()).toEqual(['/about/']);
+			expect(await run({ ...process.env, NODE_ENV: 'staging' })).toEqual(all);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -1433,6 +1470,29 @@ describe('incremental builds', () => {
 			rendered();
 			await build({ cwd: root, fresh: true });
 			expect(rendered()).toEqual(all);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('tsconfig paths', () => {
+	test('the config, data modules, partials, and content data modules import through an alias', async () => {
+		let root = await site({
+			'tsconfig.json': '{ "compilerOptions": { "paths": { "~/*": ["./lib/*"] } } }',
+			'lib/title.ts': 'export const title = "aliased";',
+			'lib/n.ts': 'export const n = 7;',
+			'bongo.config.ts': `import { title } from '~/title';\nexport default { $site: { url: 'https://example.com/', title, lang: 'en' } };`,
+			'data/n.ts': `import { n } from '~/n';\nexport default n;`,
+			'partials/p.ts': `import { n } from '~/n';\nexport default () => 'partial' + n;`,
+			'content/n.json.ts': `import { n } from '~/n';\nexport default { n };`,
+			'layouts/html.hbs': '{{ $site.title }}:{{ $data.n }}:{{#partial src="p"}}',
+			'content/index.html': '<p>home</p>',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toBe('aliased:7:partial7');
+			expect(JSON.parse(await read(root, 'n.json'))).toEqual({ n: 7 });
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

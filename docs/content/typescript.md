@@ -50,11 +50,14 @@ Import types from `bongo`:
 | `Build.Context` | The `ctx` of a hook. |
 | `Build.Data` | What the default export of a data module gets when it is a function. See [Data modules](/data-modules/). |
 | `Images.Options` | The `$images` config field. See [Image config](/images/#image-config). |
+| `Template.Site` | The `$site` config field. Add your own fields to it. See [Define custom `$site` fields](/config/#define-custom-site-fields). |
 
 ```ts [content/search.json.ts]
 import type { Build } from 'bongo';
 
 export default ({ $pages }: Build.Data) => $pages.map(page => ({ title: page.title, path: page.path }));
 ```
+
+For `import.meta.env.DEV` and `import.meta.env.PROD` in scripts, add `bongo/env` to the `types` of your `tsconfig.json`. See [Script values](/config/#script-values).
 
 Import the client runtime types from `bongo/client`: `ClientOptions`, `BongoEvent`, and `BongoEventDetails`. See [Client runtime](/client-runtime/).

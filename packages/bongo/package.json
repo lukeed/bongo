@@ -25,6 +25,9 @@
     "./jsx": {
       "types": "./jsx.d.ts"
     },
+    "./env": {
+      "types": "./env.d.ts"
+    },
     "./tsconfig": "./tsc.json"
   },
   "files": [
@@ -34,6 +37,7 @@
     "client.js",
     "client.d.ts",
     "jsx.d.ts",
+    "env.d.ts",
     "tsc.json"
   ],
   "author": {

@@ -47,6 +47,8 @@ bongo build --drafts
 
 When you do not give `--port` or `--host`, `bongo dev` uses the `PORT` and `HOST` environment variables, if they are set. If the port is in use, `bongo dev` takes the next free port, up to 10 ports higher.
 
+Both commands set `NODE_ENV` when it is not set: `development` for `bongo dev`, and `production` for `bongo build`. See [Dev or build](/config/#dev-or-build).
+
 An unknown option, or a `--port` that is not a port number, stops the command with an error.
 
 ## Run with Bun
@@ -106,7 +108,7 @@ Each build compares the size and the mtime of each source file with the record. 
 - it was a draft by its `date`, and that moment has passed,
 - its file in `public/` changed or is gone since the last build.
 
-Every page renders again when the config changes, or a local file that it imports, a file in `data/`, `layouts/`, or `partials/`, the lockfile, the version of bongo, the runtime, `--minify`, or `--drafts`. [Output files](/output-files/) and [data modules](/data-modules/) render on every build, since they can read every page.
+Every page renders again when the config changes, or a local file that it imports, a file in `data/`, `layouts/`, or `partials/`, the lockfile, the version of bongo, the runtime, `NODE_ENV`, `--minify`, or `--drafts`. [Output files](/output-files/) and [data modules](/data-modules/) render on every build, since they can read every page.
 
 bongo cannot see a change that keeps the size and the mtime of a source file, as `cp -p` or `rsync -t` can make. It also cannot see what a template, a hook, or a loader reads by itself, such as the time, an environment variable, or a file that it opens. A page that uses one keeps its last file until something else makes it render. Use `--fresh` for such a build, as at the turn of a year for a footer that prints the year:
 

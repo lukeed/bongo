@@ -56,18 +56,21 @@ function home(file: string): string {
 // bongo stays a package even when it is linked, so only one copy of it runs.
 const SELF = home(realpathSync(__filename));
 
-// The real folder of a package that `importer` reaches through a symlink in node_modules, like a workspace package.
-function link(id: string, importer: string): string | undefined {
+// The node_modules entry of the package that `id` names, as `importer` finds it.
+function installed(id: string, importer: string): string | undefined {
 	let name = id.split('/').slice(0, id.startsWith('@') ? 2 : 1).join('/');
 	for (let dir = dirname(importer); ; dir = dirname(dir)) {
 		let entry = join(dir, 'node_modules', name);
-		if (fs.exists(entry)) {
-			if (!lstatSync(entry).isSymbolicLink()) return;
-			let real = realpathSync(entry);
-			return NODE_MODULES.test(real + sep) ? undefined : real;
-		}
+		if (fs.exists(entry)) return entry;
 		if (dir === dirname(dir)) return;
 	}
+}
+
+// The real folder of a package entry that is a symlink out of node_modules, like a workspace package.
+function link(entry: string): string | undefined {
+	if (!lstatSync(entry).isSymbolicLink()) return;
+	let real = realpathSync(entry);
+	return NODE_MODULES.test(real + sep) ? undefined : real;
 }
 
 // The file a package import loads, found as the runtime finds it: Bun's resolver under Bun, else Rolldown's, which follows Node.
@@ -95,7 +98,14 @@ function packages(): Plugin {
 			if (!importer || !BARE.test(id)) return null;
 			if (isBuiltin(id) || id.startsWith('bun:')) return { id, external: true };
 
-			let root = link(id, importer);
+			let entry = installed(id, importer);
+			if (!entry) {
+				// no package has the name, so a tsconfig `paths` alias can map it to local code
+				let found = await this.resolve(id, importer, { kind: options.kind, skipSelf: true });
+				if (found && !found.external && !NODE_MODULES.test(found.id)) return found.id;
+			}
+
+			let root = entry && link(entry);
 			if (root && root !== SELF) {
 				let file = await locate(this, id, importer, options.kind);
 				if (file && file.startsWith(root + sep) && !file.endsWith('.node')) {
@@ -233,7 +243,8 @@ export function merge(base: Required<Config>, custom: Partial<Config>) {
 	Object.assign(base.$loaders, custom.$loaders);
 	Object.assign(base.$partials, custom.$partials);
 	if (custom.$build) {
-		Object.assign(base.$build, custom.$build);
+		let define = custom.$build.define && { ...base.$build.define, ...custom.$build.define };
+		Object.assign(base.$build, custom.$build, define && { define });
 	}
 	if (custom.$images) {
 		Object.assign(base.$images, custom.$images);
