@@ -92,6 +92,33 @@ export default define({
 
 bongo itself reads only `url`. Templates get every field as it is. [@bongo/feed](/feed/) also reads `title` and `lang`.
 
+### Define custom `$site` fields
+
+Templates also get each field that you add, such as `{{ $site.icon }}`. To type-check your fields, add them to the `Site` type of `bongo`:
+
+```ts [bongo.config.ts]
+import type { Config } from 'bongo';
+
+declare module 'bongo' {
+	namespace Template {
+		interface Site {
+			icon: string;
+		}
+	}
+}
+
+export default {
+	$site: {
+		title: 'My Site',
+		url: 'https://example.com/',
+		lang: 'en',
+		icon: '/icon.svg',
+	},
+} satisfies Config;
+```
+
+Without this, `satisfies Config` reports each new field as an error. The type change applies to all of the project, so data modules and hooks also see `$site.icon`.
+
 ### `$utils`
 
 `$utils` holds helper functions for templates, such as `{{ $utils.excerpt($page.content, 140) }}`. bongo gives you built-in helpers for text, URLs, dates, and JSON. Add your own here, or replace a built-in one:
