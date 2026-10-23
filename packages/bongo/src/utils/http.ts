@@ -166,10 +166,17 @@ const ETAGS: WeakMap<Buffer, string> = new WeakMap();
 // bongo writes text as UTF-8; without a charset, browsers read it as Windows-1252.
 const TEXT = /^text\/|[/+](json|xml|javascript)$/;
 
-// sirv's lookup: the path as it is, then with .html or .htm, then as a folder with an index file
+// The files that serve `path`: a folder's index file, or the path as it is, then with .html or .htm.
 function candidates(path: string): string[] {
 	if (path.endsWith('/')) return [path + 'index.html', path + 'index.htm'];
-	return [path, path + '.html', path + '.htm', path + '/index.html', path + '/index.htm'];
+	return [path, path + '.html', path + '.htm'];
+}
+
+// The path of a page whose file has the other trailing slash, as a host redirects to it: `/a/` for `a/index.html`, `/a` for `a.html`.
+function moved(path: string, sink: Memory, dest: string): string | undefined {
+	if (path === '/') return;
+	let other = path.endsWith('/') ? path.slice(0, -1) : path + '/';
+	return candidates(other).some(file => sink.get(join(dest, file))) ? other : undefined;
 }
 
 // One `bytes=start-end` range of a body of `size` bytes; undefined when there is none, null when it cannot be served.
@@ -247,8 +254,15 @@ export async function start(argv: Required<Argv>, sink: Memory): Promise<Server>
 			return void res.end();
 		}
 		if (path.startsWith(base)) {
-			for (let candidate of candidates(path.slice(base.length - 1))) {
+			let rel = path.slice(base.length - 1);
+			for (let candidate of candidates(rel)) {
 				if (await deliver(req, res, sink, join(argv.dest, candidate))) return;
+			}
+			let other = moved(rel, sink, argv.dest);
+			if (other) {
+				let query = /\?[^#]*/.exec(req.url || '')?.[0] ?? '';
+				res.writeHead(302, { 'location': base + other.slice(1) + query, 'cache-control': 'no-store' });
+				return void res.end();
 			}
 		}
 		if (failed) {
