@@ -222,18 +222,18 @@ To type `import.meta.env`, add `bongo/env` to the types of your `tsconfig.json`.
 ```json [tsconfig.json]
 {
 	"compilerOptions": {
-		"types": ["bongo/env"]
+		"types": ["bongo/env", "node"]
 	}
 }
 ```
 
-With `types` set, TypeScript loads only the types that it lists, not every `@types` package. Or reference the types in a script or a `.d.ts` file:
+TypeScript loads only the types that `types` lists, so also list `node`, for the Node types of `bongo.config.ts`. Install them with `@types/node`. Or reference the types in a script or a `.d.ts` file:
 
 ```ts
 /// <reference types="bongo/env" />
 ```
 
-Bun's types also declare `import.meta.env`, so do not load both in one `tsconfig.json`. For `process.env.NODE_ENV`, use the types of Node.
+Bun's types also declare `import.meta.env`, so do not load both in one `tsconfig.json`. The Node types also type `process.env.NODE_ENV`.
 
 With `--minify`, the code in a branch that never runs is removed. Packages also resolve by mode: an import picks the `development` export of a package in `bongo dev`, and the `production` export in `bongo build`.
 
