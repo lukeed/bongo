@@ -178,7 +178,7 @@ function unescape(value: string): string {
 export function withExtension(path: string, ext: string, base: string): string {
 	let suffix = '.' + ext.replace(/^\./, '');
 	let clean = path.replace(/[?#].*$/, '');
-	if (!clean.endsWith('/')) return clean.replace(/\.[^/.]*$/, '') + suffix;
+	if (!clean.endsWith('/')) return clean.replace(/\.html?$/i, '') + suffix;
 	return (clean === base || clean === '/' ? clean + 'index' : clean.slice(0, -1)) + suffix;
 }
 

@@ -285,6 +285,11 @@ export interface Config {
 		 * @example $build: { define: { __VERSION__: JSON.stringify('1.2.3') } }
 		 */
 		define?: Record<string, string>;
+		/**
+		 * Whether page URLs end in a slash. With `false`, `content/blog/post.md` is `/blog/post`, written as `blog/post.html`, and `content/blog/index.md` is `/blog`, written as `blog.html`.
+		 * @default true
+		 */
+		trailingSlash?: boolean;
 	};
 	$images?: Images.Options;
 	$hooks?: Build.Hooks;

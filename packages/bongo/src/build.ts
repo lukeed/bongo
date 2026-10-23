@@ -274,6 +274,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	// a page path resolves under `$site.url`, so a site in a subfolder keeps it
 	let site = $site.url.endsWith('/') ? $site.url : $site.url + '/';
 	let base = tags.publicPath($site.url);
+	let slash = config.$build.trailingSlash !== false;
 	const debug = argv.debug ? log.debug : () => {};
 
 	debug('[build.argv]', argv);
@@ -420,22 +421,28 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 			let file = rel.substring(0, rel.length - 4);
 			urlpath = '/' + file.replace(/\\/g, '/');
 			output = join(dest, file);
-		} else if (typeof params.url === 'string') {
-			urlpath = '/' + params.url.replace(/^.?\/+/, '');
-			if (/^(https?:)?\/\//.test(urlpath)) {
-				throw new Error('Custom `url` must be path only');
-			}
-			// `/404.html` writes that file; any other url is a folder
-			if (!/\.html?$/i.test(urlpath) && !urlpath.endsWith('/')) urlpath += '/';
-			output = urlpath.endsWith('/') ? join(dest, urlpath, 'index.html') : join(dest, urlpath);
 		} else {
-			if (basename === 'index') {
+			let file = false;
+			if (typeof params.url === 'string') {
+				urlpath = '/' + params.url.replace(/^.?\/+/, '');
+				if (/^(https?:)?\/\//.test(urlpath)) {
+					throw new Error('Custom `url` must be path only');
+				}
+				file = /\.html?$/i.test(urlpath);
+			} else if (basename === 'index') {
 				urlpath = urlpath.substring(0, urlpath.length - 5);
-			} else if (!urlpath.endsWith('/')) {
-				urlpath += '/'; // ensure trailing
 			}
 
-			output = join(dest, urlpath, 'index.html');
+			// a custom `/404.html` writes that file; any other path is a folder, or an `.html` file without its trailing slash
+			if (file) {
+				output = join(dest, urlpath);
+			} else if (slash) {
+				urlpath = urlpath.replace(/\/?$/, '/');
+				output = join(dest, urlpath, 'index.html');
+			} else {
+				urlpath = urlpath.replace(/\/+$/, '') || '/';
+				output = join(dest, urlpath === '/' ? 'index.html' : urlpath + '.html');
+			}
 		}
 
 		let section = deriveSection(rel);

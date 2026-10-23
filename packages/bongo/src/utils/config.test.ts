@@ -383,6 +383,8 @@ describe('built-in utils', () => {
 		expect(url?.ext?.('/blog/post/', '.md')).toBe('/blog/post.md');
 		expect(url?.ext?.('/404.html', 'md')).toBe('/404.md');
 		expect(url?.ext?.('/about', 'txt')).toBe('/about.txt');
+		expect(url?.ext?.('/releases/v1.1.0', 'md')).toBe('/releases/v1.1.0.md');
+		expect(url?.ext?.('/releases/v1.1.0/', 'md')).toBe('/releases/v1.1.0.md');
 		let sub = (await builtins(`{ url: 'https://example.com/docs/', lang: 'en', title: 'T' }`)).url;
 		expect(sub?.ext?.('/docs/', 'md')).toBe('/docs/index.md');
 		expect(sub?.ext?.('/docs/config/', 'md')).toBe('/docs/config.md');

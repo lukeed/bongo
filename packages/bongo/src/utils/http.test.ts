@@ -186,6 +186,47 @@ describe('subpath', () => {
 	});
 });
 
+describe('trailing slashes', () => {
+	async function moved(url: string): Promise<[number, string | null]> {
+		let res = await fetch(url, { redirect: 'manual' });
+		return [res.status, res.headers.get('location')];
+	}
+
+	test('a page URL with the other slash redirects to the URL of its file, with its query', async () => {
+		let opts = argv();
+		await opts.sink.write(join(opts.dest, 'flat.html'), '<h1>flat</h1>');
+		await opts.sink.write(join(opts.dest, 'dir/index.html'), '<h1>dir</h1>');
+		let server = await http.start(opts, opts.sink);
+		let url = `http://127.0.0.1:${opts.port}`;
+		try {
+			expect(await (await fetch(url + '/flat')).text()).toBe('<h1>flat</h1>');
+			expect(await (await fetch(url + '/dir/')).text()).toBe('<h1>dir</h1>');
+			expect(await moved(url + '/flat/')).toEqual([302, '/flat']);
+			expect(await moved(url + '/flat/?a=1')).toEqual([302, '/flat?a=1']);
+			expect(await moved(url + '/dir')).toEqual([302, '/dir/']);
+			expect(await moved(url + '/dir?a=1')).toEqual([302, '/dir/?a=1']);
+			expect((await fetch(url + '/gone/')).status).toBe(404);
+		} finally {
+			server.close();
+		}
+	});
+
+	test('redirects keep the subfolder of the site', async () => {
+		let opts = argv();
+		opts.sink.base = '/blog/';
+		await opts.sink.write(join(opts.dest, 'flat.html'), '<h1>flat</h1>');
+		await opts.sink.write(join(opts.dest, 'dir/index.html'), '<h1>dir</h1>');
+		let server = await http.start(opts, opts.sink);
+		let url = `http://127.0.0.1:${opts.port}`;
+		try {
+			expect(await moved(url + '/blog/flat/')).toEqual([302, '/blog/flat']);
+			expect(await moved(url + '/blog/dir')).toEqual([302, '/blog/dir/']);
+		} finally {
+			server.close();
+		}
+	});
+});
+
 describe('memory', () => {
 	test('serves text in UTF-8, and other files as they are', async () => {
 		let opts = argv();
