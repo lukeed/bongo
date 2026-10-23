@@ -162,7 +162,7 @@ export class LoadError extends Error {
  * Import `file` as fresh code: Rolldown bundles it and its local imports into one temporary module,
  * which is imported once and deleted. Packages stay external and resolve as usual,
  * except packages linked from outside node_modules, which are local code and are bundled too.
- * Errors name places relative to `root`.
+ * Errors name places relative to `root`, and a tsconfig.json above `root` is never read.
  * @example let { exports, files } = await loadModule('/site/bongo.config.ts');
  */
 export async function loadModule(file: string, root = dirname(file)): Promise<Module> {
@@ -171,6 +171,7 @@ export async function loadModule(file: string, root = dirname(file)): Promise<Mo
 		input: file,
 		platform: 'node',
 		transform: { define: META },
+		tsconfig: fs.exists(join(root, 'tsconfig.json')),
 		plugins: [packages(), meta],
 	});
 

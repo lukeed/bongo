@@ -43,10 +43,10 @@ async function read(file: string, ext: string, root: string): Promise<Omit<Entry
 
 /**
  * Load every file under `dir` into one object, keyed by its path without the extension.
- * JSON and YAML values are frozen; modules give their default export.
+ * JSON and YAML values are frozen; modules give their default export, loaded as code of the project at `root`.
  * @example (await load('site/data')).value.oss //=> { history: [...] }, from data/oss/history.json
  */
-export async function load(dir: string): Promise<Loaded> {
+export async function load(dir: string, root = dirname(dir)): Promise<Loaded> {
 	if (!fs.exists(dir)) return { value: {}, files: [] };
 
 	let label = basename(dir);
@@ -63,7 +63,7 @@ export async function load(dir: string): Promise<Loaded> {
 			throw new Error(`${name}: unsupported data file; use ${EXTENSIONS.slice(0, -1).join(', ')}, or ${EXTENSIONS.at(-1)}`);
 		}
 		try {
-			var loaded = await read(join(dir, rel), ext, dirname(dir));
+			var loaded = await read(join(dir, rel), ext, root);
 		} catch (err) {
 			throw new Error(`${name}: ${err instanceof Error ? err.message : err}`, { cause: err });
 		}

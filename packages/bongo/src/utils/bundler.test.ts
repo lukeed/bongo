@@ -204,6 +204,28 @@ describe('flush() — JS', () => {
 		}
 	});
 
+	test('reads the tsconfig of the project, but none above it', async () => {
+		let { dir, outDir } = await tmp({
+			'tsconfig.json': '{ "extends": "missing-package/tsconfig" }',
+			'site/tsconfig.json': '{ "compilerOptions": { "paths": { "~/*": ["./lib/*"] } } }',
+			'site/entry.ts': 'import { n } from "~/n"; console.log(n);',
+			'site/lib/n.ts': 'export const n = "from-lib";',
+			'bare/entry.ts': 'console.log("bare");',
+		});
+		try {
+			let site = bundler.register(join(dir, 'site/entry.ts'), { kind: 'js' });
+			let result = await bundler.flush({ outDir, cwd: join(dir, 'site') });
+			expect(result.errors).toEqual([]);
+			expect(await readFile(join(outDir, result.outputs.get(site)!.filename), 'utf8')).toContain('from-lib');
+			bundler.reset();
+
+			bundler.register(join(dir, 'bare/entry.ts'), { kind: 'js' });
+			expect((await bundler.flush({ outDir, cwd: join(dir, 'bare') })).errors).toEqual([]);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	test('accepts a browserslist query as target', async () => {
 		let { dir, outDir } = await tmp({ 'entry.ts': 'export const x = 1;' });
 		try {

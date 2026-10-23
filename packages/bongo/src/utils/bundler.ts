@@ -337,6 +337,8 @@ async function flushJsGroup(
 	let bundle = await rd.rolldown({
 		input,
 		cwd: ctx.cwd,
+		// a tsconfig.json above the project may belong to another project
+		tsconfig: fs.exists(path.join(ctx.cwd, 'tsconfig.json')),
 		resolve: {
 			extensions: ['.ts', '.js', '.cjs', '.mjs', '.css', '.json'],
 			mainFields: ['browser', 'module', 'jsnext', 'main'],
