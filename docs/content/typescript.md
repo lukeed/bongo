@@ -54,6 +54,6 @@ import type { Build } from 'bongo';
 export default ({ $pages }: Build.Data) => $pages.map(page => ({ title: page.title, path: page.path }));
 ```
 
-For `import.meta.env.DEV` and `import.meta.env.PROD` in scripts, reference `bongo/env`. See [Script values](/config/#script-values).
+For `import.meta.env.DEV` and `import.meta.env.PROD` in scripts, add `bongo/env` to the `types` of your `tsconfig.json`. See [Script values](/config/#script-values).
 
 Import the client runtime types from `bongo/client`: `ClientOptions`, `BongoEvent`, and `BongoEventDetails`. See [Client runtime](/client-runtime/).

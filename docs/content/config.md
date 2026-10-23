@@ -217,7 +217,17 @@ if (import.meta.env.DEV) {
 }
 ```
 
-To type `import.meta.env`, reference the types in a script or in a `.d.ts` file:
+To type `import.meta.env`, add `bongo/env` to the types of your `tsconfig.json`. A new project from `create-bongo` has it:
+
+```json [tsconfig.json]
+{
+	"compilerOptions": {
+		"types": ["bongo/env"]
+	}
+}
+```
+
+With `types` set, TypeScript loads only the types that it lists, not every `@types` package. Or reference the types in a script or a `.d.ts` file:
 
 ```ts
 /// <reference types="bongo/env" />
