@@ -8,6 +8,6 @@ bongo turns Markdown, templates, and assets into static HTML. Each page below li
 ## {{{ group.title }}}
 {{#each group.pages as link}}
 {{#var page = $pages.find(p => p.path === link.path)}}
-- [{{{ link.title }}}]({{{ $utils.url.abs(page.alternates['text/markdown']) }}}): {{{ page.summary }}}
+- [{{{ link.title }}}]({{{ $utils.url.abs(page.alternates['text/markdown'] ?? page.path) }}}): {{{ page.summary }}}
 {{/each}}
 {{/each}}
