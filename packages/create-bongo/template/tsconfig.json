@@ -4,7 +4,8 @@
     "module": "esnext",
     "target": "es2023",
     "moduleResolution": "bundler",
-    "noEmit": true
+    "noEmit": true,
+    "types": ["bongo/env"]
   },
   "include": [
     "assets",
