@@ -6,7 +6,7 @@
       "devDependencies": {
         "@types/bun": "^1.4.3",
         "@types/node": "^24.19.2",
-        "bump": "1.0.0-next.1",
+        "bump": "1.0.0-next.2",
         "happy-dom": "^21.0.1",
         "mitata": "1.0.34",
         "typescript": "7.0.2",
@@ -61,7 +61,7 @@
     },
     "packages/bongo": {
       "name": "@bongo/bongo",
-      "version": "0.0.13",
+      "version": "1.0.0",
       "bin": "bin.js",
       "dependencies": {
         "browserslist": "^4.29.3",
@@ -87,16 +87,16 @@
     },
     "packages/create-bongo": {
       "name": "create-bongo",
-      "version": "0.0.13",
+      "version": "1.0.0",
       "bin": "bin.js",
     },
     "packages/plugin.feed": {
       "name": "@bongo/feed",
-      "version": "0.0.13",
+      "version": "1.0.0",
     },
     "packages/plugin.markdown": {
       "name": "@bongo/markdown",
-      "version": "0.0.13",
+      "version": "1.0.0",
       "dependencies": {
         "md4x": "^0.0.30",
       },
@@ -442,7 +442,7 @@
 
     "build": ["build@workspace:build"],
 
-    "bump": ["bump@1.0.0-next.1", "", { "dependencies": { "escalade": "^3.1.1", "mri": "^1.1.6", "semiver": "^1.1.0" }, "bin": { "bump": "bin.js" } }, "sha512-UrekIDt5E/rYFJs88vcj8451f+SqjxR6FEVo9pKPHRXAmS2rID+SyWRyUUxagBCLL6RJPY/I3/14544yQRZLow=="],
+    "bump": ["bump@1.0.0-next.2", "", { "dependencies": { "escalade": "^3.2.0", "mri": "^1.2.0", "semiver": "^1.1.0" }, "bin": { "bump": "bin.js" } }, "sha512-Z5rUVCM3csC6L7MNzGXW/8/o6qvV43e0uwQdZ8oZmsX3S4nq3XkORAKEZ0T0qot2s0mgOI+qQ0G99ktGMKVJcQ=="],
 
     "bun-types": ["bun-types@1.4.3", "", { "dependencies": { "@types/node": "*", "undici-types": "*" } }, "sha512-tinRJNGOmUN+tEAsn2y2e942n9JHRHR42iUYzDH75NmhJqVBokGSQkkfSFdNWwsANIdrK6ACH9t01M452YyTwg=="],
 

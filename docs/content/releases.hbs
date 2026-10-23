@@ -1,0 +1,24 @@
+---
+title: Releases
+summary: What changed in each release of bongo, newest first.
+group: Start
+order: 6
+---
+{{#var releases = $utils.releases($pages)}}
+{{#var arrow = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>'}}
+<p>What changed in each release of <code>bongo</code>, <code>create-bongo</code>, <code>@bongo/markdown</code>, and <code>@bongo/feed</code>. They share one version.</p>
+<div class="releases" role="list">
+	{{#each releases as (release, i)}}
+	{{#var parts = release.headings.filter(heading => heading.level === 2)}}
+	<div role="listitem"{{#if i === 0}} class="latest"{{/if}}>
+		<a href="{{ release.path }}">
+			<span class="rel-top"><b>{{ release.title }}</b>{{#if i === 0}}<em>Latest</em>{{/if}}<time datetime="{{ $utils.date.format(release.params.date).slice(0, 10) }}">{{ $utils.date.format(release.params.date, { dateStyle: 'medium' }) }}</time></span>
+			<span class="rel-sum">{{{ $utils.inline(release.summary) }}}</span>
+			<span class="rel-foot">
+				{{#if parts.length}}<span class="rel-parts">{{#each parts as part}}<span>{{ part.text }}</span>{{/each}}</span>{{/if}}
+				<span class="rel-go">Notes{{{ arrow }}}</span>
+			</span>
+		</a>
+	</div>
+	{{/each}}
+</div>

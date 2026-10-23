@@ -1,0 +1,144 @@
+.prose .releases {
+	position: relative;
+	max-width: 740px;
+	margin: 30px 0 0;
+	padding-left: 34px;
+}
+
+.prose .releases::before {
+	content: "";
+	position: absolute;
+	left: 9px;
+	top: 14px;
+	bottom: 30px;
+	width: var(--bw);
+	background: var(--line);
+}
+
+.prose .releases [role=listitem] {
+	position: relative;
+	margin: 0 0 22px;
+}
+
+.prose .releases [role=listitem]::before {
+	content: "";
+	position: absolute;
+	left: -32px;
+	top: 18px;
+	width: 16px;
+	height: 16px;
+	border: var(--bw) solid var(--line);
+	border-radius: 50%;
+	background: var(--panel);
+}
+
+.prose .releases .latest::before {
+	background: var(--tomato);
+}
+
+.prose .releases a {
+	display: block;
+	padding: 14px 18px;
+	background: var(--panel);
+	border: var(--bw) solid var(--line);
+	border-radius: var(--r);
+	box-shadow: 4px 4px 0 var(--s1);
+	font-weight: inherit;
+	color: var(--text);
+	text-decoration: none;
+	transition: transform .08s, box-shadow .08s;
+}
+
+.prose .releases a:hover {
+	background: var(--panel);
+	color: var(--text);
+	transform: translate(2px, 2px);
+	box-shadow: 2px 2px 0 var(--s1);
+}
+
+.prose .releases .latest a {
+	box-shadow: 4px 4px 0 var(--s2);
+}
+
+.prose .releases .latest a:hover {
+	box-shadow: 2px 2px 0 var(--s2);
+}
+
+.rel-top {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.rel-top b {
+	font: 700 21px/1.1 var(--display);
+	letter-spacing: -.03em;
+	color: var(--ink);
+}
+
+.rel-top time {
+	margin-left: auto;
+	font: 600 13px/1 var(--sans);
+	color: var(--muted);
+	white-space: nowrap;
+}
+
+.rel-top em {
+	padding: 4px 8px 3px;
+	font: 700 10.5px/1 var(--sans);
+	font-style: normal;
+	letter-spacing: .08em;
+	text-transform: uppercase;
+	color: #141414;
+	background: var(--tomato);
+	border: 2px solid #141414;
+	border-radius: 999px;
+}
+
+.rel-sum {
+	display: block;
+	margin: 8px 0 12px;
+	font-size: 15px;
+	line-height: 1.55;
+}
+
+.rel-foot {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.rel-parts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.rel-parts span {
+	padding: 5px 9px;
+	font: 700 11.5px/1 var(--sans);
+	color: var(--muted);
+	border: 1.5px solid color-mix(in srgb, var(--line) 35%, transparent);
+	border-radius: 999px;
+}
+
+.rel-go {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin-left: auto;
+	font: 700 13.5px/1 var(--sans);
+	color: var(--ink);
+}
+
+.rel-go svg {
+	width: 15px;
+	height: 15px;
+	transition: transform .08s;
+}
+
+.prose .releases a:hover .rel-go svg {
+	transform: translateX(3px);
+}

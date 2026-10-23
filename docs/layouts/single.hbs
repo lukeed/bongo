@@ -8,7 +8,7 @@
 		<div class="grp" style="--c:var(--{{ group.color }})">
 			<h4><i></i>{{ group.title }}</h4>
 			{{#each group.pages as link}}
-			<a href="{{ link.path }}"{{#if link.current}} aria-current="page"{{/if}}>{{#if link.title.startsWith('@')}}<code>{{ link.title }}</code>{{#else}}{{ link.title }}{{/if}}</a>
+			<a href="{{ link.path }}"{{#if link.current}} aria-current="{{ link.current }}"{{/if}}>{{#if link.title.startsWith('@')}}<code>{{ link.title }}</code>{{#else}}{{ link.title }}{{/if}}</a>
 			{{/each}}
 		</div>
 		{{/each}}
@@ -27,7 +27,7 @@
 		</div>
 		<div class="doc-head">
 			<nav class="crumbs" aria-label="Breadcrumb"><a href="/intro/">Docs</a><span>/</span><span>{{ $page.params.group }}</span><span>/</span><b>{{ $page.title }}</b></nav>
-			{{#partial src="copy-page" href=md}}
+			{{#if $utils.file($page.path).endsWith('.md')}}{{#partial src="copy-page" href=md}}{{/if}}
 		</div>
 		<h1>{{ $page.title }}</h1>
 		<svg class="wave" viewBox="0 0 150 16" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" aria-hidden="true"><path d="M3 8c6-7 12-7 18 0s12 7 18 0 12-7 18 0 12 7 18 0 12-7 18 0 12 7 18 0 12-7 18 0 6 5 9 4"/></svg>

@@ -1,7 +1,7 @@
 {{#var docs = !!$page.params.group}}
 {{#var home = $page.path === '/'}}
 {{#var title = home ? 'bongo · Static sites with a good beat' : $page.title + ' · bongo'}}
-{{#var summary = $page.summary || $site.description}}
+{{#var summary = $utils.plain($page.summary || $site.description)}}
 {{#var lost = $page.path === '/404.html'}}
 {{#var card = docs && $utils.url.abs(await $assets.render('og/card'))}}
 {{#var alt = docs ? $page.title + ', in the bongo docs' : 'bongo: static sites with a good beat.'}}

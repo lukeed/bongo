@@ -21,7 +21,7 @@
   "devDependencies": {
     "@types/bun": "^1.4.3",
     "@types/node": "^24.19.2",
-    "bump": "1.0.0-next.1",
+    "bump": "1.0.0-next.2",
     "happy-dom": "^21.0.1",
     "mitata": "1.0.34",
     "typescript": "7.0.2"

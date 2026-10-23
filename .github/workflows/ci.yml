@@ -104,7 +104,7 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # -> the GitHub release
       id-token: write # -> npm trusted publishing, with provenance
     steps:
       - uses: actions/checkout@v6
@@ -131,6 +131,10 @@ jobs:
               exit 1
             fi
           done
+          if [ ! -f "docs/content/releases/$GITHUB_REF_NAME.md" ]; then
+            echo "::error::docs/content/releases/$GITHUB_REF_NAME.md is missing; write the release notes there"
+            exit 1
+          fi
 
       - name: 'Publish → npm'
         run: |
@@ -139,3 +143,14 @@ jobs:
           for dir in packages/bongo packages/plugin.markdown packages/plugin.feed packages/create-bongo; do
             (cd $dir && npm publish --provenance --access public --tag $tag)
           done
+
+      # The notes are the release page of the docs, without its frontmatter, with links to the docs site.
+      - name: GitHub release
+        run: |
+          awk 'n >= 2 { print } /^---$/ && n < 2 { n++ }' "docs/content/releases/$GITHUB_REF_NAME.md" \
+            | sed -E 's#\]\(/#](https://bongo.build/#g' > notes.md
+          flags=()
+          if [[ "$GITHUB_REF_NAME" == *-next.* ]]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file notes.md "${flags[@]}"
+        env:
+          GH_TOKEN: ${{ github.token }}

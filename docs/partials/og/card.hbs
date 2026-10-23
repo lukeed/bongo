@@ -14,7 +14,7 @@
 		<div style="display: flex; padding: 12px 20px; border-radius: 999px; background: #141414; color: #FFFDF7; font-family: Space Grotesk; font-weight: 700; font-size: 24px; letter-spacing: 3px; text-transform: uppercase">{{ group }}</div>
 	</div>
 	<div style="display: flex; margin-top: auto; max-width: 1040px; color: #141414; font-family: Unbounded; font-weight: 800; font-size: {{ long ? 96 : 118 }}px; letter-spacing: {{ long ? -4 : -5 }}px; line-height: 1.02">{{ $page.title }}</div>
-	<div style="display: flex; margin-top: 22px; max-width: 960px; color: #141414CC; font-family: Space Grotesk; font-weight: 500; font-size: 28px; line-height: 1.4">{{ $utils.excerpt($page.summary, 120) }}</div>
+	<div style="display: flex; margin-top: 22px; max-width: 960px; color: #141414CC; font-family: Space Grotesk; font-weight: 500; font-size: 28px; line-height: 1.4">{{ $utils.excerpt($utils.plain($page.summary), 120) }}</div>
 	<div style="display: flex; margin-top: 30px; justify-content: space-between; align-items: center">
 		<div style="display: flex; color: #141414; font-family: JetBrains Mono; font-weight: 700; font-size: 24px">{{ $page.url.replace(/^https?:\/\//, '') }}</div>
 		{{#partial src="mark" size=64}}

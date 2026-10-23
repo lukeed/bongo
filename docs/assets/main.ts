@@ -228,8 +228,10 @@ document.addEventListener('input', event => {
 
 // The sidebar stays across navigations, so it marks the new page itself.
 on('bongo:replaced', () => {
+	let path = location.pathname;
 	for (let link of document.querySelectorAll<HTMLAnchorElement>('.side a')) {
-		if (link.pathname === location.pathname) link.setAttribute('aria-current', 'page');
+		if (link.pathname === path) link.setAttribute('aria-current', 'page');
+		else if (path.startsWith(link.pathname)) link.setAttribute('aria-current', 'true');
 		else link.removeAttribute('aria-current');
 	}
 });

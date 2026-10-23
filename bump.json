@@ -1,5 +1,6 @@
 {
   "version": "1.0.0",
+  "all": true,
   "packages": [
     "packages/bongo",
     "packages/create-bongo",

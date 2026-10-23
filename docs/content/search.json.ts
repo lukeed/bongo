@@ -1,3 +1,5 @@
+import { plain } from '../utils';
+
 import type { Build } from 'bongo';
 
 export default ({ $pages }: Build.Data) => $pages
@@ -6,6 +8,6 @@ export default ({ $pages }: Build.Data) => $pages
 		title: page.title,
 		path: page.path,
 		group: page.params.group,
-		summary: page.summary,
+		summary: plain(page.summary),
 		headings: page.headings.filter(heading => heading.level === 2).map(heading => [heading.id, heading.text]),
 	}));

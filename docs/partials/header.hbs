@@ -3,7 +3,7 @@
 <header class="top" transition:persist="{{ docs ? 'top-docs' : 'top' }}" transition:name="top">
 	<div class="top-in">
 		<a class="brand" href="/" aria-label="bongo home">{{#partial src="wordmark"}}</a>
-		<a class="ver" href="https://github.com/lukeed/bongo/releases/tag/v{{ version }}">v{{ version }}</a>
+		<a class="ver" href="/releases/v{{ version }}/">v{{ version }}</a>
 		{{#if docs}}
 		<button class="search" type="button" data-search>
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
