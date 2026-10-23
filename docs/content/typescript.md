@@ -46,7 +46,7 @@ Import types from `bongo`:
 | `Build.Context` | The `ctx` of a hook. |
 | `Build.Data` | What the default export of a data module gets when it is a function. See [Data modules](/data-modules/). |
 | `Images.Options` | The `$images` config field. See [Image config](/images/#image-config). |
-| `Template.Site` | The `$site` config field. Add your own fields to it. See [Your own `$site` fields](/config/#your-own-site-fields). |
+| `Template.Site` | The `$site` config field. Add your own fields to it. See [Define custom `$site` fields](/config/#define-custom-site-fields). |
 
 ```ts [content/search.json.ts]
 import type { Build } from 'bongo';

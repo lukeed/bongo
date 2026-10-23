@@ -92,7 +92,7 @@ export default define({
 
 bongo itself reads only `url`. Templates get every field as it is. [@bongo/feed](/feed/) also reads `title` and `lang`.
 
-### Your own `$site` fields
+### Define custom `$site` fields
 
 Templates also get each field that you add, such as `{{ $site.icon }}`. To type-check your fields, add them to the `Site` type of `bongo`:
 
