@@ -2,9 +2,10 @@
   "compilerOptions": {
     "strict": true,
     "module": "esnext",
-    "target": "es2023",
+    "target": "es2024",
     "moduleResolution": "bundler",
-    "noEmit": true
+    "noEmit": true,
+    "types": ["node"]
   },
   "include": [
     "assets",
