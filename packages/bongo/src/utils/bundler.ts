@@ -191,6 +191,7 @@ type FlushContext = {
 	cwd: string;
 	/** Name scripts and stylesheets by their entry and settings, not their content, so an edit changes no page that links them. */
 	dev: boolean;
+	define: Record<string, string>;
 };
 
 /**
@@ -309,9 +310,17 @@ async function flushJsGroup(
 	// is a browserslist query; parse to lightningcss Targets then translate to
 	// rolldown's esbuild-style string[] (e.g. ['chrome120', 'ios17']).
 	// https://rolldown.rs/reference/InputOptions.transform#target
-	let transform = cfg.target
-		? { target: browsers.translate(browsers.parse(cfg.target)) }
-		: undefined;
+	let mode = ctx.dev ? 'development' : 'production';
+	let transform = {
+		target: cfg.target ? browsers.translate(browsers.parse(cfg.target)) : undefined,
+		define: {
+			'process.env.NODE_ENV': JSON.stringify(mode),
+			'import.meta.env.DEV': String(ctx.dev),
+			'import.meta.env.PROD': String(!ctx.dev),
+			'import.meta.env': JSON.stringify({ DEV: ctx.dev, PROD: !ctx.dev }),
+			...ctx.define,
+		},
+	};
 
 	// Only install the loader plugin if at least one entry in this group uses
 	// a non-native extension — otherwise every load() call would return null
@@ -331,7 +340,7 @@ async function flushJsGroup(
 		resolve: {
 			extensions: ['.ts', '.js', '.cjs', '.mjs', '.css', '.json'],
 			mainFields: ['browser', 'module', 'jsnext', 'main'],
-			conditionNames: ['browser', 'import', 'production'],
+			conditionNames: ['browser', 'import', mode],
 		},
 		transform,
 		plugins,
@@ -452,6 +461,8 @@ export async function flush(opts: {
 	cache?: string;
 	/** List image files for the dev server to encode on request, instead of writing them. @default false */
 	dev?: boolean;
+	/** Names to replace in scripts, each with the code of its value. @default {} */
+	define?: Record<string, string>;
 }): Promise<FlushResult> {
 	let warnings: Warning[] = [];
 	let outputs: Map<Placeholder, OutputInfo> = new Map();
@@ -468,6 +479,7 @@ export async function flush(opts: {
 		files,
 		cwd: opts.cwd ?? process.cwd(),
 		dev: opts.dev ?? false,
+		define: opts.define ?? {},
 		images: images.context({
 			outDir: opts.outDir,
 			sink,

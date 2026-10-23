@@ -5,7 +5,7 @@
     "target": "es2024",
     "moduleResolution": "bundler",
     "noEmit": true,
-    "types": ["node"]
+    "types": ["bongo/env", "node"]
   },
   "include": [
     "assets",

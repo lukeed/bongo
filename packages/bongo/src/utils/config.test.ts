@@ -19,6 +19,7 @@ function makeBase() {
 		},
 		$loaders: {},
 		$partials: {},
+		$build: {},
 		$hooks: {},
 		plugins: [],
 	} as any;
@@ -46,6 +47,15 @@ describe('merge', () => {
 		let base = makeBase();
 		expect(() => config.merge(base, { $assets: {} } as Partial<Config>)).toThrow('`$assets` is now `$loaders`');
 		expect(() => config.merge(base, { plugins: [{ $assets: {} } as Partial<Config>] })).toThrow('`$assets` is now `$loaders`');
+	});
+
+	test('merges $build.define of plugins and the config, the config last', () => {
+		let base = makeBase();
+		config.merge(base, {
+			plugins: [{ $build: { define: { __A__: '"plugin"', __B__: '"plugin"' } } }],
+			$build: { target: 'safari >= 17', define: { __B__: '"config"' } },
+		});
+		expect(base.$build).toEqual({ target: 'safari >= 17', define: { __A__: '"plugin"', __B__: '"config"' } });
 	});
 
 	test('merges $utils with nested objects', () => {
