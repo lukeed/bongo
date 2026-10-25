@@ -55,14 +55,14 @@ An unknown option, or a `--port` that is not a port number, stops the command wi
 
 ## Run with Bun
 
-The `bongo` command starts with Node. Image processing needs Bun, so run the command through Bun to resize images:
+The `bongo` command starts with Node. Image processing needs Bun. So does your own code when it calls a Bun API, such as `Bun.markdown` in a `$utils` function or in the config. Run the command through Bun for either one:
 
 ```sh
 bunx --bun bongo build
 bun --bun run build   # for a "build": "bongo build" script
 ```
 
-See [Images](/images/#bun-runtime).
+Under Node, code that calls a Bun API fails the build, and the error says to run bongo with Bun. See [Images](/images/#bun-runtime).
 
 ## Debug
 

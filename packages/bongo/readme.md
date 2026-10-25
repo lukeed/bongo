@@ -493,7 +493,7 @@ Each attribute after `src` is an argument. A value is a quoted string, a bare va
 
 A partial in `partials/` gets its arguments, the config values (`$site`, `$utils`, `$data`, `$assets`), and the `$page`, `$pages`, `$section`, and `$tags` of the page that renders it. An argument with the same name wins: `{{#partial src="postmeta" $page=post}}`. A `$partials` function gets only its arguments. A partial that a Markdown element or a loader calls runs when the content file loads, before any page renders, so it gets no page values.
 
-A `.hbs` partial declares the arguments that it reads with `{{#expect title, date}}`. `$slot`, the inner HTML of a Markdown element, is always declared. A partial that reads a name it does not declare fails the build with `partials/card.hbs reads "title", but does not declare it. Add {{#expect title}} at the top of the partial.`
+A `.hbs` partial declares the arguments that it reads with `{{#expect title, date}}`. `$slot`, the inner HTML of a Markdown element, is always declared. A partial that reads a name it does not declare fails the build with `partials/card.hbs reads "title", but does not declare it; add {{#expect title}} at the top of the partial`.
 
 ## Template Variables
 
@@ -614,6 +614,8 @@ bun --bun run build   # for a "build": "bongo build" script
 ```
 
 Under Node, bongo copies each image as it is, under a hashed name, and prints one notice for each build. The build does not fail. It adds `width` and `height` only to SVG and GIF images.
+
+Your own code needs Bun too when it calls a Bun API, such as `Bun.markdown` in a `$utils` function or in the config. Under Node, such code fails the build, and the error says to run bongo with Bun.
 
 JPEG, PNG, and WebP files are encoded with the same codecs on every platform, so a build makes the same bytes on macOS, Linux, and Windows.
 

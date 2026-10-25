@@ -896,7 +896,23 @@ describe('partials', () => {
 			'content/index.html': '',
 		});
 		try {
-			await expect(build({ cwd: root })).rejects.toThrow('partials/blog/meta.hbs reads "date", but does not declare it. Add {{#expect date}} at the top of the partial.');
+			await expect(build({ cwd: root })).rejects.toThrow('partials/blog/meta.hbs reads "date", but does not declare it; add {{#expect date}} at the top of the partial, rendering content/index.html');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a name that a function the partial calls cannot find is not a name of the partial', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $utils: { lost: () => nowhere } };`,
+			'partials/p.hbs': '<p>{{ $utils.lost() }}</p>',
+			'layouts/html.hbs': '{{#partial src="p"}}',
+			'content/index.html': '',
+		});
+		try {
+			let err = await build({ cwd: root }).catch(e => e);
+			expect(err.message).toStartWith('nowhere is not defined, rendering content/index.html');
+			expect(err.message).not.toContain('{{#expect');
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

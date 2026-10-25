@@ -205,12 +205,14 @@ export async function dev(argv: Argv) {
 			if (flags.write) await sink.mirror(output.disk({ ...flags, dest: outdir(flags, next.config) }));
 		} catch (err) {
 			let failed = utils.cause(err, LoadError);
-			let message = err instanceof Error ? err.message : String(err);
+			let fix = utils.runtime(err, 'dev');
+			let more = fix ? '\n' + fix : '';
+			let message = (err instanceof Error ? err.message : String(err)) + more;
 			failed?.files.forEach(file => tracked.add(file));
 			stop();
 			stop = await follow();
 			log.error(message);
-			report([failed ? failed.error : { message }]);
+			report([failed ? { ...failed.error, message: failed.error.message + more } : { message }]);
 			return false;
 		}
 

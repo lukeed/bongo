@@ -233,7 +233,8 @@ export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> 
 			await sink?.clear().catch(() => {});
 			if (sink) MEMOS.delete(sink);
 		}
-		throw err;
+		let fix = utils.runtime(err, argv.dev ? 'dev' : 'build');
+		throw fix && err instanceof Error ? new Error(`${err.message}\n${fix}`, { cause: err }) : err;
 	} finally {
 		watch.stop();
 	}

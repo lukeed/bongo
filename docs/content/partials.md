@@ -68,7 +68,7 @@ A `.hbs` partial is a tempura template. Declare the arguments that it reads with
 A partial that reads a name it does not declare fails the build, and the error gives the fix:
 
 ```
-partials/postmeta.hbs reads "date", but does not declare it. Add {{#expect date}} at the top of the partial.
+partials/postmeta.hbs reads "date", but does not declare it; add {{#expect date}} at the top of the partial
 ```
 
 See [Templates](/templates/#syntax) for the syntax.

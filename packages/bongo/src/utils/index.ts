@@ -8,6 +8,20 @@ export function cause<T extends Error>(err: unknown, type: new (...args: never[]
 	}
 }
 
+// V8 says "Bun is not defined"; JavaScriptCore says "Can't find variable: Bun"
+const NO_BUN = /^(?:Bun is not defined|Can't find variable: Bun)$/;
+
+/**
+ * How to fix an error from code that calls a Bun API while bongo runs in Node or Deno, or undefined for any other error.
+ * @example let fix = utils.runtime(err, 'build');
+ */
+export function runtime(err: unknown, command: string): string | undefined {
+	if (typeof Bun !== 'undefined') return;
+	let missing = cause(err, ReferenceError);
+	if (!missing || !NO_BUN.test(missing.message)) return;
+	return `bongo runs in ${'Deno' in globalThis ? 'Deno' : 'Node'}, which has no Bun APIs; run it with Bun: bun --bun bongo ${command}`;
+}
+
 export function debounce<T extends Function>(fn: T, delay: number): T {
 	let timer: NodeJS.Timeout | null;
 	// @ts-ignore
