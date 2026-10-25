@@ -18,7 +18,7 @@ import * as render from './utils/render';
 import * as templates from './utils/templates';
 import * as tags from './utils/tags';
 import * as utils from './utils/index';
-import { normalize } from './utils/argv';
+import { normalize, outdir } from './utils/argv';
 import { SCRIPT } from './utils/http';
 
 import type { Argv, Build, Config, Loader, Template } from 'bongo';
@@ -178,7 +178,7 @@ function parseTags(value: unknown): string[] {
 export type BuildOptions = {
 	// From `prepare()`; dev passes its cached copy, so a content edit does not re-run the config.
 	inputs?: Inputs;
-	// Where the files go; dev keeps them in memory. Defaults to `public/` on disk.
+	// Where the files go; dev keeps them in memory. Defaults to the output folder on disk.
 	sink?: output.Sink;
 };
 
@@ -206,23 +206,32 @@ export async function prepare(argv: Argv): Promise<Inputs> {
 }
 
 /**
- * Build the site into `public/`.
+ * Build the site into its output folder, `public/` unless `outdir` or `$build.outdir` names another.
  * @example await build({ cwd: 'site', minify: true });
  */
 export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> {
+	let t0 = Date.now();
 	normalize(argv);
 	// `bongo build` writes each page as it renders; dev holds every page, so a failed rebuild writes nothing
 	let writes = !argv.dev ? utils.pool(WRITES) : undefined;
 	let watch = log.watchdog({ debug: argv.debug });
+	// the config names the output folder, so no folder changes until it loads
+	let sink = opts.sink;
 	try {
-		await run(argv, opts, watch, writes);
+		let inputs = opts.inputs ?? await prepare(argv);
+		if (!argv.dev) argv.dest = outdir(argv, inputs.config);
+		// A dev rebuild writes over its last good build, so a failed one leaves that build serving.
+		sink ??= output.disk(argv);
+		await run(argv, inputs, sink, t0, watch, writes);
 	} catch (err) {
 		// leave no half-written pages; the build error matters more than a failed write or cleanup
 		if (writes) {
-			let sink = opts.sink ?? output.disk(argv);
+			// a config that failed to load names no folder: empty the one of the flag, or of the last good build
+			let dest = sink ? undefined : argv.outdir || await memo.dest(argv);
+			if (dest) sink = output.disk({ ...argv, dest });
 			await writes.drain().catch(() => {});
-			await sink.clear().catch(() => {});
-			MEMOS.delete(sink);
+			await sink?.clear().catch(() => {});
+			if (sink) MEMOS.delete(sink);
 		}
 		throw err;
 	} finally {
@@ -254,12 +263,9 @@ function loadedFiles(items: Record<string, memo.Item>, extra: [string, string][]
 	return [...files];
 }
 
-async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog, writes: utils.Pool | undefined): Promise<void> {
-	let t0 = Date.now();
+async function run(argv: Required<Argv>, inputs: Inputs, sink: output.Sink, t0: number, watch: log.Watchdog, writes: utils.Pool | undefined): Promise<void> {
 	tags.reset();
 
-	// A dev rebuild writes over its last good build, so a failed one leaves that build serving.
-	let sink = opts.sink ?? output.disk(argv);
 	// the memo of the last good build; `bongo build` keeps it on disk
 	let previous = argv.fresh ? undefined : MEMOS.get(sink) ?? (writes ? await memo.load(argv) : undefined);
 	if (!(argv.dev && OUTPUT.get(sink)?.dev)) {
@@ -268,7 +274,6 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		OUTPUT.delete(sink);
 	}
 
-	const inputs = opts.inputs ?? await prepare(argv);
 	const { config, $data } = inputs;
 	const { $site, $loaders: LOADERS } = config;
 	// a page path resolves under `$site.url`, so a site in a subfolder keeps it

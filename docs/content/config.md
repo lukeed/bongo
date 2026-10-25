@@ -92,7 +92,7 @@ export default {
 | `$utils` | Helper functions that templates can call. See [`$utils`](#utils). |
 | `$partials` | Programmatic partial functions. See [Config partials](/partials/#config-partials). |
 | `$images` | Image defaults. See [Image config](/images/#image-config). |
-| `$build` | Build options. See [Build targets](#build-targets) and [Script values](#script-values). |
+| `$build` | Build options. See [Build targets](#build-targets), [Script values](#script-values), and [Output folder](#output-folder). |
 | `$hooks` | Functions that change the build output. See [Hooks](/hooks/). |
 | `plugins` | An array of partial config objects, merged in order. See [Plugins](#plugins). |
 
@@ -253,6 +253,21 @@ export default {
 ```
 
 Your values replace the built-in ones of the same name. The `define` maps of plugins and the config merge, and the config's values win.
+
+## Output folder
+
+`$build.outdir` names the folder that `bongo build` writes the site to. The path is from the project folder, and the default is `public`:
+
+```ts [bongo.config.ts]
+export default {
+	$site: { url: 'https://example.com/', title: 'My site', lang: 'en' },
+	$build: {
+		outdir: 'web/public',
+	},
+};
+```
+
+The `--outdir` flag wins over it. bongo deletes each file in this folder that the build does not write, so keep the files of other tools in another folder. See [Output folder](/cli/#output-folder) for the rules.
 
 ## Plugins
 

@@ -6,8 +6,10 @@ export interface Argv {
 	cwd: string;
 	dev?: boolean;
 	minify?: boolean;
-	/** `bongo dev` only: also write the output to `public/`. @default false */
+	/** `bongo dev` only: also write the output to the output folder. @default false */
 	write?: boolean;
+	/** The folder to write the site to, from `cwd`. It wins over `$build.outdir`. @default 'public' */
+	outdir?: string;
 	/** Render every page, and ignore what the last build kept. @default false */
 	fresh?: boolean;
 	/** Build each draft: a page with `draft: true`, or a `date` after the build starts, unless it has `draft: false`. @default false, and true for `bongo dev` */
@@ -285,6 +287,12 @@ export interface Config {
 		 * @example $build: { define: { __VERSION__: JSON.stringify('1.2.3') } }
 		 */
 		define?: Record<string, string>;
+		/**
+		 * The folder to write the site to, from the project folder. bongo owns this folder: it deletes each file in it that the build does not write, and a failed build empties it. The `--outdir` flag wins over it.
+		 * @default 'public'
+		 * @example $build: { outdir: 'web/public' }
+		 */
+		outdir?: string;
 	};
 	$images?: Images.Options;
 	$hooks?: Build.Hooks;

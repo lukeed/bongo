@@ -1,6 +1,6 @@
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 
 import * as fs from './fs';
 import * as memo from './memo';
@@ -39,6 +39,8 @@ export type Memory = Sink & {
 	/** The URL path the site lives under, from `$site.url`, such as `/blog/`. */
 	base: string;
 	get(file: string): Entry | undefined;
+	/** Copy every change to `next` from now on, at the same path under its folder. A new mirror is emptied first, then gets every file in memory; if it refuses, the last mirror stays. */
+	mirror(next: Sink | undefined): Promise<void>;
 };
 
 let DISKS: Map<string, Sink> = new Map();
@@ -112,12 +114,14 @@ export function disk(argv: Required<Argv>): Sink {
 }
 
 /**
- * Output that `bongo dev` keeps in memory and serves; with `mirror`, every change also goes to that disk sink.
+ * Output that `bongo dev` keeps in memory and serves; after `mirror()`, every change also goes to that disk sink.
  * @example let sink = output.memory(argv.dest); let entry = sink.get(join(argv.dest, 'index.html'))
  */
-export function memory(dir: string, mirror?: Sink): Memory {
+export function memory(dir: string): Memory {
 	let files: Map<string, Entry> = new Map();
 	let version = 0;
+	let target: Sink | undefined;
+	let to = (file: string) => target && target.dir !== dir ? join(target.dir, relative(dir, file)) : file;
 
 	let sink: Memory = {
 		dir,
@@ -125,11 +129,11 @@ export function memory(dir: string, mirror?: Sink): Memory {
 		get: file => files.get(file),
 		async write(file, data) {
 			files.set(file, { data: Buffer.from(data), version: ++version });
-			await mirror?.write(file, data);
+			await target?.write(to(file), data);
 		},
 		async copy(source, file) {
 			files.set(file, { file: source });
-			await mirror?.copy(source, file);
+			await target?.copy(source, to(file));
 		},
 		async defer(file, make) {
 			let made: Promise<Buffer> | undefined;
@@ -144,7 +148,7 @@ export function memory(dir: string, mirror?: Sink): Memory {
 				}),
 			};
 			files.set(file, entry);
-			await mirror?.defer(file, entry.make);
+			await target?.defer(to(file), entry.make);
 		},
 		async read(file) {
 			let entry = files.get(file);
@@ -154,11 +158,11 @@ export function memory(dir: string, mirror?: Sink): Memory {
 		},
 		async remove(file) {
 			files.delete(file);
-			await mirror?.remove(file);
+			await target?.remove(to(file));
 		},
 		async clear() {
 			files.clear();
-			await mirror?.clear();
+			await target?.clear();
 		},
 		reuse: () => sink.clear(),
 		sweep: async () => {},
@@ -168,7 +172,17 @@ export function memory(dir: string, mirror?: Sink): Memory {
 			return 'data' in entry ? [entry.data.length, entry.version] : [-1, -1];
 		},
 		async keep(file) {
-			await mirror?.keep(file);
+			await target?.keep(to(file));
+		},
+		async mirror(next) {
+			if (next === target) return;
+			await next?.clear();
+			target = next;
+			if (!next) return;
+			await Promise.all([...files].map(([file, entry]) => {
+				if ('make' in entry) return next.defer(to(file), entry.make);
+				return 'data' in entry ? next.write(to(file), entry.data) : next.copy(entry.file, to(file));
+			}));
 		},
 		async minify(list) {
 			let temp = await mkdtemp(join(tmpdir(), 'bongo-minify-'));

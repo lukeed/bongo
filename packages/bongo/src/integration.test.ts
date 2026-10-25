@@ -1120,9 +1120,10 @@ describe('integration: site-client', () => {
 });
 
 describe('output folder', () => {
-	test('a build empties public/ before it loads the config, so a failed build leaves no stale files', async () => {
+	test('a build whose config fails to load empties the public/ of the last good build, so a failed build leaves no stale files', async () => {
 		let root = await copyFixture('site-basic');
 		try {
+			await build({ cwd: root });
 			await mkdir(join(root, 'public/old'), { recursive: true });
 			await writeFile(join(root, 'public/old/stale.html'), 'old');
 			await writeFile(join(root, 'bongo.config.ts'), 'export default {');

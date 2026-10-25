@@ -159,8 +159,8 @@ function where(argv: Required<Argv>): string {
 export async function load(argv: Required<Argv>): Promise<Memo | undefined> {
 	try {
 		let [head, ...lines] = (await readFile(where(argv), 'utf8')).split('\n');
-		let { code: from, lists, ...rest } = JSON.parse(head);
-		if (from !== await code()) return;
+		let { code: from, dest, lists, ...rest } = JSON.parse(head);
+		if (from !== await code() || dest !== argv.dest) return;
 		let memo: Memo = { ...rest, items: {} };
 		for (let line of lines) {
 			if (!line) continue;
@@ -168,6 +168,20 @@ export async function load(argv: Required<Argv>): Promise<Memo | undefined> {
 			memo.items[rel] = item;
 		}
 		return memo;
+	} catch {
+		return;
+	}
+}
+
+/**
+ * The output folder of the last good `bongo build`, from its saved memo, if any.
+ * @example let dir = await memo.dest(argv);
+ */
+export async function dest(argv: Required<Argv>): Promise<string | undefined> {
+	try {
+		let text = await readFile(where(argv), 'utf8');
+		let { dest } = JSON.parse(text.substring(0, text.indexOf('\n')));
+		return typeof dest === 'string' ? dest : undefined;
 	} catch {
 		return;
 	}
@@ -202,7 +216,7 @@ export async function save(argv: Required<Argv>, memo: Memo): Promise<void> {
 	}
 	let handle = await open(temp, 'w');
 	try {
-		await handle.write(JSON.stringify({ code: await code(), ...head, lists: table }) + '\n');
+		await handle.write(JSON.stringify({ code: await code(), dest: argv.dest, ...head, lists: table }) + '\n');
 		for (let i = 0; i < entries.length; i += LINES) {
 			await handle.write(entries.slice(i, i + LINES).map(([rel, item]) => JSON.stringify(encode(rel, item, argv.dest, lists)) + '\n').join(''));
 		}

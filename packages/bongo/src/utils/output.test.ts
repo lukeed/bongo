@@ -68,9 +68,9 @@ describe('memory', () => {
 		let argv = await project();
 		await mkdir(join(argv.dest, 'old'), { recursive: true });
 		await writeFile(join(argv.dest, 'old/stale.html'), 'old');
-		let sink = output.memory(argv.dest, output.disk(argv));
+		let sink = output.memory(argv.dest);
 		try {
-			await sink.clear();
+			await sink.mirror(output.disk(argv));
 			expect(await readdir(argv.dest)).toEqual([]);
 
 			let file = join(argv.dest, 'docs/index.html');
@@ -85,6 +85,36 @@ describe('memory', () => {
 			await sink.remove(file);
 			expect(existsSync(join(argv.dest, 'docs'))).toBe(false);
 			expect(String(await sink.read(join(argv.dest, 'a.txt')))).toBe('copied');
+		} finally {
+			await rm(argv.cwd, { recursive: true, force: true });
+		}
+	});
+
+	test('a new mirror is emptied, then gets every file in memory at its own path; one that refuses leaves the last in place', async () => {
+		let argv = await project();
+		let other = { ...argv, dest: join(argv.cwd, 'web/out') };
+		let sink = output.memory(argv.dest);
+		try {
+			let source = join(argv.cwd, 'a.txt');
+			await writeFile(source, 'copied');
+			await sink.write(join(argv.dest, 'index.html'), 'home');
+			await sink.copy(source, join(argv.dest, 'a.txt'));
+			await sink.defer(join(argv.dest, 'og/card.png'), async () => Buffer.from('png'));
+			await sink.mirror(output.disk(argv));
+			await mkdir(other.dest, { recursive: true });
+			await writeFile(join(other.dest, 'stray.txt'), 'x');
+			await sink.mirror(output.disk(other));
+			expect((await readdir(other.dest, { recursive: true })).sort()).toEqual(['a.txt', 'index.html', 'og', 'og/card.png']);
+			expect(await readFile(join(other.dest, 'og/card.png'), 'utf8')).toBe('png');
+
+			await sink.write(join(argv.dest, 'index.html'), 'edited');
+			expect(await readFile(join(other.dest, 'index.html'), 'utf8')).toBe('edited');
+			expect(await readFile(join(argv.dest, 'index.html'), 'utf8')).toBe('home');
+
+			await expect(sink.mirror(output.disk({ ...argv, dest: argv.content }))).rejects.toThrow('it is content/');
+			await sink.write(join(argv.dest, 'b.html'), 'b');
+			expect(await readFile(join(other.dest, 'b.html'), 'utf8')).toBe('b');
+			expect(existsSync(join(argv.content, 'b.html'))).toBe(false);
 		} finally {
 			await rm(argv.cwd, { recursive: true, force: true });
 		}
@@ -125,8 +155,9 @@ describe('defer', () => {
 
 	test('a disk sink, and the mirror of a memory sink, make the file at once', async () => {
 		let argv = await project();
-		let sink = output.memory(argv.dest, output.disk(argv));
+		let sink = output.memory(argv.dest);
 		try {
+			await sink.mirror(output.disk(argv));
 			let file = join(argv.dest, 'og/card.png');
 			await sink.defer(file, async () => Buffer.from('png'));
 			expect(await readFile(file, 'utf8')).toBe('png');

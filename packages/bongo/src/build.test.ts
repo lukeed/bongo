@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
 import { existsSync, realpathSync } from 'node:fs';
-import { lstat, mkdir, mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -1472,6 +1472,116 @@ describe('incremental builds', () => {
 			expect(rendered()).toEqual(all);
 		} finally {
 			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('outdir', () => {
+	const config = (build: string) => `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $build: ${build} };`;
+
+	test('$build.outdir names the output folder, and public/ stays as it is', async () => {
+		let root = await site({
+			'bongo.config.ts': config(`{ outdir: 'web/public' }`),
+			'content/index.html': '<p>home</p>',
+			'public/maps/a.json': '{}',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await readFile(join(root, 'web/public/index.html'), 'utf8')).toBe('<html><p>home</p></html>');
+			expect(await readFile(join(root, 'public/maps/a.json'), 'utf8')).toBe('{}');
+			expect(existsSync(join(root, 'public/index.html'))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('the outdir option wins over $build.outdir', async () => {
+		let root = await site({
+			'bongo.config.ts': config(`{ outdir: 'web/public' }`),
+			'content/index.html': '<p>home</p>',
+		});
+		try {
+			await build({ cwd: root, outdir: 'dist' });
+			expect(existsSync(join(root, 'dist/index.html'))).toBe(true);
+			expect(existsSync(join(root, 'web'))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a config that fails to load empties the folder of the last good build, and only it', async () => {
+		let root = await site({
+			'bongo.config.ts': config(`{ outdir: 'web/public' }`),
+			'content/index.html': '<p>home</p>',
+			'public/maps/a.json': '{}',
+		});
+		try {
+			await build({ cwd: root });
+			await writeFile(join(root, 'bongo.config.ts'), 'export default {');
+			await expect(build({ cwd: root })).rejects.toThrow();
+			expect(await readdir(join(root, 'web/public'))).toEqual([]);
+			expect(await readFile(join(root, 'public/maps/a.json'), 'utf8')).toBe('{}');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a config that fails to load, with no last build, empties only the outdir option', async () => {
+		let root = await site({
+			'bongo.config.ts': 'export default {',
+			'public/maps/a.json': '{}',
+			'dist/old.html': 'old',
+		});
+		try {
+			await expect(build({ cwd: root })).rejects.toThrow();
+			expect(await readFile(join(root, 'public/maps/a.json'), 'utf8')).toBe('{}');
+			await expect(build({ cwd: root, outdir: 'dist' })).rejects.toThrow();
+			expect(await readdir(join(root, 'dist'))).toEqual([]);
+			expect(await readFile(join(root, 'public/maps/a.json'), 'utf8')).toBe('{}');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a page that fails empties $build.outdir, and only it', async () => {
+		let root = await site({
+			'bongo.config.ts': config(`{ outdir: 'web/public' }`),
+			'content/index.html': '<p>home</p>',
+			'public/maps/a.json': '{}',
+		});
+		try {
+			await build({ cwd: root });
+			await writeFile(join(root, 'content/broken.hbs'), '<p>{{ $utils.nope() }}</p>');
+			await expect(build({ cwd: root })).rejects.toThrow('nope');
+			expect(existsSync(join(root, 'web/public/index.html'))).toBe(false);
+			expect(await readFile(join(root, 'public/maps/a.json'), 'utf8')).toBe('{}');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a new outdir renders every page into it', async () => {
+		let root = await site({ 'content/index.html': '<p>home</p>', 'content/about.html': '<p>about</p>' });
+		try {
+			await build({ cwd: root });
+			await writeFile(join(root, 'bongo.config.ts'), config(`{ outdir: 'dist' }`));
+			await build({ cwd: root });
+			expect(await readFile(join(root, 'dist/about/index.html'), 'utf8')).toBe('<html><p>about</p></html>');
+			expect(await readFile(join(root, 'dist/index.html'), 'utf8')).toBe('<html><p>home</p></html>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('$build.outdir must be a folder inside the project, other than a source folder', async () => {
+		for (let [outdir, reason] of [[`'..'`, 'it holds the project root'], [`'.'`, 'it is the project root'], [`'content'`, 'it is content/'], [`''`, '$build.outdir must name a folder'], ['1', '$build.outdir must name a folder']]) {
+			let root = await site({ 'bongo.config.ts': config(`{ outdir: ${outdir} }`), 'content/index.html': '<p>home</p>' });
+			try {
+				await expect(build({ cwd: root })).rejects.toThrow(reason);
+				expect(await readFile(join(root, 'content/index.html'), 'utf8')).toBe('<p>home</p>');
+			} finally {
+				await rm(root, { recursive: true, force: true });
+			}
 		}
 	});
 });
