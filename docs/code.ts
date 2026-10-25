@@ -79,11 +79,12 @@ export const fence: Fence = (html, block) => {
 const SHORT = 30;
 
 /**
- * Let wide tables scroll, and mark each short code span, which stays on one line.
+ * Let wide tables scroll, and mark each short code span and each table cell of code spans alone, such as `-o, --outdir`, which stay on one line.
  * @example $hooks: { transform }
  */
 export const transform: Build.Transform = (text, ctx) => ctx.kind === 'page'
 	? text
 		.replace(/<table>[\s\S]*?<\/table>/g, table => `<div class="tbl">${table}</div>`)
+		.replace(/<td>((?:<code>[^<]*<\/code>(?:, )?){2,})<\/td>/g, '<td class="codes">$1</td>')
 		.replace(/<code>([^<]*)<\/code>/g, (span, inner: string) => inner.length > SHORT ? span : `<code class="short">${inner}</code>`)
 	: text;

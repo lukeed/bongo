@@ -215,6 +215,10 @@
 	vertical-align: top;
 }
 
+.tbl td.codes {
+	white-space: nowrap;
+}
+
 .tbl tr:first-child td {
 	border-top: 0;
 }
