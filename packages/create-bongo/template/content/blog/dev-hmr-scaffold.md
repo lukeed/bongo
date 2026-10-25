@@ -1,41 +1,28 @@
 ---
-title: Dev Server and HMR Readiness
+title: The Dev Server
 date: 2026-03-28
-summary: Where bongo's dev server stands today — fast full reload via Bun's HTTP server — and the plan for rolldown HMR.
-tags: rolldown, bun, performance
+summary: How bongo dev keeps each build in memory, rebuilds only what a change reaches, and reloads the page.
+tags: performance, ssg
 ---
 
-bongo's dev mode is a work in progress, but it's already useful. Here's where things stand.
+`bongo dev` serves the site and builds it again when a file changes. Here is how it works today.
 
-## Current implementation
+## Output in memory
 
-The dev server is a lightweight Bun HTTP server that serves the `public/` output directory. On each file change, it triggers a full rebuild and sends a reload signal to any open browser tabs via a small injected script and a `EventSource` endpoint.
+The dev server keeps each build in memory and serves it from there, as Vite does. It does not write the output folder. Thus `bongo build` can run while `bongo dev` runs, and neither one changes the output of the other. To see the dev output as files, run `bongo dev --write`.
 
-Full rebuild is fast enough to feel acceptable — on the example site, it completes in under 100ms. But it's not HMR.
+## Rebuilds
 
-## What rolldown needs for HMR
+A rebuild renders only the pages that the change reaches. An edit to one post renders that post, and each page that lists it, such as the blog index. An edit to a layout, a partial, the config, or `data/` renders every page.
 
-True HMR requires the bundler to understand the module graph and emit only the changed modules. rolldown is building toward this: it exposes a stable module graph API and the `hmrUpdate` hook in its Vite-compatible mode.
+Dev names each script and stylesheet by its entry, not by its content. So an edit to a stylesheet keeps its file name, and the pages that link it need no new render.
 
-bongo's current bundler integration is a single-shot build (no watch mode). To support HMR we need to:
+## Reload
 
-1. Keep rolldown in watch mode between rebuilds
-2. Intercept `hmrUpdate` events and forward affected module hashes to the browser
-3. On the browser side, accept updates and swap modules without a full page reload
+Each open page holds one WebSocket to the dev server. After a good rebuild, the server tells each page to reload. It is a WebSocket, not an event stream: browsers allow only six HTTP/1.1 connections to one host, and an event stream in each open tab blocked page loads.
 
-Step 3 is the hard part for a static site. Unlike a React app, there's no component tree to surgically update. The pragmatic approach — and likely what bongo will ship first — is "fast module invalidation with page scroll preservation": reload the page but restore the scroll position.
+When a rebuild fails, the page shows an overlay with the error, and the last good build keeps serving. When a fix builds, the page reloads.
 
-## The injected script
+## No HMR yet
 
-Right now, the dev-reload script bongo injects looks roughly like:
-
-```js
-const es = new EventSource('/_bongo/reload');
-es.onmessage = () => location.reload();
-```
-
-It's 2 lines and it works. The production build strips it. When HMR lands, this endpoint will carry module-level update payloads instead.
-
-## Timeline
-
-HMR is behind an open issue. The blocker is rolldown's watch API stabilising — it's available but marked experimental. Once it's stable, wiring it up should be straightforward.
+Dev reloads the whole page. It does not swap modules in place. Most pages of a static site load fast, so a full reload is often enough.

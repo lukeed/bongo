@@ -1,49 +1,54 @@
 ---
 title: LightningCSS over PostCSS
 date: 2026-02-20
-summary: Why bongo chose LightningCSS over PostCSS for CSS processing, and how CSS modules fit into the story.
+summary: Why bongo uses LightningCSS for CSS, and what it does for each stylesheet.
 tags: lightningcss, performance, ssg
 ---
 
-[LightningCSS](https://lightningcss.dev) is a CSS parser, transformer, and bundler written in Rust. bongo uses it to process `assets/*.css` files. Here are some things worth knowing.
+[LightningCSS](https://lightningcss.dev) is a CSS parser, transformer, and bundler written in Rust. bongo builds each stylesheet with it. Here are some things worth knowing.
 
-## What it does automatically
+## Add a stylesheet
 
-LightningCSS handles:
+Add a stylesheet to a layout with `<bongo:style>`. The `src` is relative to `assets/`:
 
-- **`@import` inlining** — imported CSS files are merged at build time
-- **Vendor prefix injection** — adds `-webkit-`, `-moz-` etc. based on your browser targets
-- **Syntax lowering** — modern CSS features are transpiled for older browsers
-- **Minification** — dead code removal, property merging, shorthand expansion
+```hbs
+<bongo:style src="style.css"></bongo:style>
+```
 
-You get all of this without a PostCSS config, a Babel plugin, or a webpack loader.
+bongo writes the built file with a content hash in its name, and links it. With `inline`, it puts the CSS in a `<style>` element instead.
+
+## What it does for you
+
+- **`@import` bundling**: it puts each imported file in the output. An `@import` can also name a package in `node_modules`.
+- **Prefixes**: it adds `-webkit-` and other prefixes for your browser target.
+- **Syntax lowering**: it turns newer syntax, such as nesting, into syntax that older browsers read.
+- **Minification**: with `--minify`, it minifies every stylesheet.
+
+You need no PostCSS config, no Babel plugin, and no webpack loader.
 
 ## Browser targets
 
-Set targets in `bongo.config.ts`:
+Set the target in `bongo.config.ts`:
 
 ```ts
-const config: Config = {
+import type { Config } from 'bongo';
+
+export default {
   $build: {
-    target: 'defaults',
+    target: ['chrome >= 120', 'safari >= 17', 'firefox >= 121'],
   },
-};
+} satisfies Config;
 ```
 
-Targets follow [browserslist](https://browsersl.ist) syntax. The default is the current browsers if unset.
+The target is a [browserslist](https://browsersl.ist) query, or a list of queries. The default is `'defaults'`.
 
 ## CSS modules
 
-bongo supports CSS modules via a file naming convention. Name your file `*.module.css` and LightningCSS will scope class names locally. Import the module in your JavaScript to get the scoped names:
-
-```ts
-import styles from './button.module.css';
-element.className = styles.primary;
-```
+A file named `*.module.css` is a CSS module: LightningCSS gives its class names a scope, so they do not clash with other stylesheets. To use a `.module.css` file as plain CSS, add `global` to its `<bongo:style>`.
 
 ## Custom properties and `@layer`
 
-Custom properties (CSS variables) and `@layer` work out of the box. LightningCSS parses them correctly and minification preserves semantics.
+Custom properties and `@layer` work as they are. LightningCSS parses them, and minification keeps what they mean:
 
 ```css
 @layer base {
@@ -55,6 +60,6 @@ Custom properties (CSS variables) and `@layer` work out of the box. LightningCSS
 }
 ```
 
-## What it doesn't do
+## What it does not do
 
-LightningCSS is not PostCSS. It doesn't run PostCSS plugins. If you rely on a specific PostCSS plugin for a feature LightningCSS doesn't support natively, you'll need to run PostCSS as a pre-step outside of bongo.
+LightningCSS is not PostCSS, and it does not run PostCSS plugins. If you need a PostCSS plugin for a feature that LightningCSS does not have, run PostCSS as a step before bongo.

@@ -1,46 +1,40 @@
 ---
 title: "The Nested #each Fix in tempura"
 date: 2026-04-10
-summary: "Tracing and fixing a bug where nested #each loops produced incorrect scoped variable bindings in tempura."
-tags: tempura, bun, ssg
+summary: "How nested #each loops in tempura stopped the outer loop after one pass, and the fix."
+tags: tempura, ssg
 ---
 
-While building out bongo's blog index layout, we hit a subtle tempura bug: nested `#each` loops were shadowing the outer loop variable in a way that produced garbled output. Here's how we traced it and what the fix looked like.
+While we built bongo's blog index layout, we found a bug in tempura: an `#each` inside another `#each` stopped the outer loop after its first item. Here is how we found it, and how we fixed it.
 
 ## The symptom
 
 A layout like this:
 
 ```hbs
-{{#each $section as (post)}}
-  {{#each post.tags as (tag)}}
-    {{ post.title }} — {{ tag }}
+{{#each $section as post}}
+  {{#each post.tags as tag}}
+    {{ post.title }}: {{ tag }}
   {{/each}}
 {{/each}}
 ```
 
-Would output `{{ post.title }}` as the _inner_ loop's current item instead of the outer `post`. The outer binding was being lost the moment the inner `#each` opened its scope.
+printed the tags of the first post only. The other posts were gone.
 
-## Tracing the bug
+## The cause
 
-tempura compiles templates to a small intermediate representation before generating output. The scoped variable introduced by `as (name)` is stored in a flat environment object, keyed by name. The bug: when the inner `#each` opened, it _replaced_ the outer binding rather than extending the environment. Closing the inner loop then restored the replaced slot — but the outer variable slot was already gone.
+tempura compiles each template to one JavaScript function. Each `#each` became a `for` loop, with its index and its list in `var` names. A `var` belongs to the whole function, not to the loop. So the inner loop wrote over the index and the list of the outer loop. When the inner loop ended, the outer loop saw an index at its end, and stopped.
 
 ## The fix
 
-The fix was to make the environment a proper stack. Each `#each` block pushes a new frame; closing the block pops it. Inner bindings shadow outer ones correctly, and the outer binding is restored on pop.
+Each loop now declares its names with `let`, which belongs to the loop block alone. An inner loop gets its own index and list, and the outer loop keeps its own:
 
-```ts
-// before: flat env object, mutated in place
-env[name] = item;
+```js
+// before: one index and one list for the whole function
+for (var i = 0, $$a = list; i < $$a.length; i++) { … }
 
-// after: frame stack, push/pop
-env.push({ [name]: item });
-// ... render children ...
-env.pop();
+// after: each loop has its own
+for (let i = 0, $$a = list; i < $$a.length; i++) { … }
 ```
 
-The change was upstreamed to tempura directly rather than worked around in bongo. Fewer than 20 lines changed; all existing tests passed and the new regression test covers the nested case.
-
-## Why this matters for bongo
-
-bongo's blog index layout uses exactly this pattern — iterate `$section`, then within each post iterate `post.tags` for the tag pills. Without the fix, tag rendering was corrupting the post title. The upstream fix means any tempura user benefits, not just bongo.
+We fixed it in tempura, not around it in bongo, and added a test for nested loops. Thus every tempura user gets the fix, not only bongo.
