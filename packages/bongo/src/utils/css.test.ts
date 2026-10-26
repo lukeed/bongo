@@ -132,6 +132,19 @@ describe('bundle', () => {
 		}
 	});
 
+	test('exports the classes in one order, so that their hash stays the same from build to build', async () => {
+		let names = Array.from({ length: 24 }, (_, i) => `c${i}`);
+		let dir = await makeFixtureDir({
+			'ui.module.css': names.map(name => `.${name} { color: red; }`).join('\n'),
+		});
+		try {
+			let { exports } = await css.bundle({ entry: join(dir, 'ui.module.css') });
+			expect(Object.keys(exports!)).toEqual([...names].sort());
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	test('classes() gives the names that bundle() ships, and bundle() takes over its compile once', async () => {
 		let dir = await makeFixtureDir({
 			'button.module.css': '.red { color: red; }',

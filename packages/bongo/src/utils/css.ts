@@ -86,8 +86,9 @@ function mapExports(exp: lightningcss.CSSModuleExports | null | undefined | void
 		}
 		return names;
 	};
+	// lightningcss gives the classes in a new order each run; one order keeps the hash of the map, and the pages that link it, as they were
 	let out: Record<string, string> = {};
-	for (let key in exp) out[key] = [...expand(key, new Set())].join(' ');
+	for (let key of Object.keys(exp).sort()) out[key] = [...expand(key, new Set())].join(' ');
 	return out;
 }
 
