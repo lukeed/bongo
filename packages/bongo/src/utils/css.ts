@@ -71,13 +71,23 @@ function resolveTargets(input: Targets | undefined): lightningcss.Targets | unde
 	return input;
 }
 
-// A class that composes others needs all of their names, as CSS modules give them in JavaScript.
+// A class that composes others needs all of their names, and the names that those compose in turn, as CSS modules give them in JavaScript.
 function mapExports(exp: lightningcss.CSSModuleExports | null | undefined | void): Record<string, string> | undefined {
 	if (!exp) return undefined;
+	let keys = new Map(Object.entries(exp).map(([key, value]) => [value.name, key]));
+	let expand = (key: string, names: Set<string>): Set<string> => {
+		let entry = exp[key];
+		if (!entry || names.has(entry.name)) return names;
+		names.add(entry.name);
+		for (let ref of entry.composes) {
+			let local = ref.type === 'local' && keys.get(ref.name);
+			if (local) expand(local, names);
+			else names.add(ref.name);
+		}
+		return names;
+	};
 	let out: Record<string, string> = {};
-	for (let [k, v] of Object.entries(exp)) {
-		out[k] = [v.name, ...v.composes.map(ref => ref.name)].join(' ');
-	}
+	for (let key in exp) out[key] = [...expand(key, new Set())].join(' ');
 	return out;
 }
 
