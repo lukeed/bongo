@@ -11,6 +11,7 @@ import * as images from './utils/images';
 import * as log from './utils/log';
 import * as output from './utils/output';
 import * as bundler from './utils/bundler';
+import * as css from './utils/css';
 import { load, loadModule, LoadError } from './utils/config';
 import * as loaders from './utils/loaders';
 import * as memo from './utils/memo';
@@ -123,9 +124,26 @@ async function rendering<T>(from: string, work: () => Promise<T>): Promise<T> {
 	}
 }
 
+// Module level, since the `$assets` of compiled partials keeps it until the next build.
+const LOADER_UTILS: Loader.Utilities = {
+	frontmatter: templates.frontmatter,
+	attrs: attrs.parse,
+
+	render(name, ...args) {
+		let view = templates.Partials.get(name);
+		// @ts-ignore - strict bind/apply rule
+		if (view) return view.apply(view, args);
+		throw new Error(`Unknown "${name}" partial!`);
+	},
+
+	decode(input) {
+		return new TextDecoder().decode(input);
+	},
+};
+
 // switcheroo: templates get a reader for assets/ in place of the loader map
 // Compiled partials keep the template context until the next build, so this lives outside `run` and keeps none of the build (#59).
-function assetsFor(dir: string, renders: render.Context, base: string): (from: string, made: string[], page?: Blocks, loads?: [string, string][]) => Template.Assets {
+function assetsFor(dir: string, renders: render.Context, base: string, styles: Omit<css.BundleOptions, 'entry' | 'url'>): (from: string, made: string[], page?: Blocks, loads?: [string, string][]) => Template.Assets {
 	return (from, made, page, loads) => ({
 		async load(filename: string, encoding?: BufferEncoding) {
 			let file = join(dir, filename);
@@ -133,6 +151,14 @@ function assetsFor(dir: string, renders: render.Context, base: string): (from: s
 			let bytes = await fs.read(file);
 			loads?.push([file, memo.hash(bytes)]);
 			return encoding ? bytes.toString(encoding) : bytes;
+		},
+		async classes(filename: string) {
+			let file = join(dir, filename);
+			fs.assert(file, `Missing "${filename}" asset!`);
+			if (!css.isModule(file)) throw new Error(`${filename} is not a CSS module; name it *.module.css`);
+			let { names, files } = await css.classes({ ...styles, entry: file, cssModules: true });
+			for (let read of files) loads?.push([read, memo.hash(await fs.read(read))]);
+			return names;
 		},
 		async render(template, output, options = {}) {
 			let { html, file } = await templates.partial(template, options.args ?? {}, page);
@@ -266,6 +292,7 @@ function loadedFiles(items: Record<string, memo.Item>, extra: [string, string][]
 
 async function run(argv: Required<Argv>, inputs: Inputs, sink: output.Sink, t0: number, watch: log.Watchdog, writes: utils.Pool | undefined): Promise<void> {
 	tags.reset();
+	css.forget();
 
 	// the memo of the last good build; `bongo build` keeps it on disk
 	let previous = argv.fresh ? undefined : MEMOS.get(sink) ?? (writes ? await memo.load(argv) : undefined);
@@ -290,7 +317,8 @@ async function run(argv: Required<Argv>, inputs: Inputs, sink: output.Sink, t0: 
 		quality: images.settings({}, config.$images).quality,
 	});
 
-	let assets = assetsFor(argv.assets, renders, base);
+	// the options of each `<bongo:style>`, so that `$assets.classes` compiles a CSS module as the bundler will, and shares that compile with it
+	let assets = assetsFor(argv.assets, renders, base, { targets: config.$build.target, minify: argv.minify || undefined, assets: LOADERS, utils: LOADER_UTILS });
 
 	// renders and loads outside a page, as from a loader that calls a partial
 	let loose: string[] = [];
@@ -332,21 +360,6 @@ async function run(argv: Required<Argv>, inputs: Inputs, sink: output.Sink, t0: 
 	const prior = OUTPUT.get(sink);
 	const written: Set<string> = new Set();
 
-	const loader_utils: Loader.Utilities = {
-		frontmatter: templates.frontmatter,
-		attrs: attrs.parse,
-
-		render(name, ...args) {
-			let view = Partials.get(name);
-			// @ts-ignore - strict bind/apply rule
-			if (view) return view.apply(view, args);
-			throw new Error(`Unknown "${name}" partial!`);
-		},
-
-		decode(input) {
-			return new TextDecoder().decode(input);
-		},
-	};
 
 	// Walk 1 — scan + loader + collect.
 	// Produces an ordered list of ScanItem records without rendering layouts.
@@ -393,7 +406,7 @@ async function run(argv: Required<Argv>, inputs: Inputs, sink: output.Sink, t0: 
 
 			debug('[content.loader]', ext, '~> found');
 
-			let result = await loaders.run(input, initial, LOADERS, loader_utils, {
+			let result = await loaders.run(input, initial, LOADERS, LOADER_UTILS, {
 				isTerminal: (e) => isPage.test(e),
 			});
 
@@ -859,11 +872,13 @@ async function run(argv: Required<Argv>, inputs: Inputs, sink: output.Sink, t0: 
 		sink,
 		publicPath,
 		assets: LOADERS,
-		utils: loader_utils,
+		utils: LOADER_UTILS,
 		cache,
 		dev: argv.dev,
 		define: config.$build.define,
 	});
+
+	css.forget();
 
 	if (flushResult.errors.length > 0) {
 		for (let err of flushResult.errors) {

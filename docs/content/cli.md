@@ -106,7 +106,7 @@ Each build compares the size and the mtime of each source file with the record. 
 
 - its source file changes,
 - it reads `$pages`, `$tags`, or `$section`, and a page in that list changes its path, title, summary, section, tags, headings, or frontmatter. A page reads a list when its source, one of its layouts, or a partial that it calls names that list,
-- a file that it reads with `$assets.load` changes,
+- a file that it reads with `$assets.load` changes, or a CSS module that it reads with `$assets.classes`, or a file that the module imports,
 - a script, a stylesheet, an image, or another asset that it links changes, or a module or stylesheet that one of them imports, since the name of the output file changes. `bongo dev` names each script and stylesheet by its entry, not by its content. There, an edit to one renders only the pages that inline it or use its CSS module classes. The other pages reload and get the new file,
 - the config has `$hooks.transform`, and an output file is added, deleted, or changes its frontmatter, since the hook gets the list of output files,
 - it was a draft by its `date`, and that moment has passed,

@@ -1492,6 +1492,86 @@ describe('incremental builds', () => {
 	});
 });
 
+describe('$assets.classes', () => {
+	const unescape = (css: string) => css.replace(/\\([0-9a-f]{1,6}) ?/gi, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)));
+
+	test('gives a template the class names of a CSS module, as the stylesheet ships them', async () => {
+		let root = await site({
+			'assets/button.module.css': '.base { color: red; }\n.primary { composes: base; font-weight: bold; }',
+			'layouts/html.hbs': [
+				'{{#var css = await $assets.classes(\'button.module.css\')}}',
+				'<html><head><bongo:style src="button.module.css"></bongo:style></head>',
+				'<body><button class="{{ css.primary }}">{{{ $page.content }}}</button></body></html>',
+			].join('\n'),
+			'content/index.html': 'go',
+		});
+		try {
+			await build({ cwd: root });
+			let html = await read(root, 'index.html');
+			let [, names] = /class="([^"]+)"/.exec(html)!;
+			let [primary, base] = names.split(' ');
+			expect(primary).toEndWith('_primary');
+			expect(base).toEndWith('_base');
+			let file = /href="\/(button\.module\.[\w-]+\.css)"/.exec(html)![1];
+			let css = unescape(await read(root, file));
+			expect(css).toContain(`.${primary} {`);
+			expect(css).toContain(`.${base} {`);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('matches an inline style with --minify, and works in an output file', async () => {
+		let root = await site({
+			'assets/card.module.css': '.title { color: red; }',
+			'layouts/html.hbs': '{{#var css = await $assets.classes(\'card.module.css\')}}<html><head><bongo:style src="card.module.css" inline></bongo:style></head><body class="{{ css.title }}"></body></html>',
+			'content/index.html': '',
+			'content/names.txt.hbs': '{{#var css = await $assets.classes(\'card.module.css\')}}{{ css.title }}',
+		});
+		try {
+			await build({ cwd: root, minify: true });
+			let html = await read(root, 'index.html');
+			let name = /class="([^"]+)"/.exec(html)![1];
+			expect(unescape(html)).toContain(`.${name}{color:red}`);
+			expect(await read(root, 'names.txt')).toBe(name);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a page renders again when its CSS module changes, so a new class reaches it', async () => {
+		let root = await site({
+			'assets/b.module.css': '.red { color: red; }',
+			'layouts/html.hbs': '{{#var css = await $assets.classes(\'b.module.css\')}}<i>{{ css.blue ?? \'none\' }}</i>',
+			'content/index.html': '',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toBe('<i>none</i>');
+			await writeFile(join(root, 'assets/b.module.css'), '.red { color: red; }\n.blue { color: blue; }');
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toMatch(/^<i>[\w-]+_blue<\/i>$/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('names the file that is missing or is not a CSS module', async () => {
+		for (let [file, reason] of [['nope.module.css', 'Missing "nope.module.css" asset!'], ['plain.css', 'plain.css is not a CSS module; name it *.module.css']]) {
+			let root = await site({
+				'assets/plain.css': '.red { color: red; }',
+				'layouts/html.hbs': `{{#var css = await $assets.classes('${file}')}}{{ css.red }}`,
+				'content/index.html': '',
+			});
+			try {
+				await expect(build({ cwd: root })).rejects.toThrow(`${reason}, rendering content/index.html`);
+			} finally {
+				await rm(root, { recursive: true, force: true });
+			}
+		}
+	});
+});
+
 describe('outdir', () => {
 	const config = (build: string) => `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $build: ${build} };`;
 

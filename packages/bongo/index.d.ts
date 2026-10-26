@@ -160,6 +160,11 @@ export namespace Template {
 		 */
 		load(filename: string, encoding?: BufferEncoding): Promise<string | Buffer>;
 		/**
+		 * The class names of a CSS module in `assets/`, as its `<bongo:style>` ships them, by their names in the source. A class that composes others gives all of their names. The page still needs the `<bongo:style>` that links the stylesheet.
+		 * @example {{#var css = await $assets.classes('button.module.css')}}<button class="{{ css.primary }}">
+		 */
+		classes(filename: string): Promise<Record<string, string>>;
+		/**
 		 * Draw a partial as an image, with the values of the current page, and return the URL path of the image.
 		 * The extension of `output` picks the format: `.svg` and `.png` work everywhere, `.jpg` and `.webp` need Bun.
 		 * Without `output`, the image is a PNG named from its partial and content. Needs `satori`, and `@resvg/resvg-js` for all but SVG.
