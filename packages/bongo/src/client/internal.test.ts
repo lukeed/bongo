@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, beforeEach, spyOn } from 'bun:test';
 import { on, off } from './index';
-import { emit, reset, getBypassNext, setBypassNext, shouldIntercept } from './internal';
+import { emit, reset, getBypassNext, setBypassNext, shouldIntercept, track, rendered } from './internal';
 
 describe('event bus', () => {
 	beforeEach(() => {
@@ -212,5 +212,40 @@ describe('shouldIntercept', () => {
 		let files = ['/llms.txt', '/feed.xml', '/img/logo.png', '/config.md', '/search.json', '/clip.mp4', '/font.woff2'];
 		expect(pages.filter(path => !shouldIntercept(event(path)))).toEqual([]);
 		expect(files.filter(path => shouldIntercept(event(path)))).toEqual([]);
+	});
+
+	test('leaves a URL that a script pushes or replaces to the page, which only changes its URL', () => {
+		for (let navigationType of ['push', 'replace']) {
+			let scripted = { ...event('/?tab=2'), navigationType, destination: { url: location.origin + '/?tab=2', sameDocument: true } } as unknown as NavigateEvent;
+			expect(shouldIntercept(scripted)).toBe(false);
+		}
+	});
+
+	test('takes back or forward only to an entry of another page than the one on screen', () => {
+		let listeners: (() => void)[] = [];
+		let nav = {
+			currentEntry: { key: 'home' },
+			transition: null as object | null,
+			addEventListener: (_: string, fn: () => void) => listeners.push(fn),
+		};
+		let enter = (key: string, transition: object | null) => {
+			nav.currentEntry = { key };
+			nav.transition = transition;
+			listeners.forEach(fn => fn());
+			nav.transition = null;
+		};
+		let back = (key: string) => ({ ...event('/'), navigationType: 'traverse', destination: { url: location.origin + '/', key, sameDocument: true } }) as unknown as NavigateEvent;
+
+		track(nav as unknown as Navigation);
+		enter('tab', null);
+		expect(shouldIntercept(back('home'))).toBe(false);
+
+		enter('about', {});
+		expect(shouldIntercept(back('home'))).toBe(false);
+		rendered();
+		expect(shouldIntercept(back('home'))).toBe(true);
+		expect(shouldIntercept(back('tab'))).toBe(true);
+		expect(shouldIntercept(back('about'))).toBe(false);
+		expect(shouldIntercept(back('unknown'))).toBe(true);
 	});
 });
