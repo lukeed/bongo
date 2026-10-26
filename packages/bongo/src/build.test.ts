@@ -1503,6 +1503,25 @@ describe('incremental builds', () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test('a page that links a CSS module, or reads its classes, stays as it is when nothing changed', async () => {
+		let classes = Array.from({ length: 24 }, (_, i) => `.c${i} { color: red; }`).join('\n');
+		let root = await site({
+			...sources(),
+			'assets/ui.module.css': classes,
+			'layouts/html.hbs': '{{#var ui = await $assets.classes("ui.module.css")}}<html><bongo:style src="ui.module.css" /><main class="{{ ui.c3 }}">{{{ $page.content }}}</main></html>',
+		});
+		try {
+			await build({ cwd: root });
+			rendered();
+			for (let i = 0; i < 3; i++) {
+				await build({ cwd: root });
+				expect(rendered()).toEqual([]);
+			}
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });
 
 describe('$assets.classes', () => {
