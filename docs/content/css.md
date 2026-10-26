@@ -1,6 +1,6 @@
 ---
 title: CSS
-summary: How bongo builds CSS with LightningCSS, including CSS modules, packages in @import, and files in url().
+summary: How bongo builds CSS with LightningCSS, including @import, packages in @import, CSS modules, and files in url().
 group: Guides
 order: 9
 ---
@@ -18,6 +18,20 @@ LightningCSS adds prefixes and lowers newer syntax, such as nesting, for the [bu
 The `src` is relative to `assets/`. bongo emits a `<link rel="stylesheet">` to the built file. With `inline`, it splices the built CSS into a `<style>` block. See [`<bongo:style>`](/special-elements/#bongostyle) for all attributes.
 
 With `--minify`, LightningCSS minifies every stylesheet, inline ones included. See [Minify](/cli/#minify).
+
+## `@import`
+
+An `@import` puts the file that it names into the stylesheet that imports it. Each stylesheet that a `<bongo:style>` links builds to one file, with all of its imports in it, so the browser makes no request for an import.
+
+```css [assets/app.css]
+@import "./reset.css" layer(reset);
+@import "./print.css" print;
+@import "./theme/colors.css";
+```
+
+A relative path resolves against the file that contains the `@import`, so an imported file can import others. A `layer()`, `supports()`, or media query on the `@import` stays on the imported rules: `./reset.css` above lands in `@layer reset`, and `./print.css` in `@media print`. An `@import` can also name a package; see [Packages in `@import`](#packages-in-import).
+
+A change to an imported file rebuilds each stylesheet that imports it, in `bongo build` and in `bongo dev`. A missing file fails the build, with an error that names the `@import` and the CSS file that contains it.
 
 ## CSS modules
 
@@ -38,11 +52,25 @@ A `.module.css` file is a CSS module: LightningCSS gives each of its class names
 
 bongo compiles the stylesheet once for both: `$assets.classes()` starts the compile, and the bundle uses it. A page that reads the classes renders again when the stylesheet, or a file that it imports, changes. A file that is not a `.module.css` fails the build, since its classes ship as written.
 
+A class can compose a class of another CSS module:
+
+```css [assets/button.module.css]
+.primary { composes: base from "./base.module.css"; background: #ffd23f; }
+```
+
+bongo puts the rules of `base.module.css` in the same stylesheet, and `css.primary` gives the names of both classes.
+
+An `@import` in a CSS module gives the classes of the imported file a hash too, but `$assets.classes()` has only the classes of the module itself. Thus no template can name an imported class. To use a class of another file, compose it, as above. To keep plain CSS global, link it with its own `<bongo:style>`.
+
 To turn off the auto-detection for a `.module.css` file, add `global` to its element:
 
 ```hbs
 <bongo:style src="theme.module.css" global></bongo:style>
 ```
+
+## Stylesheets and scripts
+
+A script cannot import a stylesheet: such a build fails. Add the stylesheet to a layout with `<bongo:style>`. When a template needs the class names of a CSS module, read them with `$assets.classes()`, as [CSS modules](#css-modules) shows.
 
 ## Packages in `@import`
 
