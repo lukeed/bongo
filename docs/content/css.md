@@ -21,7 +21,22 @@ With `--minify`, LightningCSS minifies every stylesheet, inline ones included. S
 
 ## CSS modules
 
-`.module.css` files automatically enable CSS modules.
+A `.module.css` file is a CSS module: LightningCSS gives each of its class names a hash, so that it cannot clash with a class of another stylesheet. Read the new names in a template with `$assets.classes()`:
+
+```css [assets/button.module.css]
+.base { border-radius: 6px; }
+.primary { composes: base; background: #ffd23f; }
+```
+
+```hbs [layouts/html.hbs]
+{{#var css = await $assets.classes('button.module.css')}}
+<bongo:style src="button.module.css"></bongo:style>
+<button class="{{ css.primary }}">Save</button>
+```
+
+`$assets.classes()` returns an object of the new names, keyed by the names in the source. A class that `composes` others gives all of their names, such as `-x7Ka_primary -x7Ka_base`. A name that the file does not have is `undefined`. The page still needs the `<bongo:style>` that links the stylesheet.
+
+bongo compiles the stylesheet once for both: `$assets.classes()` starts the compile, and the bundle uses it. A page that reads the classes renders again when the stylesheet, or a file that it imports, changes. A file that is not a `.module.css` fails the build, since its classes ship as written.
 
 To turn off the auto-detection for a `.module.css` file, add `global` to its element:
 

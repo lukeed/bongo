@@ -56,7 +56,7 @@ bongo never follows a symlink in the output folder. It deletes a symlink that a 
 
 ### Incremental builds
 
-A build renders only the pages that a change reaches; the other pages keep their files from the last build. `bongo build` keeps a record of its last good build in `node_modules/.cache/bongo/memo.json`, and `bongo dev` keeps it in memory. Each build reads and hashes only the source files whose size or mtime changed since the record, and compares those hashes with it; a file that changed less than 2 seconds before a build is read again by the next. A page renders again when its source changes; when it reads `$pages`, `$tags`, or `$section` through its source, layouts, or partials, and a page in that list changes its path, title, summary, section, tags, headings, or frontmatter; when a file that it reads with `$assets.load` changes; when an asset that it links changes, or a module or stylesheet that the asset imports; when the config has `$hooks.transform` and an output file is added, deleted, or changes its frontmatter; or when its file in the output folder changed or is gone.
+A build renders only the pages that a change reaches; the other pages keep their files from the last build. `bongo build` keeps a record of its last good build in `node_modules/.cache/bongo/memo.json`, and `bongo dev` keeps it in memory. Each build reads and hashes only the source files whose size or mtime changed since the record, and compares those hashes with it; a file that changed less than 2 seconds before a build is read again by the next. A page renders again when its source changes; when it reads `$pages`, `$tags`, or `$section` through its source, layouts, or partials, and a page in that list changes its path, title, summary, section, tags, headings, or frontmatter; when a file that it reads with `$assets.load` changes, or a CSS module that it reads with `$assets.classes`, or a file that the module imports; when an asset that it links changes, or a module or stylesheet that the asset imports; when the config has `$hooks.transform` and an output file is added, deleted, or changes its frontmatter; or when its file in the output folder changed or is gone.
 
 Every page renders again when the config changes, or a local file that it imports, `data/`, `layouts/`, `partials/`, the lockfile, the version of bongo, the runtime, `--minify`, or `--drafts`. Output files and data modules render on every build. `bongo dev` names each script and stylesheet by its entry, not by its content, so an edit to one renders only the pages that inline it or use its CSS module classes.
 
@@ -749,7 +749,13 @@ The partial must have one root element. Set styles with the `style` attribute. D
 
 All CSS is handled by [LightningCSS](https://lightningcss.dev): `@import` bundling, autoprefixing, nesting, and optional minification. Prefixes and lowered syntax follow the [build target](#build-targets), which is `'defaults'` unless you set it.
 
-`.module.css` files automatically enable CSS modules.
+`.module.css` files automatically enable CSS modules: LightningCSS gives each class name a hash. `$assets.classes(filename)` returns the new names, keyed by the names in the source, as the stylesheet ships them. A class that `composes` others gives all of their names. The page still needs the `<bongo:style>` of the stylesheet, and the stylesheet compiles once for both. A file that is not a `.module.css` fails the build.
+
+```hbs
+{{#var css = await $assets.classes('button.module.css')}}
+<bongo:style src="button.module.css"></bongo:style>
+<button class="{{ css.primary }}">Save</button>
+```
 
 ### Packages in `@import`
 

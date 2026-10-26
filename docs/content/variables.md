@@ -183,7 +183,7 @@ The helper functions, such as `{{ $utils.date.format($page.params.date, { dateSt
 
 ## `$assets`
 
-An object with two methods for the files of `assets/`.
+An object with three methods for the files of `assets/`.
 
 `load(filename, encoding?)` reads a file from `assets/` and returns a promise of its text, or of a `Buffer` when you give no `encoding`. A missing file fails the build. Inline an icon:
 
@@ -199,6 +199,15 @@ An object with two methods for the files of `assets/`.
 ```
 
 See [Dynamic images](/dynamic-images/) and [Open Graph images](/open-graph-images/).
+
+`classes(filename)` returns a promise of the class names of a CSS module, as its `<bongo:style>` ships them:
+
+```hbs
+{{#var css = await $assets.classes('button.module.css')}}
+<button class="{{ css.primary }}">Save</button>
+```
+
+See [CSS modules](/css/#css-modules).
 
 ## `params`
 

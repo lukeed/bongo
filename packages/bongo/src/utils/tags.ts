@@ -4,6 +4,7 @@ import * as mime from 'mrmime';
 
 import * as attrs from './attrs';
 import * as bundler from './bundler';
+import * as css from './css';
 import * as fs from './fs';
 import * as images from './images';
 
@@ -105,8 +106,6 @@ function bool(v: unknown): boolean {
 function off(v: unknown): boolean {
 	return v === false || v === 'false';
 }
-
-const MODULE_FILE = /\.module\.css$/;
 
 const ATTR_ESCAPE: Record<string, string> = { '&': '&amp;', '"': '&quot;' };
 
@@ -326,7 +325,7 @@ export function scanBongoTags(
 		if (kind === 'style') {
 			// `global` opts out of CSS-modules auto-detect. Default: any *.module.css
 			// source gets CSS modules scoping.
-			let cssModules = !bool(props.global) && MODULE_FILE.test(src);
+			let cssModules = !bool(props.global) && css.isModule(src);
 
 			let placeholder = bundler.register(entry, {
 				kind: 'css',
