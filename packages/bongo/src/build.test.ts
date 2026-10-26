@@ -463,6 +463,38 @@ describe('urls', () => {
 	});
 });
 
+describe('trailingSlash', () => {
+	test('false writes each page as a file, and its path ends without a slash', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/sub', title: 'T', lang: 'en' }, $build: { trailingSlash: false } };`,
+			'layouts/html.hbs': '{{ $page.path }} {{ $page.url }}',
+			'content/index.html': '',
+			'content/about.html': '',
+			'content/blog/index.html': '',
+			'content/blog/post.html': '',
+			'content/team.html': '---\nurl: /people/\n---\n',
+			'content/missing.html': '---\nurl: /404.html\n---\n',
+			'content/paths.json.ts': 'export default ({ $pages }) => $pages.map(p => p.path).sort();',
+		});
+		try {
+			await build({ cwd: root });
+			let pages: Record<string, string> = {
+				'index.html': '/sub/ https://example.com/sub/',
+				'about.html': '/sub/about https://example.com/sub/about',
+				'blog.html': '/sub/blog https://example.com/sub/blog',
+				'blog/post.html': '/sub/blog/post https://example.com/sub/blog/post',
+				'people.html': '/sub/people https://example.com/sub/people',
+				'404.html': '/sub/404.html https://example.com/sub/404.html',
+			};
+			for (let [file, text] of Object.entries(pages)) expect({ file, text: await read(root, file) }).toEqual({ file, text });
+			expect(JSON.parse(await read(root, 'paths.json'))).toEqual(['/sub/', '/sub/404.html', '/sub/about', '/sub/blog', '/sub/blog/post', '/sub/people']);
+			for (let folder of ['about', 'people', 'blog/post']) expect(existsSync(join(root, 'public', folder))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('$assets.load', () => {
 	test('reads a file of assets/, and names a missing one', async () => {
 		let root = await site({ 'layouts/html.hbs': '{{{ $page.content }}}', 'assets/hi.txt': 'hello', 'content/index.hbs': `{{ await $assets.load('hi.txt', 'utf8') }}` });

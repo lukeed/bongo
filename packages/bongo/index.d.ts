@@ -293,6 +293,11 @@ export interface Config {
 		 */
 		define?: Record<string, string>;
 		/**
+		 * Whether page URLs end in a slash. With `false`, `content/blog/post.md` is `/blog/post`, written as `blog/post.html`, and `content/blog/index.md` is `/blog`, written as `blog.html`.
+		 * @default true
+		 */
+		trailingSlash?: boolean;
+		/**
 		 * The folder to write the site to, from the project folder. bongo owns this folder: it deletes each file in it that the build does not write, and a failed build empties it. The `--outdir` flag wins over it.
 		 * @default 'public'
 		 * @example $build: { outdir: 'web/public' }

@@ -55,6 +55,10 @@ The dev server serves a file that bongo only copies from `content/`, such as a P
 
 `bongo dev` does not encode images when it builds, so the first build stays fast. The server encodes each image file the first time that the browser asks for it. See [Images in dev](/images/#images-in-dev).
 
+## Trailing slashes
+
+`bongo dev` serves each page at the URL path of its file, as a static host does: `public/about/index.html` at `/about/`, and `public/about.html` at `/about`. A request with the other trailing slash gets a redirect to that path, with its query. Thus relative URLs in a page resolve the same in dev as on the host. See [Without trailing slashes](/content/#without-trailing-slashes).
+
 ## Not found pages
 
 When `$site.url` has a subpath, such as `https://example.com/blog/`, `bongo dev` serves the site under `/blog/`, as a host does, and redirects `/` there.

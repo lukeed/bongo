@@ -129,7 +129,7 @@ Turn off prefetch without forcing a full-page load:
 <a href="/logout" prefetch:disable>Log out</a>
 ```
 
-A link to a file, such as `/llms.txt` or `/feed.xml`, loads as it would without the client, and prefetch skips it. The client takes a link whose path ends in a folder, a name with no extension, or `.html`. When the response to such a link is not HTML, the browser loads it instead.
+A link to a file, such as `/llms.txt` or `/feed.xml`, loads as it would without the client, and prefetch skips it. The client takes a link whose path ends in a folder, in `.html`, or in a name with no file extension, such as `/about` or `/v1.1.0`. When the response to such a link is not HTML, the browser loads it instead.
 
 ## Stylesheets
 
