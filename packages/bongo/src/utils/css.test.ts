@@ -118,6 +118,20 @@ describe('bundle', () => {
 		}
 	});
 
+	test('a class gets the names that its composed classes compose in turn, once each', async () => {
+		let dir = await makeFixtureDir({
+			'ui.module.css': '.surface { color: red; }\n.frame { composes: surface; }\n.main { composes: frame; }\n.wide { composes: main surface; }',
+		});
+		try {
+			let { exports } = await css.bundle({ entry: join(dir, 'ui.module.css') });
+			let local = (key: string) => exports![key].split(' ')[0];
+			expect(exports!.main).toBe([local('main'), local('frame'), local('surface')].join(' '));
+			expect(exports!.wide).toBe([local('wide'), local('main'), local('frame'), local('surface')].join(' '));
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	test('classes() gives the names that bundle() ships, and bundle() takes over its compile once', async () => {
 		let dir = await makeFixtureDir({
 			'button.module.css': '.red { color: red; }',
