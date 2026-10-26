@@ -36,9 +36,9 @@ If the config or a data file fails to load, the error overlay shows the error, a
 
 ## Output in memory
 
-The dev server keeps each build in memory and serves it from there, as Vite does. It does not read or write `public/`. Thus you can run `bongo build` while `bongo dev` runs: neither one changes the output of the other.
+The dev server keeps each build in memory and serves it from there, as Vite does. It does not read or write the output folder. Thus you can run `bongo build` while `bongo dev` runs: neither one changes the output of the other.
 
-To see the dev output as files, run `bongo dev --write`. Then dev also writes its output to `public/`. See [Output folder](/cli/#output-folder).
+To see the dev output as files, run `bongo dev --write`. Then dev also writes its output to the output folder, `public/` by default. See [Output folder](/cli/#output-folder).
 
 The dev server serves a file that bongo only copies from `content/`, such as a PDF, from its source. Thus an edit to it shows at once.
 

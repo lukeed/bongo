@@ -93,7 +93,7 @@ bongo keeps each drawing in `node_modules/.cache/bongo/render`. The key is a has
 The build fails with a message that names the cause when:
 
 - two pages draw different images to the same `output`;
-- `output` is a file of the site, or a path outside `public/`;
+- `output` is a file of the site, or a path outside the output folder;
 - the template has no root element, or more than one;
 - the template has text, but declares no fonts;
 - a font is WOFF2, or a file is not in `assets/`;

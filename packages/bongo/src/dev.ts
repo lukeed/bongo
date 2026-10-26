@@ -9,7 +9,7 @@ import * as output from './utils/output';
 import * as utils from './utils/index';
 import { build, imports, loaded, prepare } from './build';
 import { LoadError } from './utils/config';
-import { normalize } from './utils/argv';
+import { normalize, outdir } from './utils/argv';
 
 import type { Argv } from 'bongo';
 import type { BuildOptions, Inputs } from './build';
@@ -84,8 +84,8 @@ export async function dev(argv: Argv) {
 
 	const flags = argv as Required<Argv>;
 
-	// The output lives in memory, so a `bongo build` of the same site never clobbers it; `--write` also writes public/.
-	const sink = output.memory(flags.dest, flags.write ? output.disk(flags) : undefined);
+	// The output lives in memory, so a `bongo build` of the same site never clobbers it; `--write` also writes the output folder, once the config names it.
+	const sink = output.memory(flags.dest);
 
 	// Start server before build so the banner + URL appear instantly; page requests wait until the first build settles.
 	let built!: () => void;
@@ -202,14 +202,17 @@ export async function dev(argv: Argv) {
 	async function reload(): Promise<boolean> {
 		try {
 			var next = await prepare(argv);
+			if (flags.write) await sink.mirror(output.disk({ ...flags, dest: outdir(flags, next.config) }));
 		} catch (err) {
 			let failed = utils.cause(err, LoadError);
-			let message = err instanceof Error ? err.message : String(err);
+			let fix = utils.runtime(err, 'dev');
+			let more = fix ? '\n' + fix : '';
+			let message = (err instanceof Error ? err.message : String(err)) + more;
 			failed?.files.forEach(file => tracked.add(file));
 			stop();
 			stop = await follow();
 			log.error(message);
-			report([failed ? failed.error : { message }]);
+			report([failed ? { ...failed.error, message: failed.error.message + more } : { message }]);
 			return false;
 		}
 

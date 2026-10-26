@@ -346,6 +346,10 @@ async function flushJsGroup(
 		},
 		transform,
 		plugins,
+		// an import that does not resolve would ship as written, and fail in the browser
+		onLog(level, log, handler) {
+			handler(log.code === 'UNRESOLVED_IMPORT' ? 'error' : level, log);
+		},
 	});
 
 	try {

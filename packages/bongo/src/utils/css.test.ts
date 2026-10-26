@@ -105,6 +105,110 @@ describe('bundle', () => {
 		}
 	});
 
+	test('a class that composes others exports every name it needs, as CSS modules in JavaScript do', async () => {
+		let dir = await makeFixtureDir({
+			'button.module.css': '.base { color: red; }\n.btn { composes: base; font-weight: bold; }',
+		});
+		try {
+			let { exports } = await css.bundle({ entry: join(dir, 'button.module.css') });
+			expect(exports!.btn).toBe(`${exports!.btn.split(' ')[0]} ${exports!.base}`);
+			expect(exports!.btn.split(' ')[0]).toEndWith('_btn');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('a class gets the names that its composed classes compose in turn, once each', async () => {
+		let dir = await makeFixtureDir({
+			'ui.module.css': '.surface { color: red; }\n.frame { composes: surface; }\n.main { composes: frame; }\n.wide { composes: main surface; }',
+		});
+		try {
+			let { exports } = await css.bundle({ entry: join(dir, 'ui.module.css') });
+			let local = (key: string) => exports![key].split(' ')[0];
+			expect(exports!.main).toBe([local('main'), local('frame'), local('surface')].join(' '));
+			expect(exports!.wide).toBe([local('wide'), local('main'), local('frame'), local('surface')].join(' '));
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('exports the classes in one order, so that their hash stays the same from build to build', async () => {
+		let names = Array.from({ length: 24 }, (_, i) => `c${i}`);
+		let dir = await makeFixtureDir({
+			'ui.module.css': names.map(name => `.${name} { color: red; }`).join('\n'),
+		});
+		try {
+			let { exports } = await css.bundle({ entry: join(dir, 'ui.module.css') });
+			expect(Object.keys(exports!)).toEqual([...names].sort());
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('classes() gives the names that bundle() ships, and bundle() takes over its compile once', async () => {
+		let dir = await makeFixtureDir({
+			'button.module.css': '.red { color: red; }',
+		});
+		let opts = { entry: join(dir, 'button.module.css'), minify: true, targets: 'defaults', url: async (file: string) => file };
+		try {
+			let { names, files } = await css.classes(opts);
+			expect(files.map(([file]) => file)).toEqual([opts.entry]);
+			await writeFile(opts.entry, '.red { color: blue; }');
+			let shared = await css.bundle(opts);
+			expect(shared.exports).toEqual(names);
+			expect(shared.code.toString()).toContain('color:red');
+			let fresh = await css.bundle(opts);
+			expect(fresh.code.toString()).toContain('color:#00f');
+		} finally {
+			css.forget();
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('classes() refuses a stylesheet that is not a CSS module, since its names ship as written', async () => {
+		let dir = await makeFixtureDir({
+			'plain.css': '.red { color: red; }',
+		});
+		try {
+			await expect(css.classes({ entry: join(dir, 'plain.css') })).rejects.toThrow('is not a CSS module; name it *.module.css');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('classes() compiles and hashes a module once for each build, with the hash of what it read', async () => {
+		let dir = await makeFixtureDir({
+			'button.module.css': '.red { color: red; }',
+		});
+		let opts = { entry: join(dir, 'button.module.css') };
+		try {
+			let first = await css.classes(opts);
+			await writeFile(opts.entry, '.red { color: blue; }');
+			expect(await css.classes(opts)).toBe(first);
+			css.forget();
+			let next = await css.classes(opts);
+			expect(next.files[0][1]).not.toBe(first.files[0][1]);
+		} finally {
+			css.forget();
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('forget() drops a compile that no bundle took over', async () => {
+		let dir = await makeFixtureDir({
+			'button.module.css': '.red { color: red; }',
+		});
+		let opts = { entry: join(dir, 'button.module.css') };
+		try {
+			await css.classes(opts);
+			await writeFile(opts.entry, '.red { color: blue; }');
+			css.forget();
+			expect((await css.bundle(opts)).code.toString()).toContain('color: #00f');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	test('opt-in CSS modules via cssModules=true on a non-.module.css file', async () => {
 		let dir = await makeFixtureDir({
 			'plain.css': '.red { color: red; }',

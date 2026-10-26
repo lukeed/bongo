@@ -389,5 +389,10 @@ export async function load(root: string): Promise<Loaded> {
 	merge(output, (user.exports.default as Partial<Config>) || (user.exports as Partial<Config>));
 	output.$build.target ||= 'defaults';
 
+	let { outdir } = output.$build;
+	if (outdir !== undefined && (typeof outdir !== 'string' || !outdir.trim())) {
+		throw new Error(`$build.outdir must name a folder, such as 'web/public'; got ${JSON.stringify(outdir)}`);
+	}
+
 	return { config: output, files: user.files };
 }

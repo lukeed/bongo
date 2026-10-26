@@ -1,46 +1,46 @@
 ---
 title: The Two-Pass Render
 date: 2026-02-05
-summary: How bongo's two-walk build pipeline separates content compilation from layout rendering, and what that means for template authors.
+summary: How bongo reads all content before it renders a page, and why every template can then list the other pages.
 tags: architecture, ssg
 ---
 
-bongo builds pages in two passes. Understanding why makes it easier to write templates that work.
+bongo builds pages in two passes. When you know why, it is easier to write templates that list other pages.
 
-## Walk 1 — content scan
+## Walk 1: read the content
 
-The first walk scans every file in `content/`. For each file:
+The first walk reads each file in `content/`. For each file:
 
-1. **Loaders** run in sequence. A `.md` file goes through the markdown loader and becomes HTML. A `.hbs` file is compiled by tempura.
-2. **Frontmatter** is parsed into `params`.
-3. **Assets** (CSS, JS) referenced in layouts are registered for bundling.
+1. It parses the frontmatter into `params`.
+2. It runs the loaders. The Markdown loader turns a `.md` file into HTML, and gives its headings.
+3. It records the page: its path, title, summary, section, tags, and headings.
 
-After walk 1, bongo has a flat list of pages with compiled content bodies, but it doesn't know anything about the _relationships_ between pages yet.
+After walk 1, bongo knows every page, but it has rendered no layout yet.
 
-## Between walks — registry build
+## Between the walks: the registries
 
-Between the two walks, bongo assembles three registries:
+Then bongo makes three registries from those records:
 
-- `$pages` — every page on the site
-- `$section` — pages that share a directory prefix with the current page
-- `$tags` — pages grouped by tag
+- `$pages`: every page of the site, sorted by path.
+- `$section`: the pages in the same folder as the current page, its index page and the page itself included.
+- `$tags`: one entry for each tag, with the pages that have it.
 
-These are sorted and deduplicated. The sort is path-ascending by default, so a blog index's `$section` arrives in alphabetical order. Layouts can re-sort using a `$utils` helper.
+The sort is by path, so a blog index gets its posts in alphabetical order. A `$utils` helper can sort them again, such as by date.
 
-## Walk 2 — layout render
+## Walk 2: render
 
-The second walk iterates the same page list and renders each page through its layout chain. Because the registries exist now, layouts can iterate `$section` to build an index list, or `$tags` to build a tag cloud.
+The second walk renders each page. It compiles the body of each `.hbs` content file, then renders the page through its layouts. The registries exist now, so `.hbs` content, layouts, and partials can all loop over `$section` or `$tags`:
 
 ```hbs
-{{#each $section as (p)}}
-  {{#if p.path !== $page.path}}
-    <a href="{{ p.path }}">{{ p.title }}</a>
+{{#each $utils.sortByDate($section) as post}}
+  {{#if post.path !== $page.path}}
+    <a href="{{ post.path }}">{{ post.title }}</a>
   {{/if}}
 {{/each}}
 ```
 
-## The constraint on .hbs content
+One value is missing while a page renders its own body: `$page.content` is still empty, since that body is what the render makes.
 
-`.hbs` content bodies are compiled in walk 1, before the registries exist. That means `$page`, `$section`, `$pages`, and `$tags` are not available inside a `.hbs` content file. Only `$site`, `$utils`, and `params` are in scope.
+## Only what changed
 
-If you need to iterate sibling pages in content, move that logic into the layout.
+bongo keeps a record of the last build. A page that no change reached keeps its file from the last build, and runs no loader. A change to a page's title or tags renders again each page that lists it through `$pages`, `$section`, or `$tags`.

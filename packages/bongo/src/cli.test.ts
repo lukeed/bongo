@@ -59,6 +59,7 @@ describe('bongo cli', () => {
 		expect(help.code).toBe(0);
 		expect(help.out).toContain('bongo <command> [options]');
 		expect(help.out).toContain('-p, --port');
+		expect(help.out).toContain('-o, --outdir     Folder to write the site to');
 		expect(help.out).toContain('--drafts     Build drafts; --no-drafts leaves them out');
 	});
 
@@ -84,6 +85,46 @@ describe('bongo cli', () => {
 			expect(existsSync(join(root, 'public/index.html'))).toBe(true);
 			expect(out).toContain('[DEBUG]');
 			expect(out).toMatch(/minify: true/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+
+	test('writes the site to the folder that -o or --outdir names', async () => {
+		let root = await site();
+		try {
+			let short = await run(['build', '-C', root, '-o', 'dist']);
+			if (short.code !== 0) throw new Error(short.out);
+			expect(existsSync(join(root, 'dist/index.html'))).toBe(true);
+			expect(existsSync(join(root, 'public'))).toBe(false);
+			let long = await run(['build', '-C', root, '--outdir', 'web/out']);
+			if (long.code !== 0) throw new Error(long.out);
+			expect(existsSync(join(root, 'web/out/index.html'))).toBe(true);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+
+	test('under Node, says to run with Bun when the config, a layout, or a partial calls a Bun API', async () => {
+		let root = await site();
+		let fix = 'bongo runs in Node, which has no Bun APIs; run it with Bun: bun --bun bongo build';
+		try {
+			await writeFile(join(root, 'bongo.config.mjs'), `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $utils: { md: s => Bun.markdown.html(s) } };`);
+			await writeFile(join(root, 'layouts/html.hbs'), '{{{ $utils.md("x") }}}');
+			let layout = await run(['build', '-C', root]);
+			expect(layout.code).toBe(1);
+			expect(layout.out).toContain('Bun is not defined, rendering content/index.html → layouts/html.hbs\n' + fix);
+
+			await mkdir(join(root, 'partials'));
+			await writeFile(join(root, 'partials/p.hbs'), '{{{ $utils.md("x") }}}');
+			await writeFile(join(root, 'layouts/html.hbs'), '{{#partial src="p"}}');
+			let partial = await run(['build', '-C', root]);
+			expect(partial.out).toContain(fix);
+			expect(partial.out).not.toContain('{{#expect');
+
+			await writeFile(join(root, 'bongo.config.mjs'), `export default { $site: { url: 'https://example.com/', title: Bun.version, lang: 'en' } };`);
+			let config = await run(['build', '-C', root]);
+			expect(config.out).toContain(fix);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

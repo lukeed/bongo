@@ -61,8 +61,10 @@
     },
     "packages/bongo": {
       "name": "@bongo/bongo",
-      "version": "1.0.0",
-      "bin": "bin.js",
+      "version": "1.1.0",
+      "bin": {
+        "bongo": "bin.js",
+      },
       "dependencies": {
         "browserslist": "^4.29.3",
         "kleur": "^4.1.5",
@@ -70,7 +72,7 @@
         "mrmime": "^2.0.1",
         "resolve.exports": "^2.0.4",
         "rolldown": "^1.2.14",
-        "tempura": "^1.0.0",
+        "tempura": "^1.0.1",
       },
       "devDependencies": {
         "@resvg/resvg-js": "^2.6.2",
@@ -87,16 +89,16 @@
     },
     "packages/create-bongo": {
       "name": "create-bongo",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "bin": "bin.js",
     },
     "packages/plugin.feed": {
       "name": "@bongo/feed",
-      "version": "1.0.0",
+      "version": "1.1.0",
     },
     "packages/plugin.markdown": {
       "name": "@bongo/markdown",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "dependencies": {
         "md4x": "^0.0.30",
       },
@@ -614,7 +616,7 @@
 
     "supports-color": ["supports-color@10.2.2", "", {}, "sha512-SS+jx45GF1QjgEXQx4NJZV9ImqmO2NPz5FNsIHrsDjh2YsHnawpan7SNQ1o8NuhrbHZy9AZhIoCUiCeaW/C80g=="],
 
-    "tempura": ["tempura@1.0.0", "", { "peerDependencies": { "esbuild": "*", "rolldown": "*", "vite": "*" }, "optionalPeers": ["esbuild", "rolldown", "vite"] }, "sha512-cC2oop3G6mN9HrjudKurpQllBLKJls4noaa5DyZ9yPSLvfFi7p8dHWhQ2BSaLmhdya3H4KUKkawgyCeX20RsEA=="],
+    "tempura": ["tempura@1.0.1", "", { "peerDependencies": { "esbuild": "*", "rolldown": "*", "vite": "*" }, "optionalPeers": ["esbuild", "rolldown", "vite"] }, "sha512-e+UZLCLRyG6p5Pb7fK69emcrOaqncob8XoAePNWAH+Y+PeZKQX6fm2f4vaamBzhnQNOAQws2WFSDG7KNs2oRjQ=="],
 
     "tiny-inflate": ["tiny-inflate@1.0.3", "", {}, "sha512-pkY1fj1cKHb2seWDy0B16HeWyczlJA9/WW3u3c4z/NiWDsO3DOU5D7nhTLE9CF0yXv/QZFY7sEJmj24dK+Rrqw=="],
 

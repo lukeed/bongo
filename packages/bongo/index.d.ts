@@ -6,8 +6,10 @@ export interface Argv {
 	cwd: string;
 	dev?: boolean;
 	minify?: boolean;
-	/** `bongo dev` only: also write the output to `public/`. @default false */
+	/** `bongo dev` only: also write the output to the output folder. @default false */
 	write?: boolean;
+	/** The folder to write the site to, from `cwd`. It wins over `$build.outdir`. @default 'public' */
+	outdir?: string;
 	/** Render every page, and ignore what the last build kept. @default false */
 	fresh?: boolean;
 	/** Build each draft: a page with `draft: true`, or a `date` after the build starts, unless it has `draft: false`. @default false, and true for `bongo dev` */
@@ -158,6 +160,11 @@ export namespace Template {
 		 */
 		load(filename: string, encoding?: BufferEncoding): Promise<string | Buffer>;
 		/**
+		 * The class names of a CSS module in `assets/`, as its `<bongo:style>` ships them, by their names in the source. A class that composes others gives all of their names. The page still needs the `<bongo:style>` that links the stylesheet.
+		 * @example {{#var css = await $assets.classes('button.module.css')}}<button class="{{ css.primary }}">
+		 */
+		classes(filename: string): Promise<Record<string, string>>;
+		/**
 		 * Draw a partial as an image, with the values of the current page, and return the URL path of the image.
 		 * The extension of `output` picks the format: `.svg` and `.png` work everywhere, `.jpg` and `.webp` need Bun.
 		 * Without `output`, the image is a PNG named from its partial and content. Needs `satori`, and `@resvg/resvg-js` for all but SVG.
@@ -290,6 +297,12 @@ export interface Config {
 		 * @default true
 		 */
 		trailingSlash?: boolean;
+		/**
+		 * The folder to write the site to, from the project folder. bongo owns this folder: it deletes each file in it that the build does not write, and a failed build empties it. The `--outdir` flag wins over it.
+		 * @default 'public'
+		 * @example $build: { outdir: 'web/public' }
+		 */
+		outdir?: string;
 	};
 	$images?: Images.Options;
 	$hooks?: Build.Hooks;

@@ -1,30 +1,28 @@
 ---
 title: Shipping bongo on Bun Workspaces
 date: 2026-03-01
-summary: How bongo's monorepo is structured with Bun workspaces, and why we chose that toolchain over alternatives.
+summary: How bongo's monorepo is laid out with Bun workspaces, and how a release goes to npm.
 tags: bun, architecture, ssg
 ---
 
-bongo is a monorepo. The core `bongo` package lives alongside `@bongo/markdown` and an `example` site that doubles as a build benchmark. Getting the toolchain right took a few iterations.
+bongo is a monorepo. The `bongo` package lives next to `@bongo/markdown`, `@bongo/feed`, and `create-bongo`. The docs site and an example site live there too. The toolchain took a few tries to get right.
 
 ## Why Bun workspaces
 
-The alternatives were `pnpm workspaces` and `npm workspaces`. Both work fine, but Bun workspaces gave us three things for free:
+The other choices were pnpm and npm workspaces. Both work, but Bun gave us three things with no setup:
 
-1. **Native TypeScript** — no separate compilation step for internal packages. `bongo` imports from `@bongo/markdown` and Bun resolves it directly from source.
-2. **Fast installs** — Bun's lockfile format and parallel fetcher are noticeably faster on cold installs.
-3. **Built-in test runner** — `bun test` runs the full suite across all workspace packages without configuration.
+1. **TypeScript as it is**: Bun runs the TypeScript sources and the tests with no compile step.
+2. **Fast installs**: cold installs are much faster.
+3. **A test runner**: `bun test` runs the tests of every package.
 
-The workspace root's `package.json` lists all packages under `workspaces`. Bun links them via `node_modules` symlinks on install, so cross-package imports just work.
+The root `package.json` lists each package under `workspaces`. Bun links them into `node_modules`, so imports between packages work.
 
-## The binary
+## The build
 
-`bongo` ships a single `bin.js` entry point that's called with `bun run`. Internally it delegates to `build()` or `dev()` based on the subcommand. There's no separate compile step — Bun runs the TypeScript directly.
+`bun run build` bundles each package with Rolldown, the tool that bongo also uses for your scripts. Each package ships plain JavaScript and its type declarations, so bongo runs in Bun, Deno, and Node 24 or later. The `bongo` command is a small `bin.js` that starts with Node.
 
-## Release workflow
+Type checks are two plain runs: `bunx tsc -p .` for the packages, and `bunx tsc -p build` for the build scripts.
 
-Publishing uses `bun publish`. Because the package is TypeScript-first, we include `exports` fields for both the raw `.ts` sources (for Bun consumers) and a pre-built `.js` bundle (for Node). The bundle is generated with rolldown — the same tool bongo uses for user assets.
+## Releases
 
-## What this doesn't solve
-
-The one thing Bun workspaces doesn't fully handle yet: running a type-check across all packages in one `tsc` invocation. We work around this with a root `tsconfig.json` using `references` and run `tsc --build` as a separate CI step. It's not seamless, but it works.
+The four packages share one version. `bun bump <type> --all` sets the new version in each package, commits it, and adds a signed tag. A pushed tag starts CI. It checks that each package and the release notes match the tag, publishes each package to npm with provenance, and makes the GitHub release from the release notes.

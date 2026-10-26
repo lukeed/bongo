@@ -27,6 +27,7 @@ CLI options:
 bongo build -C site --minify
 bongo dev -C site --host --port 3000
 bongo dev --write
+bongo build --outdir web/public
 bongo build --debug
 bongo build --fresh
 bongo build --drafts
@@ -34,17 +35,19 @@ bongo build --drafts
 
 An unknown option, or a `--port` that is not a port number, stops the command with an error. A bare `--host`, with no value, exposes the dev server on your network.
 
-When it is done, `bongo build` prints the size of each file in `public/`, and its gzip size. Above 50 files, it prints the total size of each kind of file instead, such as `.html` or `.png`, and lists only the scripts and stylesheets, with their gzip sizes.
+When it is done, `bongo build` prints the size of each file in the output folder, and its gzip size. Above 50 files, it prints the total size of each kind of file instead, such as `.html` or `.png`, and lists only the scripts and stylesheets, with their gzip sizes.
 
 `--debug` logs each stage of a build, such as `loading the config and data/` or `bundling assets`, and how long it took. Without it, a stage that is still running after 15 seconds prints `still <stage>` every 15 seconds, so a build that waits on something, like a top-level `await` in your config, says what it waits on.
 
 ### Output folder
 
-`bongo build` writes over the files that an earlier run left in `public/`, which is much faster than making them again. When it is done, it deletes each file of the last build that it did not write, so no file from an earlier run stays. The record of the last build lists those files, so `bongo build` does not list `public/`. Thus a file that something else put in `public/` stays, until a build without the record, such as `bongo build --fresh`, lists the folder and deletes it. When the build fails, it empties `public/` and deletes the record, so no part of the failed build stays.
+The output folder is `public/` in the project folder. To use another folder, set [`$build.outdir`](#output-folder-1) in the config, or pass `--outdir`. The flag wins over the config. bongo owns this folder, so do not let another tool write its files there. When the site also needs files from other tools, such as maps or API docs, build to a folder of its own, such as `web/public`, and copy the folders together in your deploy step.
 
-`bongo dev` does not use `public/`. It keeps its output in memory and serves it from there, so a `bongo build` that runs at the same time never changes what dev serves, and dev never changes what the build writes. With `--write`, `bongo dev` also writes its output to `public/`: it empties the folder before the first build, and each rebuild then deletes only the files that the new build no longer writes.
+`bongo build` writes over the files that an earlier run left in the output folder, which is much faster than making them again. When it is done, it deletes each file of the last build that it did not write, so no file from an earlier run stays. The record of the last build lists those files, so `bongo build` does not list the folder. Thus a file that something else put in the folder stays, until a build without the record, such as `bongo build --fresh`, lists the folder and deletes it. When the build fails, it empties the output folder and deletes the record, so no part of the failed build stays. A config that fails to load cannot name `$build.outdir`. Then bongo empties the `--outdir` folder, or else the folder of the last good build, and no other folder.
 
-bongo never follows a symlink in `public/`. It deletes a symlink that a write or a deletion goes through, and a build that lists the folder deletes each symlink in it. It never deletes the file or folder that a symlink points to. It refuses to empty or write over `public/`, and the build fails, when the folder resolves through symlinks to:
+`bongo dev` does not use the output folder. It keeps its output in memory and serves it from there, so a `bongo build` that runs at the same time never changes what dev serves, and dev never changes what the build writes. With `--write`, `bongo dev` also writes its output to the output folder: it empties the folder before the first build, and each rebuild then deletes only the files that the new build no longer writes. When the config names another `$build.outdir`, dev empties the new folder and writes all of its output there.
+
+bongo never follows a symlink in the output folder. It deletes a symlink that a write or a deletion goes through, and a build that lists the folder deletes each symlink in it. It never deletes the file or folder that a symlink points to. It refuses to empty or write over the output folder, and the build fails, when the folder resolves through symlinks to:
 
 - the project root, or a folder above it,
 - a folder outside the project,
@@ -53,11 +56,11 @@ bongo never follows a symlink in `public/`. It deletes a symlink that a write or
 
 ### Incremental builds
 
-A build renders only the pages that a change reaches; the other pages keep their files from the last build. `bongo build` keeps a record of its last good build in `node_modules/.cache/bongo/memo.json`, and `bongo dev` keeps it in memory. Each build reads and hashes only the source files whose size or mtime changed since the record, and compares those hashes with it; a file that changed less than 2 seconds before a build is read again by the next. A page renders again when its source changes; when it reads `$pages`, `$tags`, or `$section` through its source, layouts, or partials, and a page in that list changes its path, title, summary, section, tags, headings, or frontmatter; when a file that it reads with `$assets.load` changes; when an asset that it links changes, or a module or stylesheet that the asset imports; when the config has `$hooks.transform` and an output file is added, deleted, or changes its frontmatter; or when its file in `public/` changed or is gone.
+A build renders only the pages that a change reaches; the other pages keep their files from the last build. `bongo build` keeps a record of its last good build in `node_modules/.cache/bongo/memo.json`, and `bongo dev` keeps it in memory. Each build reads and hashes only the source files whose size or mtime changed since the record, and compares those hashes with it; a file that changed less than 2 seconds before a build is read again by the next. A page renders again when its source changes; when it reads `$pages`, `$tags`, or `$section` through its source, layouts, or partials, and a page in that list changes its path, title, summary, section, tags, headings, or frontmatter; when a file that it reads with `$assets.load` changes, or a CSS module that it reads with `$assets.classes`, or a file that the module imports; when an asset that it links changes, or a module or stylesheet that the asset imports; when the config has `$hooks.transform` and an output file is added, deleted, or changes its frontmatter; or when its file in the output folder changed or is gone.
 
 Every page renders again when the config changes, or a local file that it imports, `data/`, `layouts/`, `partials/`, the lockfile, the version of bongo, the runtime, `--minify`, or `--drafts`. Output files and data modules render on every build. `bongo dev` names each script and stylesheet by its entry, not by its content, so an edit to one renders only the pages that inline it or use its CSS module classes.
 
-bongo cannot see a change that keeps the size and the mtime of a source file, as `cp -p` or `rsync -t` can make, or what a template, a hook, or a loader reads by itself, such as the time, an environment variable, or a file that it opens. Use `--fresh` to render every page for such a build. A build that fails empties `public/`, so the next build renders every page.
+bongo cannot see a change that keeps the size and the mtime of a source file, as `cp -p` or `rsync -t` can make, or what a template, a hook, or a loader reads by itself, such as the time, an environment variable, or a file that it opens. Use `--fresh` to render every page for such a build. A build that fails empties the output folder, so the next build renders every page.
 
 ### Minify
 
@@ -67,13 +70,13 @@ bongo cannot see a change that keeps the size and the mtime of a source file, as
 
 When you run `bongo build`:
 
-1. `bongo build` keeps the files of the last build in `public/` to write over them. The record of the last build lists them; without it, bongo lists the folder and deletes each symlink in it. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` in the project folder: `cwd`, or the folder that `-C` names. Rolldown bundles the config and the local files it imports into one temporary `.mjs` module, which bongo imports and then deletes. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual. A package linked into `node_modules` from outside it, such as a workspace package, is local code: it is bundled too, and the packages it imports resolve from its own folder. `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials, `data/` modules, and [data modules](#data-modules) load the same way.
-2. Files in `data/` are loaded as `$data`. Layouts and partials are collected from `layouts/` and `partials/`. Handlebars files (`.hbs`) are compiled with tempura. JavaScript and TypeScript partials are loaded as modules.
+1. Config is loaded from `bongo.config.{ts,mjs,cjs,js}` in the project folder: `cwd`, or the folder that `-C` names. Rolldown bundles the config and the local files it imports into one temporary `.mjs` module, which bongo imports and then deletes. This works the same in Bun, Deno, and Node. Packages stay external and resolve as usual. A package linked into `node_modules` from outside it, such as a workspace package, is local code: it is bundled too, and the packages it imports resolve from its own folder. `import.meta.url`, `import.meta.dirname`, and `__dirname` keep pointing at each source file. TypeScript partials, `data/` modules, and [data modules](#data-modules) load the same way. Files in `data/` are loaded as `$data`.
+2. `bongo build` keeps the files of the last build in the output folder, which the config can name, to write over them. The record of the last build lists them; without it, bongo lists the folder and deletes each symlink in it. Layouts and partials are collected from `layouts/` and `partials/`. Handlebars files (`.hbs`) are compiled with tempura. JavaScript and TypeScript partials are loaded as modules.
 3. Content files are passed through registered loaders, then rendered through their [layouts](#layouts). A page that no change reached since the last build keeps its file and skips its loaders; see [Incremental builds](#incremental-builds). [Output files](#output-files), such as `sitemap.xml.hbs`, get no layout. [Data modules](#data-modules), such as `search.json.ts`, run once every page is known, and write JSON.
 4. Rendered HTML is scanned for `<bongo:*>` elements, and each page's content for `<img>` elements with a relative `src`. Assets are registered and replaced with placeholder tokens.
 5. Asset groups are flushed. JavaScript goes through Rolldown; CSS goes through LightningCSS; images go through `Bun.Image`. Output filenames include content hashes.
 6. Placeholders are substituted with external asset URLs or inline asset contents.
-7. Pages are written to `public/`, or kept in memory by `bongo dev`. So that a large site does not fill the memory, `bongo build` writes each page to `public/` as soon as it renders, then reads it again for steps 6 and 7. Last, it deletes each file of the last build that this build did not write. With `--minify`, they are then minified when the `minify` CLI is available.
+7. Pages are written to the output folder, or kept in memory by `bongo dev`. So that a large site does not fill the memory, `bongo build` writes each page to the folder as soon as it renders, then reads it again for steps 6 and 7. Last, it deletes each file of the last build that this build did not write. With `--minify`, they are then minified when the `minify` CLI is available.
 
 ## Config
 
@@ -180,6 +183,18 @@ export default {
 
 Run `bunx browserslist '<query>'` to see the browsers of a query.
 
+### Output folder
+
+`$build.outdir` names the folder that `bongo build` writes the site to, from the project folder. The default is `public`. The `--outdir` flag wins over it. See [Output folder](#output-folder) for the rules.
+
+```ts
+export default {
+	$build: {
+		outdir: 'web/public',
+	},
+};
+```
+
 ### JavaScript API
 
 `build(options)` from `bongo` runs one build, as `bongo build` does, and resolves when the site is written:
@@ -191,12 +206,13 @@ await build({ cwd: 'site', minify: true });
 ```
 
 - `cwd` — the project folder. Required.
+- `outdir` — the same as `--outdir`.
 - `minify` — the same as `--minify`.
 - `debug` — the same as `--debug`.
 - `fresh` — the same as `--fresh`.
 - `drafts` — the same as `--drafts`.
 
-`dev(options)` starts the dev server, as `bongo dev` does. It resolves after the first build, and the server keeps running. It takes `cwd`, `debug`, `drafts`, `fresh`, `port`, `host`, and `write`, the same as the `bongo dev` options:
+`dev(options)` starts the dev server, as `bongo dev` does. It resolves after the first build, and the server keeps running. It takes `cwd`, `debug`, `drafts`, `fresh`, `outdir`, `port`, `host`, and `write`, the same as the `bongo dev` options:
 
 ```ts
 import { dev } from 'bongo';
@@ -392,7 +408,6 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax. Asset entrypo
 
 - `src="..."` — path relative to `assets/`.
 - `inline` — splice built CSS directly into a `<style>` block. Omit for an external stylesheet link.
-- `global` — disable CSS modules auto-detection on `*.module.css` sources.
 - Any other attribute, such as `media` or `nonce`, goes on the `<link>` or the `<style>`.
 
 `<bongo:script>` attributes:
@@ -404,6 +419,8 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax. Asset entrypo
 - `format="esm"|"iife"|"cjs"` — output format. Defaults to `esm`, a `<script type="module">`. `iife` and `cjs` write a classic script, which runs at once, and each is built alone, with dynamic imports inlined. A browser has no `require` or `exports`, so prefer `iife` to `cjs`. Any other value fails the build.
 - `target="..."` — browserslist target string. It replaces [`$build.target`](#build-targets) for this script.
 - Any other attribute, such as `nonce` or `id`, goes on the `<script>`. `format` sets its `type`.
+
+A script imports a relative file, or a package in `node_modules`, with the `browser` field and the `browser` and `import` export conditions first. An import of a URL stays as written, since the browser loads it. An import that does not resolve fails the build, with an error that names the import, the file, and the line. A script cannot import a stylesheet: link it with `<bongo:style>`, and read the classes of a CSS module with `$assets.classes()`.
 
 `<bongo:client>` bundles bongo's browser runtime and emits a module script that calls `client(...)`. It emits only that script, so you can put it anywhere in `<head>` or `<body>`:
 
@@ -477,7 +494,7 @@ Each attribute after `src` is an argument. A value is a quoted string, a bare va
 
 A partial in `partials/` gets its arguments, the config values (`$site`, `$utils`, `$data`, `$assets`), and the `$page`, `$pages`, `$section`, and `$tags` of the page that renders it. An argument with the same name wins: `{{#partial src="postmeta" $page=post}}`. A `$partials` function gets only its arguments. A partial that a Markdown element or a loader calls runs when the content file loads, before any page renders, so it gets no page values.
 
-A `.hbs` partial declares the arguments that it reads with `{{#expect title, date}}`. `$slot`, the inner HTML of a Markdown element, is always declared. A partial that reads a name it does not declare fails the build with `partials/card.hbs reads "title", but does not declare it. Add {{#expect title}} at the top of the partial.`
+A `.hbs` partial declares the arguments that it reads with `{{#expect title, date}}`. `$slot`, the inner HTML of a Markdown element, is always declared. A partial that reads a name it does not declare fails the build with `partials/card.hbs reads "title", but does not declare it; add {{#expect title}} at the top of the partial`.
 
 ## Template Variables
 
@@ -598,6 +615,8 @@ bun --bun run build   # for a "build": "bongo build" script
 ```
 
 Under Node, bongo copies each image as it is, under a hashed name, and prints one notice for each build. The build does not fail. It adds `width` and `height` only to SVG and GIF images.
+
+Your own code needs Bun too when it calls a Bun API, such as `Bun.markdown` in a `$utils` function or in the config. Under Node, such code fails the build, and the error says to run bongo with Bun.
 
 JPEG, PNG, and WebP files are encoded with the same codecs on every platform, so a build makes the same bytes on macOS, Linux, and Windows.
 
@@ -731,7 +750,19 @@ The partial must have one root element. Set styles with the `style` attribute. D
 
 All CSS is handled by [LightningCSS](https://lightningcss.dev): `@import` bundling, autoprefixing, nesting, and optional minification. Prefixes and lowered syntax follow the [build target](#build-targets), which is `'defaults'` unless you set it.
 
-`.module.css` files automatically enable CSS modules.
+`.module.css` files automatically enable CSS modules: LightningCSS gives each class name a hash. `$assets.classes(filename)` returns the new names, keyed by the names in the source, as the stylesheet ships them. A class that `composes` others gives all of their names. The page still needs the `<bongo:style>` of the stylesheet, and the stylesheet compiles once for both. A file that is not a `.module.css` fails the build.
+
+```hbs
+{{#var css = await $assets.classes('button.module.css')}}
+<bongo:style src="button.module.css"></bongo:style>
+<button class="{{ css.primary }}">Save</button>
+```
+
+### `@import`
+
+An `@import` puts the file that it names into the stylesheet that imports it, so each `<bongo:style>` builds to one file. A relative path resolves against the file that contains the `@import`. A `layer()`, `supports()`, or media query on the `@import` stays on the imported rules. A change to an imported file rebuilds each stylesheet that imports it, and a missing file fails the build.
+
+A class of a CSS module can compose a class of another one, with `composes: base from "./base.module.css"`: bongo puts the rules of both in the stylesheet, and `$assets.classes()` gives both names. An `@import` in a CSS module gives the imported classes a hash too, but `$assets.classes()` has only the module's own classes, so compose the classes you need, or link plain CSS with its own `<bongo:style>`.
 
 ### Packages in `@import`
 
@@ -779,7 +810,7 @@ If a relative `url()` points at a file that does not exist, the build fails with
 
 `bongo dev` starts the HTTP server and runs the initial build behind it. File changes in `assets/`, `layouts/`, `partials/`, or `content/` trigger a rebuild.
 
-The dev server keeps each build in memory and serves it from there, as Vite does. It does not read or write `public/`, unless you pass `--write`; see [Output folder](#output-folder). It serves a file that bongo only copies from `content/`, such as a PDF, from its source, so an edit shows at once. It encodes each resized image the first time the browser asks for it, then reads it from `node_modules/.cache/bongo/images`.
+The dev server keeps each build in memory and serves it from there, as Vite does. It does not read or write the output folder, unless you pass `--write`; see [Output folder](#output-folder). It serves a file that bongo only copies from `content/`, such as a PDF, from its source, so an edit shows at once. It encodes each resized image the first time the browser asks for it, then reads it from `node_modules/.cache/bongo/images`.
 
 A change to the config, to any local file it imports, or to anything in `data/` loads the config and data again, then rebuilds every page. A workspace package, or any package linked into `node_modules` from outside it, counts as a local file. You do not need to restart. If the config or a data file fails to load, the error overlay shows the error, and the last good build keeps serving until you fix it. The same is true for a rebuild that fails. If the first build fails, there is no good build yet: `bongo dev` keeps running, and answers each request with a page that shows the error. When a fix builds, that page reloads.
 

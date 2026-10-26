@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
 import { existsSync, realpathSync } from 'node:fs';
-import { lstat, mkdir, mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -502,7 +502,7 @@ describe('$assets.load', () => {
 			await build({ cwd: root });
 			expect(await readFile(join(root, 'public/index.html'), 'utf8')).toBe('hello');
 			await writeFile(join(root, 'content/index.hbs'), `{{ await $assets.load('none.txt') }}`);
-			await expect(build({ cwd: root })).rejects.toThrow(/^Missing "none\.txt" asset!, rendering content\/index\.hbs$/);
+			await expect(build({ cwd: root })).rejects.toThrow(/^Missing "none\.txt" asset, rendering content\/index\.hbs$/);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -857,6 +857,19 @@ describe('layout text', () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test('a quote or a brace in a regex of one tag does not reach into the next tag', async () => {
+		let root = await site({
+			'layouts/html.hbs': "<html>{{ $page.title.replace(/`/g, '') }}|{{ $page.title.replace(/`/g, '') }}|{{ $page.title.replace(/['\"}]/g, '') }}|{{ $page.title.length / 2 }}</html>",
+			'content/index.html': '---\ntitle: "a`b\'c"\n---\n',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toBe('<html>ab&#39;c|ab&#39;c|a`bc|2.5</html>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });
 
 describe('layouts fallback', () => {
@@ -928,7 +941,23 @@ describe('partials', () => {
 			'content/index.html': '',
 		});
 		try {
-			await expect(build({ cwd: root })).rejects.toThrow('partials/blog/meta.hbs reads "date", but does not declare it. Add {{#expect date}} at the top of the partial.');
+			await expect(build({ cwd: root })).rejects.toThrow('partials/blog/meta.hbs reads "date", but does not declare it; add {{#expect date}} at the top of the partial, rendering content/index.html');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a name that a function the partial calls cannot find is not a name of the partial', async () => {
+		let root = await site({
+			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $utils: { lost: () => nowhere } };`,
+			'partials/p.hbs': '<p>{{ $utils.lost() }}</p>',
+			'layouts/html.hbs': '{{#partial src="p"}}',
+			'content/index.html': '',
+		});
+		try {
+			let err = await build({ cwd: root }).catch(e => e);
+			expect(err.message).toStartWith('nowhere is not defined, rendering content/index.html');
+			expect(err.message).not.toContain('{{#expect');
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -1504,6 +1533,231 @@ describe('incremental builds', () => {
 			expect(rendered()).toEqual(all);
 		} finally {
 			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a page that links a CSS module, or reads its classes, stays as it is when nothing changed', async () => {
+		let classes = Array.from({ length: 24 }, (_, i) => `.c${i} { color: red; }`).join('\n');
+		let root = await site({
+			...sources(),
+			'assets/ui.module.css': classes,
+			'layouts/html.hbs': '{{#var ui = await $assets.classes("ui.module.css")}}<html><bongo:style src="ui.module.css" /><main class="{{ ui.c3 }}">{{{ $page.content }}}</main></html>',
+		});
+		try {
+			await build({ cwd: root });
+			rendered();
+			for (let i = 0; i < 3; i++) {
+				await build({ cwd: root });
+				expect(rendered()).toEqual([]);
+			}
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('script imports', () => {
+	test('an import that does not resolve fails the build, and names the import, the file, and the line', async () => {
+		let root = await site({
+			'assets/main.ts': 'import { x } from "nope-pkg";\nconsole.log(x);',
+			'layouts/html.hbs': '<html>{{{ $page.content }}}<bongo:script src="main.ts" /></html>',
+			'content/index.html': '<p>home</p>',
+		});
+		try {
+			await expect(build({ cwd: root })).rejects.toThrow(`Build failed: [UNRESOLVED_IMPORT] Could not resolve 'nope-pkg' in assets/main.ts (assets/main.ts:1:19)`);
+			expect(existsSync(join(root, 'public/index.html'))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('$assets.classes', () => {
+	const unescape = (css: string) => css.replace(/\\([0-9a-f]{1,6}) ?/gi, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)));
+
+	test('gives a template the class names of a CSS module, as the stylesheet ships them', async () => {
+		let root = await site({
+			'assets/button.module.css': '.base { color: red; }\n.primary { composes: base; font-weight: bold; }',
+			'layouts/html.hbs': [
+				'{{#var css = await $assets.classes(\'button.module.css\')}}',
+				'<html><head><bongo:style src="button.module.css"></bongo:style></head>',
+				'<body><button class="{{ css.primary }}">{{{ $page.content }}}</button></body></html>',
+			].join('\n'),
+			'content/index.html': 'go',
+		});
+		try {
+			await build({ cwd: root });
+			let html = await read(root, 'index.html');
+			let [, names] = /class="([^"]+)"/.exec(html)!;
+			let [primary, base] = names.split(' ');
+			expect(primary).toEndWith('_primary');
+			expect(base).toEndWith('_base');
+			let file = /href="\/(button\.module\.[\w-]+\.css)"/.exec(html)![1];
+			let css = unescape(await read(root, file));
+			expect(css).toContain(`.${primary} {`);
+			expect(css).toContain(`.${base} {`);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('matches an inline style with --minify, and works in an output file', async () => {
+		let root = await site({
+			'assets/card.module.css': '.title { color: red; }',
+			'layouts/html.hbs': '{{#var css = await $assets.classes(\'card.module.css\')}}<html><head><bongo:style src="card.module.css" inline></bongo:style></head><body class="{{ css.title }}"></body></html>',
+			'content/index.html': '',
+			'content/names.txt.hbs': '{{#var css = await $assets.classes(\'card.module.css\')}}{{ css.title }}',
+		});
+		try {
+			await build({ cwd: root, minify: true });
+			let html = await read(root, 'index.html');
+			let name = /class="([^"]+)"/.exec(html)![1];
+			expect(unescape(html)).toContain(`.${name}{color:red}`);
+			expect(await read(root, 'names.txt')).toBe(name);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a page renders again when its CSS module changes, so a new class reaches it', async () => {
+		let root = await site({
+			'assets/b.module.css': '.red { color: red; }',
+			'layouts/html.hbs': '{{#var css = await $assets.classes(\'b.module.css\')}}<i>{{ css.blue ?? \'none\' }}</i>',
+			'content/index.html': '',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toBe('<i>none</i>');
+			await writeFile(join(root, 'assets/b.module.css'), '.red { color: red; }\n.blue { color: blue; }');
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toMatch(/^<i>[\w-]+_blue<\/i>$/);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('names the file that is missing or is not a CSS module', async () => {
+		for (let [file, reason] of [['nope.module.css', 'Missing "nope.module.css" asset'], ['plain.css', 'plain.css is not a CSS module; name it *.module.css']]) {
+			let root = await site({
+				'assets/plain.css': '.red { color: red; }',
+				'layouts/html.hbs': `{{#var css = await $assets.classes('${file}')}}{{ css.red }}`,
+				'content/index.html': '',
+			});
+			try {
+				await expect(build({ cwd: root })).rejects.toThrow(`${reason}, rendering content/index.html`);
+			} finally {
+				await rm(root, { recursive: true, force: true });
+			}
+		}
+	});
+});
+
+describe('outdir', () => {
+	const config = (build: string) => `export default { $site: { url: 'https://example.com/', title: 'T', lang: 'en' }, $build: ${build} };`;
+
+	test('$build.outdir names the output folder, and public/ stays as it is', async () => {
+		let root = await site({
+			'bongo.config.ts': config(`{ outdir: 'web/public' }`),
+			'content/index.html': '<p>home</p>',
+			'public/maps/a.json': '{}',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await readFile(join(root, 'web/public/index.html'), 'utf8')).toBe('<html><p>home</p></html>');
+			expect(await readFile(join(root, 'public/maps/a.json'), 'utf8')).toBe('{}');
+			expect(existsSync(join(root, 'public/index.html'))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('the outdir option wins over $build.outdir', async () => {
+		let root = await site({
+			'bongo.config.ts': config(`{ outdir: 'web/public' }`),
+			'content/index.html': '<p>home</p>',
+		});
+		try {
+			await build({ cwd: root, outdir: 'dist' });
+			expect(existsSync(join(root, 'dist/index.html'))).toBe(true);
+			expect(existsSync(join(root, 'web'))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a config that fails to load empties the folder of the last good build, and only it', async () => {
+		let root = await site({
+			'bongo.config.ts': config(`{ outdir: 'web/public' }`),
+			'content/index.html': '<p>home</p>',
+			'public/maps/a.json': '{}',
+		});
+		try {
+			await build({ cwd: root });
+			await writeFile(join(root, 'bongo.config.ts'), 'export default {');
+			await expect(build({ cwd: root })).rejects.toThrow();
+			expect(await readdir(join(root, 'web/public'))).toEqual([]);
+			expect(await readFile(join(root, 'public/maps/a.json'), 'utf8')).toBe('{}');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a config that fails to load, with no last build, empties only the outdir option', async () => {
+		let root = await site({
+			'bongo.config.ts': 'export default {',
+			'public/maps/a.json': '{}',
+			'dist/old.html': 'old',
+		});
+		try {
+			await expect(build({ cwd: root })).rejects.toThrow();
+			expect(await readFile(join(root, 'public/maps/a.json'), 'utf8')).toBe('{}');
+			await expect(build({ cwd: root, outdir: 'dist' })).rejects.toThrow();
+			expect(await readdir(join(root, 'dist'))).toEqual([]);
+			expect(await readFile(join(root, 'public/maps/a.json'), 'utf8')).toBe('{}');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a page that fails empties $build.outdir, and only it', async () => {
+		let root = await site({
+			'bongo.config.ts': config(`{ outdir: 'web/public' }`),
+			'content/index.html': '<p>home</p>',
+			'public/maps/a.json': '{}',
+		});
+		try {
+			await build({ cwd: root });
+			await writeFile(join(root, 'content/broken.hbs'), '<p>{{ $utils.nope() }}</p>');
+			await expect(build({ cwd: root })).rejects.toThrow('nope');
+			expect(existsSync(join(root, 'web/public/index.html'))).toBe(false);
+			expect(await readFile(join(root, 'public/maps/a.json'), 'utf8')).toBe('{}');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a new outdir renders every page into it', async () => {
+		let root = await site({ 'content/index.html': '<p>home</p>', 'content/about.html': '<p>about</p>' });
+		try {
+			await build({ cwd: root });
+			await writeFile(join(root, 'bongo.config.ts'), config(`{ outdir: 'dist' }`));
+			await build({ cwd: root });
+			expect(await readFile(join(root, 'dist/about/index.html'), 'utf8')).toBe('<html><p>about</p></html>');
+			expect(await readFile(join(root, 'dist/index.html'), 'utf8')).toBe('<html><p>home</p></html>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('$build.outdir must be a folder inside the project, other than a source folder', async () => {
+		for (let [outdir, reason] of [[`'..'`, 'it holds the project root'], [`'.'`, 'it is the project root'], [`'content'`, 'it is content/'], [`''`, '$build.outdir must name a folder'], ['1', '$build.outdir must name a folder']]) {
+			let root = await site({ 'bongo.config.ts': config(`{ outdir: ${outdir} }`), 'content/index.html': '<p>home</p>' });
+			try {
+				await expect(build({ cwd: root })).rejects.toThrow(reason);
+				expect(await readFile(join(root, 'content/index.html'), 'utf8')).toBe('<p>home</p>');
+			} finally {
+				await rm(root, { recursive: true, force: true });
+			}
 		}
 	});
 });

@@ -11,6 +11,7 @@ import * as images from './utils/images';
 import * as log from './utils/log';
 import * as output from './utils/output';
 import * as bundler from './utils/bundler';
+import * as css from './utils/css';
 import { load, loadModule, LoadError } from './utils/config';
 import * as loaders from './utils/loaders';
 import * as memo from './utils/memo';
@@ -18,7 +19,7 @@ import * as render from './utils/render';
 import * as templates from './utils/templates';
 import * as tags from './utils/tags';
 import * as utils from './utils/index';
-import { normalize } from './utils/argv';
+import { normalize, outdir } from './utils/argv';
 import { SCRIPT } from './utils/http';
 
 import type { Argv, Build, Config, Loader, Template } from 'bongo';
@@ -123,16 +124,41 @@ async function rendering<T>(from: string, work: () => Promise<T>): Promise<T> {
 	}
 }
 
+// Module level, since the `$assets` of compiled partials keeps it until the next build.
+const LOADER_UTILS: Loader.Utilities = {
+	frontmatter: templates.frontmatter,
+	attrs: attrs.parse,
+
+	render(name, ...args) {
+		let view = templates.Partials.get(name);
+		// @ts-ignore - strict bind/apply rule
+		if (view) return view.apply(view, args);
+		throw new Error(`Unknown "${name}" partial!`);
+	},
+
+	decode(input) {
+		return new TextDecoder().decode(input);
+	},
+};
+
 // switcheroo: templates get a reader for assets/ in place of the loader map
 // Compiled partials keep the template context until the next build, so this lives outside `run` and keeps none of the build (#59).
-function assetsFor(dir: string, renders: render.Context, base: string): (from: string, made: string[], page?: Blocks, loads?: [string, string][]) => Template.Assets {
+function assetsFor(dir: string, renders: render.Context, base: string, styles: Omit<css.BundleOptions, 'entry' | 'url'>): (from: string, made: string[], page?: Blocks, loads?: [string, string][]) => Template.Assets {
 	return (from, made, page, loads) => ({
 		async load(filename: string, encoding?: BufferEncoding) {
 			let file = join(dir, filename);
-			fs.assert(file, `Missing "${filename}" asset!`);
+			fs.assert(file, `Missing "${filename}" asset`);
 			let bytes = await fs.read(file);
 			loads?.push([file, memo.hash(bytes)]);
 			return encoding ? bytes.toString(encoding) : bytes;
+		},
+		async classes(filename: string) {
+			let file = join(dir, filename);
+			fs.assert(file, `Missing "${filename}" asset`);
+			if (!css.isModule(file)) throw new Error(`${filename} is not a CSS module; name it *.module.css`);
+			let { names, files } = await css.classes({ ...styles, entry: file, cssModules: true });
+			loads?.push(...files);
+			return names;
 		},
 		async render(template, output, options = {}) {
 			let { html, file } = await templates.partial(template, options.args ?? {}, page);
@@ -178,7 +204,7 @@ function parseTags(value: unknown): string[] {
 export type BuildOptions = {
 	// From `prepare()`; dev passes its cached copy, so a content edit does not re-run the config.
 	inputs?: Inputs;
-	// Where the files go; dev keeps them in memory. Defaults to `public/` on disk.
+	// Where the files go; dev keeps them in memory. Defaults to the output folder on disk.
 	sink?: output.Sink;
 };
 
@@ -206,25 +232,35 @@ export async function prepare(argv: Argv): Promise<Inputs> {
 }
 
 /**
- * Build the site into `public/`.
+ * Build the site into its output folder, `public/` unless `outdir` or `$build.outdir` names another.
  * @example await build({ cwd: 'site', minify: true });
  */
 export async function build(argv: Argv, opts: BuildOptions = {}): Promise<void> {
+	let t0 = Date.now();
 	normalize(argv);
 	// `bongo build` writes each page as it renders; dev holds every page, so a failed rebuild writes nothing
 	let writes = !argv.dev ? utils.pool(WRITES) : undefined;
 	let watch = log.watchdog({ debug: argv.debug });
+	// the config names the output folder, so no folder changes until it loads
+	let sink = opts.sink;
 	try {
-		await run(argv, opts, watch, writes);
+		let inputs = opts.inputs ?? await prepare(argv);
+		if (!argv.dev) argv.dest = outdir(argv, inputs.config);
+		// A dev rebuild writes over its last good build, so a failed one leaves that build serving.
+		sink ??= output.disk(argv);
+		await run(argv, inputs, sink, t0, watch, writes);
 	} catch (err) {
 		// leave no half-written pages; the build error matters more than a failed write or cleanup
 		if (writes) {
-			let sink = opts.sink ?? output.disk(argv);
+			// a config that failed to load names no folder: empty the one of the flag, or of the last good build
+			let dest = sink ? undefined : argv.outdir || await memo.dest(argv);
+			if (dest) sink = output.disk({ ...argv, dest });
 			await writes.drain().catch(() => {});
-			await sink.clear().catch(() => {});
-			MEMOS.delete(sink);
+			await sink?.clear().catch(() => {});
+			if (sink) MEMOS.delete(sink);
 		}
-		throw err;
+		let fix = utils.runtime(err, argv.dev ? 'dev' : 'build');
+		throw fix && err instanceof Error ? new Error(`${err.message}\n${fix}`, { cause: err }) : err;
 	} finally {
 		watch.stop();
 	}
@@ -254,12 +290,10 @@ function loadedFiles(items: Record<string, memo.Item>, extra: [string, string][]
 	return [...files];
 }
 
-async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog, writes: utils.Pool | undefined): Promise<void> {
-	let t0 = Date.now();
+async function run(argv: Required<Argv>, inputs: Inputs, sink: output.Sink, t0: number, watch: log.Watchdog, writes: utils.Pool | undefined): Promise<void> {
 	tags.reset();
+	css.forget();
 
-	// A dev rebuild writes over its last good build, so a failed one leaves that build serving.
-	let sink = opts.sink ?? output.disk(argv);
 	// the memo of the last good build; `bongo build` keeps it on disk
 	let previous = argv.fresh ? undefined : MEMOS.get(sink) ?? (writes ? await memo.load(argv) : undefined);
 	if (!(argv.dev && OUTPUT.get(sink)?.dev)) {
@@ -268,7 +302,6 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		OUTPUT.delete(sink);
 	}
 
-	const inputs = opts.inputs ?? await prepare(argv);
 	const { config, $data } = inputs;
 	const { $site, $loaders: LOADERS } = config;
 	// a page path resolves under `$site.url`, so a site in a subfolder keeps it
@@ -285,7 +318,8 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		quality: images.settings({}, config.$images).quality,
 	});
 
-	let assets = assetsFor(argv.assets, renders, base);
+	// the options of each `<bongo:style>`, so that `$assets.classes` compiles a CSS module as the bundler will, and shares that compile with it
+	let assets = assetsFor(argv.assets, renders, base, { targets: config.$build.target, minify: argv.minify || undefined, assets: LOADERS, utils: LOADER_UTILS });
 
 	// renders and loads outside a page, as from a loader that calls a partial
 	let loose: string[] = [];
@@ -327,21 +361,6 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 	const prior = OUTPUT.get(sink);
 	const written: Set<string> = new Set();
 
-	const loader_utils: Loader.Utilities = {
-		frontmatter: templates.frontmatter,
-		attrs: attrs.parse,
-
-		render(name, ...args) {
-			let view = Partials.get(name);
-			// @ts-ignore - strict bind/apply rule
-			if (view) return view.apply(view, args);
-			throw new Error(`Unknown "${name}" partial!`);
-		},
-
-		decode(input) {
-			return new TextDecoder().decode(input);
-		},
-	};
 
 	// Walk 1 — scan + loader + collect.
 	// Produces an ordered list of ScanItem records without rendering layouts.
@@ -388,7 +407,7 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 
 			debug('[content.loader]', ext, '~> found');
 
-			let result = await loaders.run(input, initial, LOADERS, loader_utils, {
+			let result = await loaders.run(input, initial, LOADERS, LOADER_UTILS, {
 				isTerminal: (e) => isPage.test(e),
 			});
 
@@ -860,11 +879,13 @@ async function run(argv: Required<Argv>, opts: BuildOptions, watch: log.Watchdog
 		sink,
 		publicPath,
 		assets: LOADERS,
-		utils: loader_utils,
+		utils: LOADER_UTILS,
 		cache,
 		dev: argv.dev,
 		define: config.$build.define,
 	});
+
+	css.forget();
 
 	if (flushResult.errors.length > 0) {
 		for (let err of flushResult.errors) {

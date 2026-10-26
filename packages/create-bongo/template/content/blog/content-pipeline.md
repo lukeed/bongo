@@ -1,39 +1,39 @@
 ---
 title: The Content Pipeline
 date: 2026-03-15
-summary: How bongo's $pages, $section, and $tags registries are built, and how to use them effectively in layouts.
+summary: What bongo's $pages, $section, and $tags registries hold, and how to use them in templates.
 tags: ssg, architecture, tempura
 ---
 
-After walk 1 completes, bongo has a flat list of compiled pages. Before walk 2 begins, it assembles three registries that layouts can query. Understanding these registries is the key to building index pages, tag clouds, and related-post lists.
+After walk 1, bongo knows every page. Before it renders a page, it makes three registries that templates can read. With them you can build index pages, tag lists, and lists of related posts.
 
 ## $pages
 
-`$pages` is every page on the site, indexed by path. In a layout you can iterate the full list:
+`$pages` is a list of every page on the site, sorted by path. Each entry has the `path`, `title`, `summary`, `section`, `tags`, `headings`, and `params` of a page:
 
 ```hbs
-{{#each $pages as (p)}}
-  <a href="{{ p.path }}">{{ p.title }}</a>
+{{#each $pages as page}}
+  <a href="{{ page.path }}">{{ page.title }}</a>
 {{/each}}
 ```
 
-This is useful for site maps or global navigation, but usually too broad for section-level features.
+It is good for a site map or for global navigation, but it is often too broad for one section.
 
 ## $section
 
-`$section` is a filtered subset of `$pages` — only pages whose path shares a directory prefix with the current page. For a page at `/blog/my-post/`, `$section` contains every page under `/blog/`.
+`$section` holds the pages in the same folder as the current page. For a page at `content/blog/my-post.md`, it holds every page in `content/blog/`. The index page of the folder and the current page are in it too.
 
-This is the natural way to build a blog index. The layout iterates `$section`, skips the index page itself, and renders a list of posts:
+Thus a blog index loops over `$section`, and skips itself:
 
 ```hbs
-{{#each $section as (p)}}
-  {{#if p.path !== $page.path}}
-    <h2><a href="{{ p.path }}">{{ p.title }}</a></h2>
+{{#each $section as post}}
+  {{#if post.path !== $page.path}}
+    <h2><a href="{{ post.path }}">{{ post.title }}</a></h2>
   {{/if}}
 {{/each}}
 ```
 
-`$section` arrives in path-ascending order. To sort by date, pass it through a `$utils` helper:
+`$section` is sorted by path. To sort it by date, pass it through a `$utils` helper:
 
 ```hbs
 {{#var posts = $utils.sortByDate($section)}}
@@ -41,16 +41,21 @@ This is the natural way to build a blog index. The layout iterates `$section`, s
 
 ## $tags
 
-`$tags` is a map of tag name to array of pages. If any page has `tags: foo, bar` in its frontmatter, `$tags.foo` and `$tags.bar` will each contain that page.
+`$tags` has one entry for each tag, as `{ tag, pages }`. The tags come in the order in which they first appear in `$pages`. In frontmatter, `tags` is a list, such as `[ssg, bun]`, or a comma-separated string, such as `ssg, bun`.
 
-Tag values in frontmatter are CSV strings — bongo parses them into a `string[]` on the page object.
+```hbs
+{{#each $tags as entry}}
+  <h3>{{ entry.tag }}</h3>
+  <p>{{ entry.pages.length }} posts</p>
+{{/each}}
+```
 
 ## The postmeta pattern
 
-Because `$page`, `$section`, and `$tags` are only available in layouts (not `.hbs` content bodies), meta like "related posts" must live in a layout or partial. The `postmeta` partial is a good place to put reusable post header markup:
+Layouts, partials, and `.hbs` content can all read these values. Put markup that many pages share, such as the date and tags of a post, in a partial:
 
 ```hbs
-{{#partial src="postmeta" date=$page.params.date tags=$page.tags}}
+{{#partial src="postmeta" date=$page.params.date tags=$page.tags draft=$page.draft}}
 ```
 
-This keeps the single-post layout clean and the meta rendering consistent across the site.
+The single-post layout stays short, and each post shows its meta the same way.

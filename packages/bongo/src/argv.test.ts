@@ -51,6 +51,16 @@ describe('normalize', () => {
 		expect(argv.content).toBe(resolve(cwd, 'site', 'content'));
 	});
 
+	test('resolves outdir from cwd, and leaves it empty when unset, so the config can name it', () => {
+		let cwd = join(realpathSync(tmpdir()), 'test-project');
+		let set: any = { cwd, outdir: 'web/out' };
+		let unset: any = { cwd };
+		normalize(set);
+		normalize(unset);
+		expect([set.outdir, set.dest]).toEqual([resolve(cwd, 'web/out'), resolve(cwd, 'web/out')]);
+		expect([unset.outdir, unset.dest]).toEqual(['', resolve(cwd, 'public')]);
+	});
+
 	test('defaults each flag to false, so the CLI and the API give one memo key', () => {
 		let argv: any = { cwd: '/tmp' };
 		normalize(argv);

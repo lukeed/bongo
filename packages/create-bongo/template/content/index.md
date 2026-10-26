@@ -5,16 +5,16 @@ summary: bongo is a fast, minimal static site generator built for the Bun era.
 
 # bongo
 
-**bongo** is a small, opinionated static site generator. It uses [Handlebars-style](https://tempura.js.org) templates, a two-pass render pipeline, and [rolldown](https://rolldown.rs) + [LightningCSS](https://lightningcss.dev) for asset bundling.
+**bongo** is a small, opinionated static site generator. It uses [tempura](https://github.com/lukeed/tempura) templates, which look like Handlebars, a two-pass render pipeline, and [Rolldown](https://rolldown.rs) and [LightningCSS](https://lightningcss.dev) to bundle assets.
 
-Everything is TypeScript. The config is a plain `.ts` file. There's no magic directory structure, no framework lock-in, no hidden lifecycle.
+The config is a plain `.ts` file. The folders are few and plain, and there is no framework lock-in.
 
 ## What it does
 
 - Compiles `.hbs`, `.md`, and `.html` content into pages
-- Bundles TypeScript and CSS through rolldown and LightningCSS, with content-hashed output
-- Provides a layout chain: section-specific layouts wrap content before the root HTML layout
-- Exposes `$site`, `$page`, `$pages`, `$section`, and `$tags` to layouts for building indexes and archives
+- Bundles TypeScript and CSS with Rolldown and LightningCSS, with content-hashed file names
+- Renders each page through the layouts of its folder, then the root HTML layout
+- Gives `$site`, `$page`, `$pages`, `$section`, and `$tags` to layouts, partials, and `.hbs` content, to build indexes and archives
 
 ## Getting started
 

@@ -14,6 +14,7 @@ try {
 			cwd: { type: 'string', short: 'C', default: '.' },
 			host: { type: 'string', short: 'H' },
 			port: { type: 'string', short: 'p' },
+			outdir: { type: 'string', short: 'o' },
 			minify: { type: 'boolean', short: 'm', default: false },
 			debug: { type: 'boolean', short: 'd', default: false },
 			write: { type: 'boolean', short: 'w', default: false },
@@ -51,9 +52,10 @@ if (values.help) {
 	output += '\n    -C, --cwd        Directory to resolve from  (default .)';
 	output += '\n    -H, --host       Host to bind; bare flag exposes network  (default localhost)';
 	output += '\n    -p, --port       Port to bind  (default 3000)';
+	output += '\n    -o, --outdir     Folder to write the site to  (default $build.outdir or public)';
 	output += '\n    -m, --minify     Compress built assets  (default false)';
 	output += '\n    -d, --debug      Log each build stage and its time  (default false)';
-	output += '\n    -w, --write      Dev only: also write the output to public/  (default false)';
+	output += '\n    -w, --write      Dev only: also write the output to the outdir  (default false)';
 	output += '\n    -f, --fresh      Render every page, not only what changed  (default false)';
 	output += '\n        --drafts     Build drafts; --no-drafts leaves them out  (default false; dev true)';
 	output += '\n    -v, --version    Displays current version';
@@ -72,8 +74,8 @@ if (values.help) {
 		let command = require('.')[name];
 		if (!command) throw new Error(`Unknown "${name}" command`);
 
-		let { cwd, host, minify, debug, write, fresh, drafts } = values;
-		await command({ cwd, host, port, minify, debug, write, fresh, drafts });
+		let { cwd, host, outdir, minify, debug, write, fresh, drafts } = values;
+		await command({ cwd, host, port, outdir, minify, debug, write, fresh, drafts });
 	} catch (err) {
 		console.error('ERROR', err.stack);
 		process.exit(1);

@@ -576,6 +576,30 @@ describe('output folder', () => {
 		}
 	});
 
+	test('dev --write writes to $build.outdir, and moves there when the config names another folder', async () => {
+		let config = (outdir: string) => `export default { $site: { url: 'https://example.com/', title: 'x', lang: 'en' }, $build: { outdir: '${outdir}' } };`;
+		let root = await site({
+			'bongo.config.ts': config('web/a'),
+			'layouts/html.hbs': '{{{ $page.content }}}',
+			'content/index.html': '<p>home</p>',
+			'content/about.html': '<p>about</p>',
+		});
+		let server = await serve(root, true);
+		try {
+			await until(async () => (await server.page()).includes('<p>home</p>'), 'the first build', server);
+			expect(await readFile(join(root, 'web/a/about/index.html'), 'utf8')).toContain('<p>about</p>');
+			expect(await readdir(root)).not.toContain('public');
+			await writeFile(join(root, 'bongo.config.ts'), config('web/b'));
+			await until(async () => (await readdir(join(root, 'web'))).includes('b'), 'the new folder', server);
+			await until(async () => (await readFile(join(root, 'web/b/about/index.html'), 'utf8').catch(() => '')).includes('<p>about</p>'), 'the pages in the new folder', server);
+			expect(await readFile(join(root, 'web/b/index.html'), 'utf8')).toContain('<p>home</p>');
+			expect((await fetch(server.url + '/about/')).status).toBe(200);
+		} finally {
+			await server.stop();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+
 	test('a build that runs at the same time neither breaks dev nor gets dev pages', async () => {
 		let files: Record<string, string> = {
 			'bongo.config.ts': `export default { $site: { url: 'https://example.com/', title: 'x', lang: 'en' } };`,

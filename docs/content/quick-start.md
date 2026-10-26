@@ -32,7 +32,7 @@ bun run build
 ```
 
 <bongo:note>
-The `bongo` command starts with Node, and image processing needs Bun. To resize images, run the scripts through Bun: `bun --bun run dev` and `bun --bun run build`. See [Images](/images/#bun-runtime).
+The `bongo` command starts with Node. Image processing needs Bun, and so does your own code when it calls a Bun API, such as `Bun.markdown`. For either one, run the scripts through Bun: `bun --bun run dev` and `bun --bun run build`. See [Images](/images/#bun-runtime).
 </bongo:note>
 
 ## Starter files

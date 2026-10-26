@@ -258,7 +258,7 @@ export async function mkdir(input: string) {
 
 /**
  * A file that a build looked for and did not find; dev watches `file` to build again when it appears.
- * @example throw new MissingError(`Missing "${rel}" asset!`, file);
+ * @example throw new MissingError(`Missing "${rel}" asset`, file);
  */
 export class MissingError extends Error {
 	file: string;

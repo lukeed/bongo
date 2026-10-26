@@ -34,6 +34,9 @@ const FILES: Map<string, string> = new Map;
 
 // The registries that each layout ("layouts/html.hbs") and partial ("partials/nav") names in its source.
 const READS: Map<string, Read[]> = new Map;
+
+// The source of each layout and partial, by the same names.
+const SOURCES: Map<string, string> = new Map;
 const REGISTRIES: Read[] = ['pages', 'section', 'tags'];
 
 // The partials that render while a page renders; pages render one at a time.
@@ -168,6 +171,7 @@ export async function collect(argv: Required<Argv>, config: Context): Promise<vo
 	Partials.clear();
 	Layouts.clear();
 	READS.clear();
+	SOURCES.clear();
 
 	// Re-assign onto the exported const so ESM consumers see the new closures.
 	Object.assign(blocks, made);
@@ -183,6 +187,7 @@ export async function collect(argv: Required<Argv>, config: Context): Promise<vo
 			let file = join(dir, rel);
 			let content = await fs.read(file, 'utf8');
 			READS.set(name, reads(content));
+			SOURCES.set(name, content);
 			return tempura.compile(content, opts);
 		} catch (err) {
 			let type = parse(dir).name.slice(0, -1); // strip "s"
@@ -221,9 +226,11 @@ export async function collect(argv: Required<Argv>, config: Context): Promise<vo
 						return await compiled(data, scope);
 					} catch (err) {
 						let found = err instanceof ReferenceError && UNDECLARED.exec(err.message);
-						if (!found) throw err;
-						let name = found[1] || found[2];
-						throw new Error(`partials/${file.replace(/\\/g, '/')} reads "${name}", but does not declare it. Add {{#expect ${name}}} at the top of the partial.`, { cause: err });
+						let name = found && (found[1] || found[2]);
+						// a function that the partial calls can miss a name too, which the partial never names
+						let named = name && new RegExp(`(?<![\\w$.])${name.replace(/\$/g, '\\$')}(?![\\w$])`).test(SOURCES.get('partials/' + key) ?? '');
+						if (!named) throw err;
+						throw new Error(`partials/${file.replace(/\\/g, '/')} reads "${name}", but does not declare it; add {{#expect ${name}}} at the top of the partial`, { cause: err });
 					}
 				};
 			} else {

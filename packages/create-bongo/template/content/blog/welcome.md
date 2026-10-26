@@ -1,30 +1,28 @@
 ---
 title: Welcome to bongo
 date: 2026-01-08
-summary: What bongo is, why it exists, and what makes it different from the crowded field of static site generators.
+summary: What bongo is, why it exists, and how it differs from other static site generators.
 tags: ssg, bun, architecture
 ---
 
-Every static site generator solves the same basic problem: turn source files into HTML. The question is always which tradeoffs you're willing to make — and for whom.
+Every static site generator solves the same problem: it turns source files into HTML. The real question is which tradeoffs it makes, and for whom.
 
-bongo started from a simple premise: what if you built an SSG today, with today's tooling, and optimised ruthlessly for developer experience and build speed? No compatibility shims, no pluggable renderers, no kitchen-sink feature sets. Just a fast, minimal pipeline that gets out of your way.
+bongo started from a simple premise: build an SSG with today's tools, and make it fast and easy to use. It has no compatibility shims, no pluggable renderers, and no long list of features you do not need. It is a small pipeline that stays out of your way.
 
 ## The stack
 
-bongo is built on three Rust-backed tools that make the build genuinely fast:
+- **Rolldown** bundles JavaScript and TypeScript. It is written in Rust, and it is compatible with the Rollup API.
+- **LightningCSS** bundles, prefixes, and minifies CSS, also in Rust. You need no PostCSS config.
+- **tempura** compiles the templates. Its syntax is like Handlebars, and each value is a JavaScript expression. Layouts and partials are `.hbs` files. Content can be `.md`, `.hbs`, or plain `.html`.
 
-- **Bun** — the runtime. Native TypeScript support, a fast module resolver, and a built-in test runner.
-- **rolldown** — JS and TS bundling. Orders of magnitude faster than Webpack, and designed as a Rollup-compatible drop-in.
-- **LightningCSS** — CSS parsing, transformation, and minification. No PostCSS config needed.
-
-The template engine is **tempura** — a tiny, fast Handlebars-compatible compiler. Layouts are `.hbs` files; content can be `.md`, `.hbs`, or plain `.html`.
+bongo runs in Bun, Deno, and Node. Bun is the main development tool, and image processing needs it.
 
 ## Why another SSG?
 
-The honest answer: most SSGs are built for a specific ecosystem (Jekyll for Ruby, Hugo for Go, Next.js for React), and their abstractions reflect that origin. bongo is built specifically for the TypeScript/Bun world. The config is a plain TypeScript file. Plugins are just partial config objects. There's no magic directory structure, no framework-specific routing, no hidden lifecycle.
+Most SSGs come from one ecosystem, such as Jekyll from Ruby, Hugo from Go, or Next.js from React, and their abstractions show it. bongo is made for TypeScript. The config is a plain TypeScript file. A plugin is a partial config object. The folders are few and plain: `content/`, `layouts/`, `partials/`, `assets/`, and `data/`.
 
-If you're building a blog, a docs site, or a marketing page, bongo should feel obvious to configure and fast to run.
+If you build a blog, a docs site, or a marketing page, bongo should be easy to configure and fast to run.
 
-## What's next
+## Where to go next
 
-The immediate roadmap: incremental builds, a dev server with fast reload, and a proper `bun create bongo` scaffold. Follow along on [GitHub](https://github.com/lukeed/bongo).
+The docs at [bongo.build](https://bongo.build) cover every part of bongo. The source is on [GitHub](https://github.com/lukeed/bongo).

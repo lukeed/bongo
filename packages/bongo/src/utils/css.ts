@@ -1,9 +1,10 @@
-import { dirname, extname, resolve, sep } from 'node:path';
+import { basename, dirname, extname, resolve, sep } from 'node:path';
 import * as lightningcss from 'lightningcss';
 import type { Loader } from 'bongo';
 import * as browsers from './browsers';
 import * as fs from './fs';
 import * as loaders from './loaders';
+import * as memo from './memo';
 import * as packages from './packages';
 
 export type Targets = string | string[] | lightningcss.Targets;
@@ -27,7 +28,40 @@ export type BundleResult = {
 	dependencies: string[];
 };
 
+/** The class names of a CSS module, by their names in its source, and each file that its compile read, with a hash of what it read. */
+export type Classes = {
+	names: Record<string, string>;
+	files: [file: string, hash: string][];
+};
+
+// A compile by lightningcss, before `bundle()` resolves its `url()` values.
+type Compiled = {
+	code: Buffer;
+	map?: Buffer;
+	exports?: Record<string, string>;
+	urls: lightningcss.Dependency[];
+	files: string[];
+};
+
 const MODULE_FILE = /\.module\.css$/;
+
+// The compiles that `classes()` started, for the next `bundle()` with the same options; empty unless a template reads the classes of a CSS module.
+const SHARED: Map<string, Promise<Compiled>> = new Map();
+
+// What `classes()` found for each module in this build, so that each page that reads it compiles and hashes nothing.
+const CLASSES: Map<string, Promise<Classes>> = new Map();
+
+/**
+ * Whether `file` is a CSS module by its name, as `<bongo:style>` decides it.
+ * @example css.isModule('button.module.css') //=> true
+ */
+export function isModule(file: string): boolean {
+	return MODULE_FILE.test(file);
+}
+
+function key(opts: BundleOptions, urls: boolean): string {
+	return JSON.stringify([resolve(opts.entry), opts.minify ?? false, opts.sourceMap ?? false, opts.cssModules ?? isModule(opts.entry), opts.targets ?? null, urls]);
+}
 
 function resolveTargets(input: Targets | undefined): lightningcss.Targets | undefined {
 	if (input == null) return undefined;
@@ -37,12 +71,24 @@ function resolveTargets(input: Targets | undefined): lightningcss.Targets | unde
 	return input;
 }
 
+// A class that composes others needs all of their names, and the names that those compose in turn, as CSS modules give them in JavaScript.
 function mapExports(exp: lightningcss.CSSModuleExports | null | undefined | void): Record<string, string> | undefined {
 	if (!exp) return undefined;
+	let keys = new Map(Object.entries(exp).map(([key, value]) => [value.name, key]));
+	let expand = (key: string, names: Set<string>): Set<string> => {
+		let entry = exp[key];
+		if (!entry || names.has(entry.name)) return names;
+		names.add(entry.name);
+		for (let ref of entry.composes) {
+			let local = ref.type === 'local' && keys.get(ref.name);
+			if (local) expand(local, names);
+			else names.add(ref.name);
+		}
+		return names;
+	};
+	// lightningcss gives the classes in a new order each run; one order keeps the hash of the map, and the pages that link it, as they were
 	let out: Record<string, string> = {};
-	for (let [k, v] of Object.entries(exp)) {
-		out[k] = v.name;
-	}
+	for (let key of Object.keys(exp).sort()) out[key] = [...expand(key, new Set())].join(' ');
 	return out;
 }
 
@@ -74,8 +120,34 @@ function locate(url: string, from: string): [file: string, suffix: string] {
 	return [file, cut < 0 ? '' : url.slice(cut)];
 }
 
-export async function bundle(opts: BundleOptions): Promise<BundleResult> {
-	let wantModules = opts.cssModules ?? MODULE_FILE.test(opts.entry);
+/**
+ * The class names of a CSS module, as `bundle()` with the same options ships them. The next `bundle()` with those options takes over this compile, so the stylesheet compiles once.
+ * @example let { names } = await css.classes({ entry: '/site/assets/button.module.css', targets: 'defaults' })
+ */
+export function classes(opts: Omit<BundleOptions, 'url'>): Promise<Classes> {
+	if (!(opts.cssModules ?? isModule(opts.entry))) return Promise.reject(new Error(`${basename(opts.entry)} is not a CSS module; name it *.module.css`));
+	let id = key(opts, true);
+	let hit = CLASSES.get(id);
+	if (hit) return hit;
+	let hashes: Map<string, string> = new Map();
+	let made = compile(opts, true, hashes);
+	SHARED.set(id, made);
+	CLASSES.set(id, hit = made.then(({ exports }) => ({ names: exports ?? {}, files: [...hashes] })));
+	return hit;
+}
+
+/**
+ * Drop each compile that `classes()` started and no `bundle()` took over, as at the start of a build, whose files may have changed.
+ * @example css.forget()
+ */
+export function forget(): void {
+	SHARED.clear();
+	CLASSES.clear();
+}
+
+// With `hashes`, it records a hash of each file as it reads it, so a change after the read still shows.
+async function compile(opts: Omit<BundleOptions, 'url'>, urls: boolean, hashes?: Map<string, string>): Promise<Compiled> {
+	let wantModules = opts.cssModules ?? isModule(opts.entry);
 	let wantSourceMap = opts.sourceMap === 'inline';
 
 	// Files the loader chain touched outside of lightningcss's own `@import`
@@ -103,6 +175,7 @@ export async function bundle(opts: BundleOptions): Promise<BundleResult> {
 		// lightningcss. @import'd files can't receive per-file input maps
 		// through the resolver API, so those maps (if any) are dropped.
 		let bytes = await fs.read(opts.entry);
+		hashes?.set(opts.entry, memo.hash(bytes));
 		let result = await loaders.run(
 			opts.entry,
 			new Uint8Array(bytes) as Uint8Array | string,
@@ -138,6 +211,7 @@ export async function bundle(opts: BundleOptions): Promise<BundleResult> {
 			if (needsLoader && opts.assets![ext]) {
 				let { assets, utils } = opts as { assets: loaders.LoaderMap; utils: Loader.Utilities };
 				let bytes = await fs.read(file);
+				hashes?.set(file, memo.hash(bytes));
 				let result = await loaders.run(
 					file,
 					new Uint8Array(bytes) as Uint8Array | string,
@@ -151,7 +225,9 @@ export async function bundle(opts: BundleOptions): Promise<BundleResult> {
 				compiled.set(file, text);
 				return text;
 			}
-			return fs.read(file, 'utf8') as Promise<string>;
+			let text = await fs.read(file, 'utf8') as string;
+			hashes?.set(file, memo.hash(text));
+			return text;
 		},
 	};
 
@@ -163,16 +239,29 @@ export async function bundle(opts: BundleOptions): Promise<BundleResult> {
 		targets: resolveTargets(opts.targets),
 		resolver,
 		inputSourceMap,
-		analyzeDependencies: opts.url ? true : undefined,
+		analyzeDependencies: urls ? true : undefined,
 	});
 
-	let code = Buffer.isBuffer(result.code) ? result.code : Buffer.from(result.code);
-	let map = result.map ? (Buffer.isBuffer(result.map) ? result.map : Buffer.from(result.map)) : undefined;
+	return {
+		code: Buffer.isBuffer(result.code) ? result.code : Buffer.from(result.code),
+		map: result.map ? (Buffer.isBuffer(result.map) ? result.map : Buffer.from(result.map)) : undefined,
+		exports: mapExports(result.exports),
+		urls: urls ? result.dependencies ?? [] : [],
+		files: [...new Set([...loaderDeps, ...imported])],
+	};
+}
+
+export async function bundle(opts: BundleOptions): Promise<BundleResult> {
+	let id = SHARED.size ? key(opts, !!opts.url) : '';
+	let shared = SHARED.get(id);
+	if (shared) SHARED.delete(id);
+	let { code, map, exports, urls, files: read } = await (shared ?? compile(opts, !!opts.url));
+	let wantSourceMap = opts.sourceMap === 'inline';
 
 	let files = new Set<string>();
 	if (opts.url) {
 		let text = code.toString('utf8');
-		for (let dep of result.dependencies || []) {
+		for (let dep of urls) {
 			if (dep.type !== 'url') continue;
 			let value = dep.url;
 			if (value && !EXTERNAL.test(value)) {
@@ -185,10 +274,7 @@ export async function bundle(opts: BundleOptions): Promise<BundleResult> {
 		code = Buffer.from(text);
 	}
 
-	let deps: string[] = [];
-	for (let d of [...loaderDeps, ...imported, ...files]) {
-		if (!deps.includes(d)) deps.push(d);
-	}
+	let deps = [...new Set([...read, ...files])];
 
 	let out: BundleResult = {
 		code: wantSourceMap && map ? inlineSourceMap(code, map) : code,
@@ -197,7 +283,6 @@ export async function bundle(opts: BundleOptions): Promise<BundleResult> {
 
 	if (!wantSourceMap && map) out.map = map;
 
-	let exports = mapExports(result.exports);
 	if (exports) out.exports = exports;
 
 	return out;
