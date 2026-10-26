@@ -28,7 +28,6 @@ type BongoScriptAttrs = {
 type BongoStyleAttrs = {
 	src: string;
 	inline?: boolean;
-	global?: boolean;
 	media?: string;
 	nonce?: string;
 };

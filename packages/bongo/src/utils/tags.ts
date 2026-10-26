@@ -112,7 +112,7 @@ const ATTR_ESCAPE: Record<string, string> = { '&': '&amp;', '"': '&quot;' };
 // The attributes that bongo reads itself; any other attribute goes on the element that bongo writes.
 const OWN = {
 	script: new Set(['src', 'inline', 'async', 'defer', 'format', 'target', 'type']),
-	style: new Set(['src', 'inline', 'global', 'rel', 'href']),
+	style: new Set(['src', 'inline', 'rel', 'href']),
 	alternate: new Set(['type', 'href', 'rel']),
 };
 
@@ -323,9 +323,8 @@ export function scanBongoTags(
 		}
 
 		if (kind === 'style') {
-			// `global` opts out of CSS-modules auto-detect. Default: any *.module.css
-			// source gets CSS modules scoping.
-			let cssModules = !bool(props.global) && css.isModule(src);
+			// any *.module.css source gets CSS modules scoping, and no other
+			let cssModules = css.isModule(src);
 
 			let placeholder = bundler.register(entry, {
 				kind: 'css',

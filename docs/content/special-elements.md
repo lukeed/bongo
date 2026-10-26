@@ -36,7 +36,6 @@ becomes:
 
 - `src` — the stylesheet. Required.
 - `inline` — write the built CSS in a `<style>` element, in place of the `<link>`.
-- `global` — turn off [CSS modules](/css/#css-modules) for a `*.module.css` file.
 
 All other attributes, such as `media`, `nonce`, and `title`, go on the `<link>` or the `<style>`:
 

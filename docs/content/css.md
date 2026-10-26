@@ -62,11 +62,7 @@ bongo puts the rules of `base.module.css` in the same stylesheet, and `css.prima
 
 An `@import` in a CSS module gives the classes of the imported file a hash too, but `$assets.classes()` has only the classes of the module itself. Thus no template can name an imported class. To use a class of another file, compose it, as above. To keep plain CSS global, link it with its own `<bongo:style>`.
 
-To turn off the auto-detection for a `.module.css` file, add `global` to its element:
-
-```hbs
-<bongo:style src="theme.module.css" global></bongo:style>
-```
+The name alone decides: a `.module.css` file is always a CSS module, and no other stylesheet is. To keep the classes of a stylesheet as written, give it another name, such as `theme.css`.
 
 ## Stylesheets and scripts
 

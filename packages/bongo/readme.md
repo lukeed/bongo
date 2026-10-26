@@ -408,7 +408,6 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax. Asset entrypo
 
 - `src="..."` — path relative to `assets/`.
 - `inline` — splice built CSS directly into a `<style>` block. Omit for an external stylesheet link.
-- `global` — disable CSS modules auto-detection on `*.module.css` sources.
 - Any other attribute, such as `media` or `nonce`, goes on the `<link>` or the `<style>`.
 
 `<bongo:script>` attributes:
