@@ -101,3 +101,11 @@ export function file(path: string): string {
 export function source(path: string): string {
 	return `${REPO}/edit/main/docs/${file(path)}`;
 }
+
+/**
+ * Whether this is a production build. `bongo dev` runs no Worker, so it has no crowne.io paths.
+ * @example {{#if $utils.production()}}<script defer src="/js/script.js" data-endpoint="/api/event"></script>{{/if}}
+ */
+export function production(): boolean {
+	return process.env.NODE_ENV === 'production';
+}
