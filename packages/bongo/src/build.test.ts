@@ -470,7 +470,7 @@ describe('$assets.load', () => {
 			await build({ cwd: root });
 			expect(await readFile(join(root, 'public/index.html'), 'utf8')).toBe('hello');
 			await writeFile(join(root, 'content/index.hbs'), `{{ await $assets.load('none.txt') }}`);
-			await expect(build({ cwd: root })).rejects.toThrow(/^Missing "none\.txt" asset!, rendering content\/index\.hbs$/);
+			await expect(build({ cwd: root })).rejects.toThrow(/^Missing "none\.txt" asset, rendering content\/index\.hbs$/);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -1570,7 +1570,7 @@ describe('$assets.classes', () => {
 	});
 
 	test('names the file that is missing or is not a CSS module', async () => {
-		for (let [file, reason] of [['nope.module.css', 'Missing "nope.module.css" asset!'], ['plain.css', 'plain.css is not a CSS module; name it *.module.css']]) {
+		for (let [file, reason] of [['nope.module.css', 'Missing "nope.module.css" asset'], ['plain.css', 'plain.css is not a CSS module; name it *.module.css']]) {
 			let root = await site({
 				'assets/plain.css': '.red { color: red; }',
 				'layouts/html.hbs': `{{#var css = await $assets.classes('${file}')}}{{ css.red }}`,
