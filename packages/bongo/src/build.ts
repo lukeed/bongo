@@ -147,14 +147,14 @@ function assetsFor(dir: string, renders: render.Context, base: string, styles: O
 	return (from, made, page, loads) => ({
 		async load(filename: string, encoding?: BufferEncoding) {
 			let file = join(dir, filename);
-			fs.assert(file, `Missing "${filename}" asset!`);
+			fs.assert(file, `Missing "${filename}" asset`);
 			let bytes = await fs.read(file);
 			loads?.push([file, memo.hash(bytes)]);
 			return encoding ? bytes.toString(encoding) : bytes;
 		},
 		async classes(filename: string) {
 			let file = join(dir, filename);
-			fs.assert(file, `Missing "${filename}" asset!`);
+			fs.assert(file, `Missing "${filename}" asset`);
 			if (!css.isModule(file)) throw new Error(`${filename} is not a CSS module; name it *.module.css`);
 			let { names, files } = await css.classes({ ...styles, entry: file, cssModules: true });
 			for (let read of files) loads?.push([read, memo.hash(await fs.read(read))]);

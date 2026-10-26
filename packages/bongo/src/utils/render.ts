@@ -235,7 +235,7 @@ function read(ctx: Context, rel: string): Promise<Read> {
 	let hit = ctx.reads.get(rel);
 	if (hit) return hit;
 	let file = join(ctx.assets, rel);
-	fs.assert(file, `Missing "${rel}" asset!`);
+	fs.assert(file, `Missing "${rel}" asset`);
 	hit = fs.read(file).then(data => ({ data, hash: sha256(data), sum: memo.hash(data) }));
 	ctx.reads.set(rel, hit);
 	return hit;
