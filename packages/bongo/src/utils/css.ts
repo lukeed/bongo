@@ -4,6 +4,7 @@ import type { Loader } from 'bongo';
 import * as browsers from './browsers';
 import * as fs from './fs';
 import * as loaders from './loaders';
+import * as memo from './memo';
 import * as packages from './packages';
 
 export type Targets = string | string[] | lightningcss.Targets;
@@ -27,10 +28,10 @@ export type BundleResult = {
 	dependencies: string[];
 };
 
-/** The class names of a CSS module, by their names in its source, and the files that its compile read. */
+/** The class names of a CSS module, by their names in its source, and each file that its compile read, with a hash of what it read. */
 export type Classes = {
 	names: Record<string, string>;
-	files: string[];
+	files: [file: string, hash: string][];
 };
 
 // A compile by lightningcss, before `bundle()` resolves its `url()` values.
@@ -46,6 +47,9 @@ const MODULE_FILE = /\.module\.css$/;
 
 // The compiles that `classes()` started, for the next `bundle()` with the same options; empty unless a template reads the classes of a CSS module.
 const SHARED: Map<string, Promise<Compiled>> = new Map();
+
+// What `classes()` found for each module in this build, so that each page that reads it compiles and hashes nothing.
+const CLASSES: Map<string, Promise<Classes>> = new Map();
 
 /**
  * Whether `file` is a CSS module by its name, as `<bongo:style>` decides it.
@@ -109,13 +113,16 @@ function locate(url: string, from: string): [file: string, suffix: string] {
  * The class names of a CSS module, as `bundle()` with the same options ships them. The next `bundle()` with those options takes over this compile, so the stylesheet compiles once.
  * @example let { names } = await css.classes({ entry: '/site/assets/button.module.css', targets: 'defaults' })
  */
-export async function classes(opts: Omit<BundleOptions, 'url'>): Promise<Classes> {
-	if (!(opts.cssModules ?? isModule(opts.entry))) throw new Error(`${basename(opts.entry)} is not a CSS module; name it *.module.css`);
+export function classes(opts: Omit<BundleOptions, 'url'>): Promise<Classes> {
+	if (!(opts.cssModules ?? isModule(opts.entry))) return Promise.reject(new Error(`${basename(opts.entry)} is not a CSS module; name it *.module.css`));
 	let id = key(opts, true);
-	let made = SHARED.get(id);
-	if (!made) SHARED.set(id, made = compile(opts, true));
-	let { exports, files } = await made;
-	return { names: exports ?? {}, files: [...new Set([opts.entry, ...files])] };
+	let hit = CLASSES.get(id);
+	if (hit) return hit;
+	let hashes: Map<string, string> = new Map();
+	let made = compile(opts, true, hashes);
+	SHARED.set(id, made);
+	CLASSES.set(id, hit = made.then(({ exports }) => ({ names: exports ?? {}, files: [...hashes] })));
+	return hit;
 }
 
 /**
@@ -124,9 +131,11 @@ export async function classes(opts: Omit<BundleOptions, 'url'>): Promise<Classes
  */
 export function forget(): void {
 	SHARED.clear();
+	CLASSES.clear();
 }
 
-async function compile(opts: Omit<BundleOptions, 'url'>, urls: boolean): Promise<Compiled> {
+// With `hashes`, it records a hash of each file as it reads it, so a change after the read still shows.
+async function compile(opts: Omit<BundleOptions, 'url'>, urls: boolean, hashes?: Map<string, string>): Promise<Compiled> {
 	let wantModules = opts.cssModules ?? isModule(opts.entry);
 	let wantSourceMap = opts.sourceMap === 'inline';
 
@@ -155,6 +164,7 @@ async function compile(opts: Omit<BundleOptions, 'url'>, urls: boolean): Promise
 		// lightningcss. @import'd files can't receive per-file input maps
 		// through the resolver API, so those maps (if any) are dropped.
 		let bytes = await fs.read(opts.entry);
+		hashes?.set(opts.entry, memo.hash(bytes));
 		let result = await loaders.run(
 			opts.entry,
 			new Uint8Array(bytes) as Uint8Array | string,
@@ -190,6 +200,7 @@ async function compile(opts: Omit<BundleOptions, 'url'>, urls: boolean): Promise
 			if (needsLoader && opts.assets![ext]) {
 				let { assets, utils } = opts as { assets: loaders.LoaderMap; utils: Loader.Utilities };
 				let bytes = await fs.read(file);
+				hashes?.set(file, memo.hash(bytes));
 				let result = await loaders.run(
 					file,
 					new Uint8Array(bytes) as Uint8Array | string,
@@ -203,7 +214,9 @@ async function compile(opts: Omit<BundleOptions, 'url'>, urls: boolean): Promise
 				compiled.set(file, text);
 				return text;
 			}
-			return fs.read(file, 'utf8') as Promise<string>;
+			let text = await fs.read(file, 'utf8') as string;
+			hashes?.set(file, memo.hash(text));
+			return text;
 		},
 	};
 

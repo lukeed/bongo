@@ -157,7 +157,7 @@ function assetsFor(dir: string, renders: render.Context, base: string, styles: O
 			fs.assert(file, `Missing "${filename}" asset`);
 			if (!css.isModule(file)) throw new Error(`${filename} is not a CSS module; name it *.module.css`);
 			let { names, files } = await css.classes({ ...styles, entry: file, cssModules: true });
-			for (let read of files) loads?.push([read, memo.hash(await fs.read(read))]);
+			loads?.push(...files);
 			return names;
 		},
 		async render(template, output, options = {}) {
