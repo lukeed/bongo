@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { heapStats } from 'bun:jsc';
 import { realpathSync } from 'node:fs';
 import { mkdir, writeFile, rm, readFile, readdir } from 'node:fs/promises';
@@ -21,6 +21,11 @@ async function tmp(files: Record<string, string>): Promise<{ dir: string; outDir
 	);
 	return { dir, outDir };
 }
+
+// before too, since another test file can leave a registration in the shared registry
+beforeEach(() => {
+	bundler.reset();
+});
 
 afterEach(() => {
 	bundler.reset();
@@ -440,6 +445,41 @@ describe('flush() error reporting', () => {
 			expect(err).toMatchObject({ line: 1, column: 25 });
 			expect(err.frame).toContain('export const x: number = ;');
 			expect(JSON.stringify(err)).not.toContain('\\u001b');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('flush() unresolved imports', () => {
+	test('an import that does not resolve fails the build, with where it is, so no script ships it as written', async () => {
+		let { dir, outDir } = await tmp({
+			'main.ts': 'import { x } from "nope-pkg";\nconsole.log(x);',
+		});
+		try {
+			bundler.register(join(dir, 'main.ts'), { kind: 'js' });
+			let result = await bundler.flush({ outDir, cwd: realpathSync(dir) });
+			expect(result.errors).toHaveLength(1);
+			let err = result.errors[0];
+			expect(err.message).toBe(`[UNRESOLVED_IMPORT] Could not resolve 'nope-pkg' in main.ts`);
+			expect(err.file).toEndWith('main.ts');
+			expect(err.frame).toContain('import { x } from "nope-pkg";');
+			expect(await readdir(outDir).catch(() => [])).toEqual([]);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('an import of a URL stays as written, since the browser loads it', async () => {
+		let { dir, outDir } = await tmp({
+			'main.ts': 'import confetti from "https://esm.sh/canvas-confetti@1";\nconfetti();',
+		});
+		try {
+			let placeholder = bundler.register(join(dir, 'main.ts'), { kind: 'js' });
+			let result = await bundler.flush({ outDir });
+			expect(result.errors).toEqual([]);
+			let code = await readFile(join(outDir, result.outputs.get(placeholder)!.filename), 'utf8');
+			expect(code).toContain('https://esm.sh/canvas-confetti@1');
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
