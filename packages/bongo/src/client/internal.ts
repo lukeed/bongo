@@ -18,6 +18,12 @@ let BYPASS_NEXT = false;
 // jump where the browser paints the new body at the old scroll first.
 const SCROLL_CACHE = new Map<string, { x: number; y: number }>();
 
+// The page on screen, and the page of each history entry by its key, so that back or forward within one page keeps it.
+// A page that bongo renders gets a new number; an entry that a script pushes keeps the page it was pushed on.
+let PAGE = 0;
+const PAGES = new Map<string, number>();
+let NAV: Navigation | undefined;
+
 /** @internal — used by tests only */
 export function emit<K extends BongoEvent>(type: K, detail: BongoEventDetails[ K ]): void {
 	let set = LISTENERS.get(type);
@@ -45,6 +51,9 @@ export function shouldIntercept(event: NavigateEvent): boolean {
 	if (!event.canIntercept || event.hashChange) return false;
 	if (event.navigationType === 'reload') return false;
 	if (event.downloadRequest) return false;
+	// `history.pushState` or `replaceState` from a script only changes the URL of the page
+	if (event.navigationType !== 'traverse' && event.destination.sameDocument) return false;
+	if (event.navigationType === 'traverse' && PAGES.get(event.destination.key) === PAGE) return false;
 
 	let url = new URL(event.destination.url);
 	if (url.origin !== location.origin) return false;
@@ -55,6 +64,27 @@ export function shouldIntercept(event: NavigateEvent): boolean {
 	}
 
 	return true;
+}
+
+/**
+ * Record the page of the current history entry, and of each entry that a script adds without a navigation of bongo.
+ * @example track(navigation)
+ */
+export function track(nav: Navigation): void {
+	NAV = nav;
+	if (nav.currentEntry) PAGES.set(nav.currentEntry.key, PAGE);
+	nav.addEventListener('currententrychange', () => {
+		if (!nav.transition && nav.currentEntry) PAGES.set(nav.currentEntry.key, PAGE);
+	});
+}
+
+/**
+ * Mark the current history entry as a new page, once bongo has put that page on screen.
+ * @example rendered()
+ */
+export function rendered(): void {
+	PAGE++;
+	if (NAV?.currentEntry) PAGES.set(NAV.currentEntry.key, PAGE);
 }
 
 export async function fetchPage(url: URL, signal?: AbortSignal): Promise<string | undefined> {
@@ -174,6 +204,9 @@ export function announcer(): HTMLElement | undefined {
 export function reset(): void {
 	LISTENERS.clear();
 	SCROLL_CACHE.clear();
+	PAGES.clear();
+	PAGE = 0;
+	NAV = undefined;
 	BYPASS_NEXT = false;
 }
 

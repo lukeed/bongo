@@ -39,6 +39,7 @@ export function client(opts: ClientOptions = {}): void {
 	if (!nav) return; // MPA fallback — no interception
 
 	styles.adopt(document);
+	internal.track(nav);
 
 	// Take over scroll restoration from the browser so we can do it synchronously.
 	if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
@@ -92,6 +93,7 @@ export function client(opts: ClientOptions = {}): void {
 							if (signal.aborted) return;
 							staged.commit();
 							internal.reconcile(document, doc);
+							internal.rendered();
 							// alert('before scroll')
 							internal.restoreScroll(event, to);
 							// event.scroll?.();
