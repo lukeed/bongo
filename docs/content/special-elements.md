@@ -75,6 +75,12 @@ becomes:
 
 All other attributes, such as `nonce` and `id`, go on the `<script>`. `format` sets its `type`.
 
+### Imports
+
+A script imports a relative file, or a package in `node_modules`. A package resolves with the `browser` field and the `browser` and `import` export conditions first. An import of a URL, such as `https://esm.sh/canvas-confetti@1`, stays as written, since the browser loads it.
+
+An import that does not resolve fails the build, with an error that names the import, the file, and the line. Thus no script ships an import that the browser cannot load. A script cannot import a stylesheet; see [Stylesheets and scripts](/css/#stylesheets-and-scripts).
+
 ### Formats
 
 | `format` | Element | Runs |

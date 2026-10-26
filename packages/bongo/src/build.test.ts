@@ -1524,6 +1524,22 @@ describe('incremental builds', () => {
 	});
 });
 
+describe('script imports', () => {
+	test('an import that does not resolve fails the build, and names the import, the file, and the line', async () => {
+		let root = await site({
+			'assets/main.ts': 'import { x } from "nope-pkg";\nconsole.log(x);',
+			'layouts/html.hbs': '<html>{{{ $page.content }}}<bongo:script src="main.ts" /></html>',
+			'content/index.html': '<p>home</p>',
+		});
+		try {
+			await expect(build({ cwd: root })).rejects.toThrow(`Build failed: [UNRESOLVED_IMPORT] Could not resolve 'nope-pkg' in assets/main.ts (assets/main.ts:1:19)`);
+			expect(existsSync(join(root, 'public/index.html'))).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('$assets.classes', () => {
 	const unescape = (css: string) => css.replace(/\\([0-9a-f]{1,6}) ?/gi, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)));
 

@@ -421,6 +421,8 @@ Templates use [tempura](https://github.com/lukeed/tempura) syntax. Asset entrypo
 - `target="..."` — browserslist target string. It replaces [`$build.target`](#build-targets) for this script.
 - Any other attribute, such as `nonce` or `id`, goes on the `<script>`. `format` sets its `type`.
 
+A script imports a relative file, or a package in `node_modules`, with the `browser` field and the `browser` and `import` export conditions first. An import of a URL stays as written, since the browser loads it. An import that does not resolve fails the build, with an error that names the import, the file, and the line. A script cannot import a stylesheet: link it with `<bongo:style>`, and read the classes of a CSS module with `$assets.classes()`.
+
 `<bongo:client>` bundles bongo's browser runtime and emits a module script that calls `client(...)`. It emits only that script, so you can put it anywhere in `<head>` or `<body>`:
 
 ```hbs
@@ -756,6 +758,12 @@ All CSS is handled by [LightningCSS](https://lightningcss.dev): `@import` bundli
 <bongo:style src="button.module.css"></bongo:style>
 <button class="{{ css.primary }}">Save</button>
 ```
+
+### `@import`
+
+An `@import` puts the file that it names into the stylesheet that imports it, so each `<bongo:style>` builds to one file. A relative path resolves against the file that contains the `@import`. A `layer()`, `supports()`, or media query on the `@import` stays on the imported rules. A change to an imported file rebuilds each stylesheet that imports it, and a missing file fails the build.
+
+A class of a CSS module can compose a class of another one, with `composes: base from "./base.module.css"`: bongo puts the rules of both in the stylesheet, and `$assets.classes()` gives both names. An `@import` in a CSS module gives the imported classes a hash too, but `$assets.classes()` has only the module's own classes, so compose the classes you need, or link plain CSS with its own `<bongo:style>`.
 
 ### Packages in `@import`
 
