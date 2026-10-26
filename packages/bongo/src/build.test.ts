@@ -825,6 +825,19 @@ describe('layout text', () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test('a quote or a brace in a regex of one tag does not reach into the next tag', async () => {
+		let root = await site({
+			'layouts/html.hbs': "<html>{{ $page.title.replace(/`/g, '') }}|{{ $page.title.replace(/`/g, '') }}|{{ $page.title.replace(/['\"}]/g, '') }}|{{ $page.title.length / 2 }}</html>",
+			'content/index.html': '---\ntitle: "a`b\'c"\n---\n',
+		});
+		try {
+			await build({ cwd: root });
+			expect(await read(root, 'index.html')).toBe('<html>ab&#39;c|ab&#39;c|a`bc|2.5</html>');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });
 
 describe('layouts fallback', () => {
