@@ -125,7 +125,7 @@ describe('bundle', () => {
 		let opts = { entry: join(dir, 'button.module.css'), minify: true, targets: 'defaults', url: async (file: string) => file };
 		try {
 			let { names, files } = await css.classes(opts);
-			expect(files).toEqual([opts.entry]);
+			expect(files.map(([file]) => file)).toEqual([opts.entry]);
 			await writeFile(opts.entry, '.red { color: blue; }');
 			let shared = await css.bundle(opts);
 			expect(shared.exports).toEqual(names);
@@ -145,6 +145,24 @@ describe('bundle', () => {
 		try {
 			await expect(css.classes({ entry: join(dir, 'plain.css') })).rejects.toThrow('is not a CSS module; name it *.module.css');
 		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	test('classes() compiles and hashes a module once for each build, with the hash of what it read', async () => {
+		let dir = await makeFixtureDir({
+			'button.module.css': '.red { color: red; }',
+		});
+		let opts = { entry: join(dir, 'button.module.css') };
+		try {
+			let first = await css.classes(opts);
+			await writeFile(opts.entry, '.red { color: blue; }');
+			expect(await css.classes(opts)).toBe(first);
+			css.forget();
+			let next = await css.classes(opts);
+			expect(next.files[0][1]).not.toBe(first.files[0][1]);
+		} finally {
+			css.forget();
 			await rm(dir, { recursive: true, force: true });
 		}
 	});
