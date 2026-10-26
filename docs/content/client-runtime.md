@@ -131,6 +131,8 @@ Turn off prefetch without forcing a full-page load:
 
 A link to a file, such as `/llms.txt` or `/feed.xml`, loads as it would without the client, and prefetch skips it. The client takes a link whose path ends in a folder, in `.html`, or in a name with no file extension, such as `/about` or `/v1.1.0`. When the response to such a link is not HTML, the browser loads it instead.
 
+A script that only changes the URL, with `history.pushState()` or `history.replaceState()`, keeps its page: the client loads nothing, as a tab or a filter that writes its state into the URL expects. Back and forward between such entries of one page also keep it, and the page gets its `popstate` events. Back or forward to an entry of another page loads that page.
+
 ## Stylesheets
 
 On navigation, the runtime compares the `<link rel="stylesheet">` and `<style>` elements in the `<head>` of the two pages. It keeps the stylesheets that both pages use. It adds the new stylesheets in the order of the new page, but keeps them disabled, so the current page does not change. When each new stylesheet loads or fails, or after 3 seconds, the swap enables the new stylesheets, replaces `<body>`, and removes the stylesheets that the new page does not use. A view transition starts only after this wait.

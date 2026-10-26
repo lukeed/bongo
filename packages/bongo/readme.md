@@ -926,6 +926,8 @@ Disable prefetch without forcing a full-page load:
 <a href="/logout" prefetch:disable>Log out</a>
 ```
 
+A script that only changes the URL, with `history.pushState()` or `history.replaceState()`, keeps its page, and so do back and forward between such entries of one page. Back or forward to an entry of another page loads that page.
+
 ### Stylesheets
 
 On navigation, the runtime compares the `<link rel="stylesheet">` and `<style>` elements in the `<head>` of the two pages. It keeps the stylesheets that both pages use. It adds the new stylesheets in the order of the new page, but keeps them disabled, so the current page does not change. When each new stylesheet loads or fails, or after 3 seconds, the swap enables the new stylesheets, replaces `<body>`, and removes the stylesheets that the new page does not use. A view transition starts only after this wait.
