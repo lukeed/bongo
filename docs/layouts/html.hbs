@@ -40,6 +40,9 @@
 	<bongo:asset preload src="fonts/space-grotesk.woff2" />
 	<bongo:asset preload src="fonts/unbounded.woff2" />
 	<bongo:style src="style.css"></bongo:style>
+	{{#if $utils.production()}}
+	<script defer src="/x/script.js" data-endpoint="/x"></script>
+	{{/if}}
 </head>
 <body{{#if home}} class="home"{{/if}}>
 {{#partial src="header"}}
