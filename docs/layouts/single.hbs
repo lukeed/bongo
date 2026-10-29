@@ -6,7 +6,7 @@
 	<aside class="side" id="side" aria-label="Docs" transition:persist="sidebar" transition:name="sidebar">
 		{{#each groups as group}}
 		<div class="grp" style="--c:var(--{{ group.color }})">
-			<h4><i></i>{{ group.title }}</h4>
+			<div class="grp-label"><i></i>{{ group.title }}</div>
 			{{#each group.pages as link}}
 			<a href="{{ link.path }}"{{#if link.current}} aria-current="{{ link.current }}"{{/if}}>{{#if link.title.startsWith('@')}}<code>{{ link.title }}</code>{{#else}}{{ link.title }}{{/if}}</a>
 			{{/each}}
@@ -47,7 +47,7 @@
 	{{#if heads.length}}
 	<aside class="toc" id="toc" aria-label="On this page">
 		<div class="toc-box">
-			<h5>On this page</h5>
+			<div class="toc-label">On this page</div>
 			<ol>
 				{{#each heads as head}}
 				<li><a href="#{{ head.id }}">{{{ head.html }}}</a></li>

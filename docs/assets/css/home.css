@@ -563,7 +563,7 @@
 	color: var(--muted);
 }
 
-.fgrid h4 {
+.fgrid-label {
 	margin: 6px 0 14px;
 	font: 800 11px/1 var(--display);
 	letter-spacing: .12em;
