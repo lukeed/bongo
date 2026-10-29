@@ -1,6 +1,6 @@
 ---
 title: Client runtime
-summary: How bongo/client turns a static site into a client-navigated SPA, with its options, events, programmatic navigation, stylesheet handling, and scroll restoration.
+summary: How the bongo/client runtime turns a static site into an SPA, with its options, events, programmatic navigation, stylesheets, and scroll restoration.
 group: Runtime
 order: 1
 ---

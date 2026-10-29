@@ -1,6 +1,6 @@
 ---
 title: Translations
-summary: How to build a site in more than one language, with a page for each language, hreflang links, the lang of each page, translated layout text, and a sitemap.
+summary: How to build a site in more than one language, with a translation of each page, hreflang links, the lang of each page, translated layout text, and a sitemap.
 group: Guides
 order: 15
 ---

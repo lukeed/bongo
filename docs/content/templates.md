@@ -1,6 +1,6 @@
 ---
 title: Templates
-summary: Template syntax, how bongo finds the layouts of a page, the variables that templates read and declare, and the special elements that add scripts, styles, and assets.
+summary: Template syntax, how bongo finds the layouts of a page, the variables that templates read and declare, and special elements for scripts, styles, and assets.
 group: Guides
 order: 3
 ---

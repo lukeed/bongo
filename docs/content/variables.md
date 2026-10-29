@@ -1,6 +1,6 @@
 ---
 title: Variables
-summary: The values that templates read, such as $page, $pages, and $site, with an example of what each one holds.
+summary: The variables that templates read, such as $page, $pages, and $site, with an example of what each one holds.
 group: Reference
 order: 2
 ---

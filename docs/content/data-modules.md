@@ -1,6 +1,6 @@
 ---
 title: Data modules
-summary: How a .json.ts or .json.js file in content/ runs at build time and writes its default export as a JSON file.
+summary: How a data module, a .json.ts or .json.js file in content/, runs at build time and writes its default export as a JSON file.
 group: Guides
 order: 11
 ---
