@@ -68,6 +68,9 @@ jobs:
           pages=$(find docs/public -name '*.html' | wc -l | tr -d ' ')
           echo "Docs built cleanly: $pages HTML pages emitted."
 
+      - name: (docs) lint
+        run: bun run --cwd docs lint --format ci
+
   deploy:
     name: deploy docs
     needs: test

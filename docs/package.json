@@ -5,7 +5,8 @@
     "dev": "bongo dev",
     "build": "bongo build",
     "preview": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "lint": "seolint"
   },
   "devDependencies": {
     "@bongo/markdown": "workspace:*",
@@ -22,6 +23,7 @@
     "@twinkleplop/yaml": "^0.1.7",
     "bongo": "workspace:@bongo/bongo@*",
     "satori": "^0.57.2",
+    "seolint": "^1.0.0",
     "wrangler": "^4.151.0"
   }
 }
