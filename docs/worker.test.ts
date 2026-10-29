@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, spyOn, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 
 import worker from './worker';
 
@@ -29,16 +29,29 @@ function visit(path: string, init: RequestInit = {}, cf?: Record<string, string>
 	return Object.assign(new Request('https://bongo.build' + path, init), { cf });
 }
 
+// crowne reads `CF-Connecting-IP` only on the Workers runtime.
+let agent = Object.getOwnPropertyDescriptor(navigator, 'userAgent');
+
+beforeAll(() => {
+	Object.defineProperty(navigator, 'userAgent', { value: 'Cloudflare-Workers', configurable: true });
+});
+
+afterAll(() => {
+	if (agent) Object.defineProperty(navigator, 'userAgent', agent);
+	else Reflect.deleteProperty(navigator, 'userAgent');
+});
+
 afterEach(() => {
 	mock?.mockRestore();
 	mock = undefined;
 });
 
 describe('docs worker', () => {
-	test('serves the crowne script as crowne sends it', async () => {
-		let sent = upstream(() => new Response('(()=>{})()', { headers: { 'cache-control': 'public, max-age=3600' } }));
+	test('serves the crowne script as javascript, cached for an hour', async () => {
+		let sent = upstream(() => new Response('(()=>{})()'));
 		let res = await worker.fetch(visit('/x/script.js'), env);
 		expect(sent.map(s => s.url)).toEqual(['https://in.crowne.io/v1/script.js']);
+		expect(res.headers.get('content-type')).toBe('text/javascript; charset=utf-8');
 		expect(res.headers.get('cache-control')).toBe('public, max-age=3600');
 		expect(await res.text()).toBe('(()=>{})()');
 	});
@@ -83,7 +96,7 @@ describe('docs worker', () => {
 
 	test('passes the status and the error of crowne back', async () => {
 		upstream(() => Response.json({ error: 'key' }, { status: 401 }));
-		let res = await worker.fetch(visit('/x', { method: 'POST', body: '{"n":"x"}' }), env);
+		let res = await worker.fetch(visit('/x', { method: 'POST', body: '{"n":"x"}', headers: { 'cf-connecting-ip': '203.0.113.7' } }), env);
 		expect(res.status).toBe(401);
 		expect(await res.json()).toEqual({ error: 'key' });
 	});
