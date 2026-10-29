@@ -24,7 +24,7 @@
     "@twinkleplop/yaml": "^0.1.7",
     "bongo": "workspace:@bongo/bongo@*",
     "satori": "^0.57.2",
-    "seolint": "^1.0.0",
+    "seolint": "^1.1.0",
     "wrangler": "^4.151.0"
   }
 }
