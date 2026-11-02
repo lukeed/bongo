@@ -88,7 +88,7 @@ To leave all content images as written, set `$images.content` to `false`. To get
 
 ## Processing
 
-- bongo makes one file for each width in `widths` that is smaller than the source. If one or more widths are not smaller, bongo makes one file at the width of the source instead. bongo never enlarges an image.
+- bongo makes one file for each width in `widths` that is smaller than the source. If one or more widths are not smaller, bongo makes one file at the width of the source instead. bongo never enlarges an image. Each file keeps the aspect ratio of the source, with its height rounded to the nearest pixel.
 - Files are named `name-width.hash.ext`. The hash comes from the contents of the source, the encoder settings, and the Bun version.
 - bongo applies the EXIF orientation of JPEG files and removes the EXIF data, such as GPS positions. It keeps the color profile.
 - bongo resizes JPEG, PNG, and WebP files. It copies all other images once under a hashed name, as for `<bongo:asset>`: SVG, GIF, TIFF, AVIF, HEIC, and animated PNG and WebP files. It adds their `width` and `height` when it can read them. For SVG, they come from the `width`, `height`, or `viewBox` attributes.
