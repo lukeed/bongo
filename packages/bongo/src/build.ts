@@ -331,7 +331,7 @@ async function run(argv: Required<Argv>, inputs: Inputs, sink: output.Sink, t0: 
 	await templates.collect(argv, context);
 
 	// the memo applies to pages, unless something that can change every page changed since
-	let key = await memo.key(argv, inputs.files);
+	let key = await memo.key(argv, inputs.files, { $site, $build: config.$build, $images: config.$images, $data });
 	let last = previous?.key === key ? previous : undefined;
 	let next: memo.Memo = { key, registries: { pages: '', tags: '', sections: {}, outputs: '' }, bundles: {}, assets: {}, marks: {}, loose: false, items: {}, files: {}, sources: {}, made: [] };
 

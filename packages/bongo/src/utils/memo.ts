@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
 import { dirname, isAbsolute, join, sep } from 'node:path';
@@ -105,14 +105,29 @@ async function folder(dir: string): Promise<string[]> {
 	return files.sort();
 }
 
+// JSON with the keys of each plain object sorted, so a value that a module builds in another order hashes the same; a value that cannot be written, such as a cycle, never matches.
+function stable(value: unknown): string {
+	try {
+		return JSON.stringify(value, (_, item: unknown) => {
+			if (typeof item === 'function' || typeof item === 'bigint') return String(item);
+			if (!item || typeof item !== 'object' || Array.isArray(item) || Object.getPrototypeOf(item) !== Object.prototype) return item;
+			return Object.fromEntries(Object.entries(item).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
+		}) ?? '';
+	} catch {
+		return randomUUID();
+	}
+}
+
 /**
  * A hash of everything that can change every page: the bongo code, the runtime, the options of the run,
- * the config and the local files it imports, `data/`, `layouts/`, `partials/`, and the nearest lockfile.
- * @example let key = await memo.key(argv, inputs.files);
+ * the config and the local files it imports, the values that they give, such as one read from an environment variable,
+ * `data/`, `layouts/`, `partials/`, and the nearest lockfile.
+ * @example let key = await memo.key(argv, inputs.files, { $site, $build, $images, $data });
  */
-export async function key(argv: Required<Argv>, inputs: string[]): Promise<string> {
+export async function key(argv: Required<Argv>, inputs: string[], values: Record<string, unknown>): Promise<string> {
 	let sum = createHash('sha1');
 	sum.update(JSON.stringify([await code(), process.versions.bun ?? process.version, process.env.NODE_ENV, argv.minify, argv.dev, argv.drafts, argv.dest]));
+	sum.update(stable(values));
 	let lock = lockfile(argv.cwd);
 	let files = [...new Set([...inputs, ...await folder(argv.layouts), ...await folder(argv.partials), ...lock ? [lock] : []])].sort();
 	for (let file of files) {

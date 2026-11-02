@@ -1432,6 +1432,36 @@ describe('incremental builds', () => {
 		}
 	});
 
+	test('a config or data value that comes from the environment renders every page when it changes', async () => {
+		let root = await site({
+			...sources(),
+			'bongo.config.ts': config('Site').replace(`title: "Site"`, `title: process.env.SITE ?? 'Site'`),
+			'data/env.ts': `export default { motto: process.env.MOTTO ?? 'hello', at: { b: 2, a: 1 } };`,
+		});
+		let script = [
+			`import { build } from ${JSON.stringify(join(import.meta.dirname, 'build.ts'))};`,
+			`console.log = () => {};`,
+			`await build({ cwd: ${JSON.stringify(root)} });`,
+			`process.stdout.write(JSON.stringify(globalThis.__rendered ?? []));`,
+		].join('\n');
+		let run = async (env: Record<string, string> = {}): Promise<string[]> => {
+			let child = Bun.spawn([process.execPath, '-e', script], { env: { ...process.env, ...env }, stdout: 'pipe', stderr: 'pipe' });
+			let [out, err, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+			if (code !== 0) throw new Error(err || out);
+			return [...new Set<string>(JSON.parse(out))].sort();
+		};
+		try {
+			expect(await run()).toEqual(all);
+			expect(await run()).toEqual([]);
+			expect(await run({ SITE: 'Staging' })).toEqual(all);
+			expect(await read(root, 'about/index.html')).toContain('About · Staging');
+			expect(await run({ SITE: 'Staging' })).toEqual([]);
+			expect(await run({ SITE: 'Staging', MOTTO: 'hi' })).toEqual(all);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('a source whose size and mtime stay as the memo has them is not read, so its page stays until --fresh', async () => {
 		let root = await site(sources());
 		let file = join(root, 'content/about.html');
