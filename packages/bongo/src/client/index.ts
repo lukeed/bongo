@@ -4,6 +4,8 @@ import * as prefetch from './prefetch';
 import * as internal from './internal';
 import * as styles from './styles';
 
+import type { Page } from './html';
+
 export { on, off } from './internal';
 
 export type ClientOptions = {
@@ -69,20 +71,52 @@ export function client(opts: ClientOptions = {}): void {
 		// Remember scroll for the page we are leaving, so back/forward can restore it.
 		internal.rememberScroll(from);
 
+		// a newer navigation aborts this one; it must not touch the page after that
+		let { signal } = event;
+		let page: Promise<Page | undefined> | undefined;
+
+		function load(): Promise<Page | undefined> {
+			internal.emit('bongo:navigate', { to, from });
+			return internal.fetchPage(to, signal);
+		}
+
+		function fail(err: unknown): never {
+			if (!signal.aborted) internal.emit('bongo:error', { to, error: err instanceof Error ? err : new Error(String(err)) });
+			throw err;
+		}
+
+		// Before the URL commits, a redirect can still change it, so the address bar and relative URLs match the page.
+		let precommit = event.navigationType !== 'traverse' && typeof globalThis.NavigationPrecommitController === 'function';
+
 		event.intercept({
+			...(precommit && {
+				async precommitHandler(controller: NavigationPrecommitController) {
+					try {
+						let found = await (page = load());
+						if (found && found.url.href !== to.href && !signal.aborted) controller.redirect(found.url.href);
+					} catch (err) {
+						fail(err);
+					}
+				},
+			}),
 			async handler() {
-				// a newer navigation aborts this one; it must not touch the page after that
-				let { signal } = event;
 				try {
-					internal.emit('bongo:navigate', { to, from });
-					let html = await internal.fetchPage(to, signal);
+					let found = await (page ??= load());
 					if (signal.aborted) return;
 					// a file of another type, such as a feed: the browser shows it, as it would without bongo
-					if (html === undefined) {
+					if (found === undefined) {
 						internal.setBypassNext(true);
 						return location.replace(to.href);
 					}
-					let doc = new DOMParser().parseFromString(html, 'text/html');
+					if (found.url.href !== to.href) {
+						// a redirect that came too late to change the URL: load its page, so that the URL matches
+						if (!precommit) {
+							internal.setBypassNext(true);
+							return location.replace(found.url.href);
+						}
+						to = found.url;
+					}
+					let doc = new DOMParser().parseFromString(found.html, 'text/html');
 					internal.emit('bongo:replace', { to, from, doc });
 
 					let staged = styles.stage(document, doc, signal);
@@ -111,8 +145,7 @@ export function client(opts: ClientOptions = {}): void {
 					internal.emit('bongo:navigated', { to, from });
 				} catch (err) {
 					if (signal.aborted) return;
-					internal.emit('bongo:error', { to, error: err instanceof Error ? err : new Error(String(err)) });
-					throw err;
+					fail(err);
 				}
 			},
 		});

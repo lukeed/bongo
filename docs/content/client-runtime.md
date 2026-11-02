@@ -133,6 +133,10 @@ A link to a file, such as `/llms.txt` or `/feed.xml`, loads as it would without 
 
 A script that only changes the URL, with `history.pushState()` or `history.replaceState()`, keeps its page: the client loads nothing, as a tab or a filter that writes its state into the URL expects. Back and forward between such entries of one page also keep it, and the page gets its `popstate` events. Back or forward to an entry of another page loads that page.
 
+## Redirects
+
+When the server redirects a link, such as `/about` to `/about/`, the client puts the page there with the URL of the last response, and the hash of the link. Thus the address bar, the history entry, and the relative URLs of the page match, as after a full-page load. The browser must support `precommitHandler` of the Navigation API to change the URL before it commits. Without it, a redirect loads the page as the browser would without the client.
+
 ## Stylesheets
 
 On navigation, the runtime compares the `<link rel="stylesheet">` and `<style>` elements in the `<head>` of the two pages. It keeps the stylesheets that both pages use. It adds the new stylesheets in the order of the new page, but keeps them disabled, so the current page does not change. When each new stylesheet loads or fails, or after 3 seconds, the swap enables the new stylesheets, replaces `<body>`, and removes the stylesheets that the new page does not use. A view transition starts only after this wait.
