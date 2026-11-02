@@ -9,6 +9,8 @@ All CSS is handled by [LightningCSS](https://lightningcss.dev): `@import` bundli
 
 LightningCSS adds prefixes and lowers newer syntax, such as nesting, for the [build target](/config/#build-targets). The default target is `'defaults'`.
 
+For Tailwind CSS, use the [@bongo/tailwind](/tailwind/) plugin.
+
 ## Add a stylesheet
 
 ```hbs
