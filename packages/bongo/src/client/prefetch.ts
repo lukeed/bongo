@@ -9,7 +9,7 @@ export type Options = boolean | Mode | undefined;
 // here — relying on the browser's HTTP cache doesn't work for servers that
 // don't set Cache-Control (static hosts often don't), so the double request
 // would negate the prefetch.
-type Entry = { html: Promise<string | undefined>; expires: number };
+type Entry = { page: Promise<html.Page | undefined>; expires: number };
 const CACHE = new Map<string, Entry>();
 
 // How long a prefetched entry stays hot. Balances useful hover-before-click
@@ -27,17 +27,17 @@ export function resolve(opt: Options): Mode | undefined {
 }
 
 /**
- * Retrieve a prefetched HTML body for `href`, or `undefined` if there is no
+ * Retrieve a prefetched page for `href`, or `undefined` if there is no
  * live entry. Called by `internal.fetchPage()` so navigations reuse the body.
  */
-export function get(href: string): Promise<string | undefined> | undefined {
+export function get(href: string): Promise<html.Page | undefined> | undefined {
 	let entry = CACHE.get(href);
 	if (!entry) return;
 	if (Date.now() > entry.expires) {
 		CACHE.delete(href);
 		return;
 	}
-	return entry.html;
+	return entry.page;
 }
 
 function prefetchable(anchor: HTMLAnchorElement | null | undefined): anchor is HTMLAnchorElement {
@@ -59,19 +59,19 @@ function prefetchable(anchor: HTMLAnchorElement | null | undefined): anchor is H
 /** @internal — also called from event handlers below */
 export function warm(href: string): void {
 	if (get(href)) return;
-	let text = fetch(href, { headers: { Accept: 'text/html' } })
+	let page = fetch(href, { headers: { Accept: 'text/html' } })
 		.then(r => {
 			if (!r.ok) throw new Error(`prefetch: ${r.status}`);
-			return html.read(r);
+			return html.read(r, href);
 		})
 		.catch(err => { CACHE.delete(href); throw err; });
-	CACHE.set(href, { html: text, expires: Date.now() + TTL });
+	CACHE.set(href, { page, expires: Date.now() + TTL });
 
 	// Warm the HTTP cache for the page's new stylesheets; a failed page fetch resurfaces on navigation.
-	text.then(body => {
-		if (body === undefined) return;
-		let doc = new DOMParser().parseFromString(body, 'text/html');
-		for (let url of styles.missing(document, doc, href)) {
+	page.then(found => {
+		if (found === undefined) return;
+		let doc = new DOMParser().parseFromString(found.html, 'text/html');
+		for (let url of styles.missing(document, doc, found.url.href)) {
 			fetch(url).then(r => r.blob()).catch(() => {});
 		}
 	}, () => {});

@@ -124,6 +124,8 @@ describe('client() navigation', () => {
 		return document.querySelector('h1')?.textContent;
 	}
 
+	type Handlers = { handler: () => Promise<void>; precommitHandler?: (controller: { redirect(url: string): void }) => Promise<void> };
+
 	function go(path: string, type: NavigationType = 'push'): Visit {
 		let ctrl = new AbortController();
 		let url = 'https://example.com' + path;
@@ -136,9 +138,14 @@ describe('client() navigation', () => {
 			navigationType: type,
 			destination: { url },
 			signal: ctrl.signal,
-			intercept(opts: { handler: () => Promise<void> }) { run = opts.handler; },
+			intercept(opts: Handlers) {
+				run = async () => {
+					await opts.precommitHandler?.({ redirect: (to) => (url = to) });
+					win?.happyDOM.setURL(url);
+					await opts.handler();
+				};
+			},
 		}));
-		win?.happyDOM.setURL(url);
 		return { abort: () => ctrl.abort(), done: run ? run() : Promise.reject(new Error('not intercepted')) };
 	}
 
@@ -175,7 +182,9 @@ describe('client() navigation', () => {
 		spy.mockImplementation(Object.assign(async (input: RequestInfo | URL) => {
 			let path = new URL(String(input)).pathname;
 			if (path === '/feed') return new Response('<rss></rss>', { headers: { 'content-type': 'application/rss+xml' } });
-			return new Response(html(path), { headers: { 'content-type': 'text/html; charset=utf-8' } });
+			let res = new Response(html(path.replace(/[^/]$/, '$&/')), { headers: { 'content-type': 'text/html; charset=utf-8' } });
+			if (path.endsWith('/')) return res;
+			return Object.defineProperty(res, 'url', { value: `https://example.com${path}/` });
 		}, { preconnect: fetch.preconnect }));
 		load('/core.css');
 		await w.happyDOM.waitUntilComplete();
@@ -204,6 +213,32 @@ describe('client() navigation', () => {
 		let replace = spyOn(location, 'replace').mockImplementation(() => {});
 		await go('/feed').done;
 		expect(replace).toHaveBeenCalledWith('https://example.com/feed');
+		expect(internal.getBypassNext()).toBe(true);
+		expect(heading()).toBe('A');
+	});
+
+	test('commits the URL that a redirect ends at, before the page swaps', async () => {
+		await boot();
+		Reflect.set(globalThis, 'NavigationPrecommitController', class {});
+		let seen: string[] = [];
+		let { on } = await import('./index');
+		on('bongo:replaced', ({ to }) => seen.push(`${to.href} ${location.href}`));
+		try {
+			load('/b.css');
+			await go('/b#end').done;
+		} finally {
+			Reflect.deleteProperty(globalThis, 'NavigationPrecommitController');
+		}
+		expect(heading()).toBe('B');
+		expect(seen).toEqual(['https://example.com/b/#end https://example.com/b/#end']);
+	});
+
+	test('loads the page of a redirect when the URL can no longer change', async () => {
+		await boot();
+		let internal = await import('./internal');
+		let replace = spyOn(location, 'replace').mockImplementation(() => {});
+		await go('/b').done;
+		expect(replace).toHaveBeenCalledWith('https://example.com/b/');
 		expect(internal.getBypassNext()).toBe(true);
 		expect(heading()).toBe('A');
 	});

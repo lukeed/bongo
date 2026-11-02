@@ -87,7 +87,7 @@ export function rendered(): void {
 	if (NAV?.currentEntry) PAGES.set(NAV.currentEntry.key, PAGE);
 }
 
-export async function fetchPage(url: URL, signal?: AbortSignal): Promise<string | undefined> {
+export async function fetchPage(url: URL, signal?: AbortSignal): Promise<html.Page | undefined> {
 	let cached = prefetch.get(url.href);
 	if (cached) {
 		try { return await cached; }
@@ -95,7 +95,7 @@ export async function fetchPage(url: URL, signal?: AbortSignal): Promise<string 
 	}
 	let res = await fetch(url.href, { headers: { Accept: 'text/html' }, signal });
 	if (!res.ok) throw new Error(`Navigation fetch failed: ${res.status} ${res.statusText}`);
-	return html.read(res);
+	return html.read(res, url.href);
 }
 
 // The key of a `transition:persist` element: the attribute's value, or else its id.

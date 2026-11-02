@@ -11,12 +11,18 @@ export function page(url: URL): boolean {
 	return !FILE.test(url.pathname);
 }
 
+/** A fetched page: its HTML, and the URL that it came from after any redirect. */
+export type Page = { html: string; url: URL };
+
 /**
- * The text of `res`, or `undefined` when its content type is not HTML. A response with no content type counts as HTML.
- * @example let text = await read(await fetch('/about/'));
+ * The page in `res`, fetched for `href`, or `undefined` when its content type is not HTML. A response with no content type counts as HTML.
+ * A redirect gives the URL of its last response, with the hash of `href`, since a request carries no hash.
+ * @example let page = await read(await fetch('/about'), '/about#team'); //=> { html, url: '/about/#team' }
  */
-export async function read(res: Response): Promise<string | undefined> {
+export async function read(res: Response, href: string): Promise<Page | undefined> {
 	let type = res.headers.get('content-type');
 	if (type && !/^text\/html\b/i.test(type)) return;
-	return res.text();
+	let url = new URL(res.url || href, href);
+	if (!url.hash) url.hash = new URL(href).hash;
+	return { html: await res.text(), url };
 }

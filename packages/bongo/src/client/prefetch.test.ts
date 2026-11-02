@@ -59,7 +59,14 @@ describe('prefetch.get() / warm()', () => {
 		prefetch.warm('https://example.com/page');
 		let pending = prefetch.get('https://example.com/page');
 		expect(pending).toBeInstanceOf(Promise);
-		expect(await pending!).toBe('<html>page</html>');
+		expect(await pending!).toEqual({ html: '<html>page</html>', url: new URL('https://example.com/page') });
+	});
+
+	test('warm() keeps the URL that a redirect ends at, with the hash of the link', async () => {
+		spy.mockImplementation(respond(() => Object.defineProperty(new Response('<html>page</html>'), 'url', { value: 'https://example.com/page/' })));
+		prefetch.warm('https://example.com/page#top');
+		let found = await prefetch.get('https://example.com/page#top');
+		expect(found?.url.href).toBe('https://example.com/page/#top');
 	});
 
 	test('warm() is idempotent — a second warm for the same href reuses the entry', async () => {
