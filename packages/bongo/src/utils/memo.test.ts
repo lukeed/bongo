@@ -31,7 +31,7 @@ function item(argv: Required<Argv>, path: string, placeholders: string[]): memo.
 		],
 		record: memo.hash('record ' + path),
 		draft: false,
-		page: { reads: ['section'], loads: [], placeholders, inline: [], renders: [], found: [], stat: [120, 1700000000000.5] },
+		page: { reads: ['section'], loads: [], placeholders, classes: ['flex', 'gap-4'], inline: [], renders: [], found: [], stat: [120, 1700000000000.5] },
 	};
 }
 

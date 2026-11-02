@@ -259,6 +259,7 @@ describe('bundle', () => {
 					render: () => '',
 					frontmatter: () => ({ offset: 0, value: {} }),
 					attrs: () => ({}),
+					classes: () => [],
 				},
 			});
 			let code = result.code.toString('utf8');
@@ -298,6 +299,7 @@ describe('bundle', () => {
 					render: () => '',
 					frontmatter: () => ({ offset: 0, value: {} }),
 					attrs: () => ({}),
+					classes: () => [],
 				},
 			});
 			let code = result.code.toString('utf8');

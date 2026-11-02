@@ -74,6 +74,12 @@ export namespace Loader {
 		 * @example utils.attrs('name="Luke" count=2 tags=[a, b] featured') //=> { name: 'Luke', count: 2, tags: ['a', 'b'], featured: true }
 		 */
 		attrs(input: string): Record<string, unknown>;
+		/**
+		 * The class names of every page, sorted and once each, for a loader of `assets/` that builds CSS from them.
+		 * It needs `$build.classes: true`, and is known only once each page has rendered: a loader of `content/` that calls it fails the build.
+		 * @example let names = utils.classes(); //=> ['flex', 'gap-4', 'text-sm']
+		 */
+		classes(): string[];
 	}
 }
 
@@ -303,6 +309,11 @@ export interface Config {
 		 * @example $build: { outdir: 'web/public' }
 		 */
 		outdir?: string;
+		/**
+		 * Collect the class names in the `class` attributes of each page, for loaders of `assets/` to read with `utils.classes()`, as @bongo/tailwind does.
+		 * @default false
+		 */
+		classes?: boolean;
 	};
 	$images?: Images.Options;
 	$hooks?: Build.Hooks;

@@ -1816,3 +1816,100 @@ describe('tsconfig paths', () => {
 		}
 	});
 });
+
+describe('$build.classes', () => {
+	let config = (classes: boolean) => [
+		`export default {`,
+		`	$site: { url: 'https://example.com/', title: 'T', lang: 'en' },`,
+		`	$build: { classes: ${classes} },`,
+		`	$loaders: {`,
+		`		css(file, content, utils) {`,
+		`			let text = typeof content === 'string' ? content : utils.decode(content);`,
+		`			return { filename: file, content: text.replace('USED', JSON.stringify(utils.classes().join(' '))) };`,
+		`		},`,
+		`	},`,
+		`};`,
+	].join('\n');
+
+	let sources = (): Record<string, string> => ({
+		'bongo.config.ts': config(true),
+		'assets/app.css': 'p { content: USED }',
+		'layouts/html.hbs': '<html class="root"><bongo:style src="app.css" inline />{{{ $page.content }}}</html>',
+		'content/a.html': '<p class="a shared">a</p>',
+		'content/b.html': '<p class="b shared">b</p>',
+	});
+
+	let css = async (root: string, page = 'a/index.html') => /content: ?"([^"]*)"/.exec(await read(root, page))?.[1];
+
+	test('gives loaders of assets/ the class names of every page, once each and sorted', async () => {
+		let root = await site(sources());
+		try {
+			await build({ cwd: root });
+			expect(await css(root)).toBe('a b root shared');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('collects nothing unless a plugin or the config asks for it', async () => {
+		let root = await site({ ...sources(), 'bongo.config.ts': config(false) });
+		try {
+			await build({ cwd: root });
+			expect(await css(root)).toBe('');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	for (let dev of [false, true]) {
+		test(`${dev ? 'dev' : 'bongo build'} keeps the classes of the pages that it does not render, and drops those of a deleted page`, async () => {
+			let root = await site(sources());
+			try {
+				await build({ cwd: root, dev });
+				await writeFile(join(root, 'content/a.html'), '<p class="a2 shared">a</p>');
+				await build({ cwd: root, dev });
+				expect(await css(root, 'b/index.html')).toBe('a2 b root shared');
+				await rm(join(root, 'content/a.html'));
+				await build({ cwd: root, dev });
+				expect(await css(root, 'b/index.html')).toBe('b root shared');
+			} finally {
+				await rm(root, { recursive: true, force: true });
+			}
+		});
+	}
+
+	test('a build in a new process reads the classes of the pages it keeps from the memo', async () => {
+		let root = await site(sources());
+		let script = [
+			`import { build } from ${JSON.stringify(join(import.meta.dirname, 'build.ts'))};`,
+			`console.log = () => {};`,
+			`await build({ cwd: ${JSON.stringify(root)} });`,
+		].join('\n');
+		let run = async () => {
+			let child = Bun.spawn([process.execPath, '-e', script], { stdout: 'pipe', stderr: 'pipe' });
+			if (await child.exited !== 0) throw new Error(await new Response(child.stderr).text());
+		};
+		try {
+			await run();
+			await writeFile(join(root, 'content/b.html'), '<p class="b2 shared">b</p>');
+			await run();
+			expect(await css(root)).toBe('a b2 root shared');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('a loader of content/ that reads them fails the build, since no page has rendered yet', async () => {
+		let root = await site({
+			...sources(),
+			'bongo.config.ts': config(true).replace('css(file', 'txt(file'),
+			'content/notes.txt': 'USED',
+		});
+		try {
+			expect(build({ cwd: root })).rejects.toThrow('utils.classes() is known only once each page has rendered');
+		} finally {
+			await Bun.sleep(50);
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});

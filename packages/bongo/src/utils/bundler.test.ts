@@ -154,6 +154,7 @@ describe('flush() — JS', () => {
 					render: () => '',
 					frontmatter: () => ({ offset: 0, value: {} }),
 					attrs: () => ({}),
+					classes: () => [],
 				},
 			});
 			expect(result.errors).toEqual([]);
@@ -194,6 +195,7 @@ describe('flush() — JS', () => {
 					render: () => '',
 					frontmatter: () => ({ offset: 0, value: {} }),
 					attrs: () => ({}),
+					classes: () => [],
 				},
 			});
 			expect(result.errors).toEqual([]);
