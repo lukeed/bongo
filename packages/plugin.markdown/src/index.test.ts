@@ -22,6 +22,7 @@ function setup() {
 		decode: input => new TextDecoder().decode(input),
 		frontmatter: () => ({ offset: 0, value: {} }),
 		attrs: attrs.parse,
+		classes: () => [],
 		render(name: string, args: Record<string, unknown>) {
 			calls.push([name, args]);
 			return `<i data-partial="${name}"></i>`;
@@ -127,6 +128,7 @@ describe('partials', () => {
 			decode: input => new TextDecoder().decode(input),
 			frontmatter: () => ({ offset: 0, value: {} }),
 			attrs: attrs.parse,
+			classes: () => [],
 			render: () => '<p class="meta">\n\t<time>x</time>\n\n\t<span class="tags">*a*</span>\n</p>',
 		};
 		let loader = markdown().$loaders!.md!;
@@ -142,6 +144,7 @@ describe('partials', () => {
 			decode: input => new TextDecoder().decode(input),
 			frontmatter: () => ({ offset: 0, value: {} }),
 			attrs: attrs.parse,
+			classes: () => [],
 			render: () => '<bongo:script src="widget.ts"></bongo:script>',
 		};
 		let loader = markdown().$loaders!.md!;

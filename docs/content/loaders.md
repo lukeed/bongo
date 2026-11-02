@@ -43,6 +43,7 @@ When a loader returns a file name with a new extension that has its own loader, 
 - `utils.decode(uint8array)` — convert a buffer to a string.
 - `utils.render(partialName, args)` — invoke a registered partial. See [Partials](/partials/).
 - `utils.attrs(input)` — parse element attributes, like `title="Hi" count=2 tags=[a, b] featured`, into data. Values are never evaluated. `@bongo/markdown` uses it for `<bongo:*>` partial elements. See [Elements](/markdown/#elements).
+- `utils.classes()` — the class names in the `class` attributes of every page, sorted and once each. A loader of `assets/` reads them to build CSS, as [@bongo/tailwind](/tailwind/) does. It needs [`$build.classes`](/config/#class-names) set to `true`. Each page renders before bongo bundles `assets/`, so a loader of `content/` that calls it fails the build.
 - `utils.frontmatter(content)` — parse the `---` block at the top of `content`, as [Frontmatter](/frontmatter/) describes. It returns `{ offset, value }`, where `offset` is where the body starts.
 
 ## Types

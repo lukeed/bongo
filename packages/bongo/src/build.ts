@@ -4,6 +4,7 @@ import { dim, green } from 'kleur/colors';
 import * as mime from 'mrmime';
 
 import * as attrs from './utils/attrs';
+import * as classes from './utils/classes';
 import * as data from './utils/data';
 import { draft } from './utils/draft';
 import * as fs from './utils/fs';
@@ -138,6 +139,10 @@ const LOADER_UTILS: Loader.Utilities = {
 
 	decode(input) {
 		return new TextDecoder().decode(input);
+	},
+
+	classes() {
+		throw new Error('utils.classes() is known only once each page has rendered, in a loader of assets/');
 	},
 };
 
@@ -629,6 +634,8 @@ async function run(argv: Required<Argv>, inputs: Inputs, sink: output.Sink, t0: 
 	let dirty: ScanItem[] = [];
 	let alternates: Map<string, Named> = new Map();
 	let bundles: Map<string, string[]> = new Map();
+	// the class names of each page, when `$build.classes` collects them
+	let names: Map<string, string[]> = new Map();
 	let rendered: Map<string, string[]> = new Map();
 	rendered.set('', loose);
 
@@ -657,6 +664,7 @@ async function run(argv: Required<Argv>, inputs: Inputs, sink: output.Sink, t0: 
 	function replay(item: ScanItem, old: memo.Item, page: memo.Page): void {
 		page.placeholders.forEach(placeholder => replayed.add(placeholder));
 		bundles.set(item.rel, page.placeholders);
+		names.set(item.rel, page.classes);
 		rendered.set(item.rel, page.renders.map(([name]) => name));
 		for (let [name, key] of page.renders) {
 			renders.seen.set(name, { key, from: item.path });
@@ -757,7 +765,9 @@ async function run(argv: Required<Argv>, inputs: Inputs, sink: output.Sink, t0: 
 			if (registration) next.bundles[placeholder] = registration;
 		}
 		let inline = placeholders.filter(placeholder => rendered_content.includes(`data-bongo-inline="${placeholder}"`));
-		let page: memo.Page = { reads: [...reads], loads, placeholders, inline, renders: [], found, stat: [0, 0] };
+		let found_classes = config.$build.classes ? classes.scan(rendered_content) : [];
+		names.set(item.rel, found_classes);
+		let page: memo.Page = { reads: [...reads], loads, placeholders, classes: found_classes, inline, renders: [], found, stat: [0, 0] };
 		next.items[item.rel] = { hash: item.hash, kind: item.kind, ext: item.ext, params: item.params, path: item.path, url: item.url, output: item.output, section: item.section, tags: item.tags, headings: item.headings, record: item.record ?? '', draft: item.draft ?? false, page };
 		pages.push({ output: item.output, html: writes ? undefined : rendered_content, path: item.path, params: item.params, from: chain.join(' → '), rel: item.rel });
 		await writes?.add(() => sink.write(item.output, rendered_content));
@@ -873,13 +883,14 @@ async function run(argv: Required<Argv>, inputs: Inputs, sink: output.Sink, t0: 
 	if ('base' in sink) sink.base = publicPath;
 	let cache = join(argv.cwd, 'node_modules', '.cache', 'bongo', 'images');
 	watch.step('bundling assets');
+	let used = [...new Set([...names.values()].flat())].sort();
 	let flushResult = await bundler.flush({
 		outDir: dest,
 		cwd: argv.cwd,
 		sink,
 		publicPath,
 		assets: LOADERS,
-		utils: LOADER_UTILS,
+		utils: { ...LOADER_UTILS, classes: () => [...used] },
 		cache,
 		dev: argv.dev,
 		define: config.$build.define,

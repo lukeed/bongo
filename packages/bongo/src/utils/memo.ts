@@ -18,6 +18,8 @@ export type Page = {
 	/** Each file that `$assets.load` or `$assets.render` read, and a hash of it. */
 	loads: [file: string, hash: string][];
 	placeholders: string[];
+	/** The class names in the page, when `$build.classes` collects them. */
+	classes: string[];
 	/** The placeholders that the page inlines, whose content is in the page itself. */
 	inline: string[];
 	/** The images that `$assets.render` made for the page. */
@@ -68,7 +70,7 @@ export type Memo = {
 	made: string[];
 };
 
-const FORMAT = '7';
+const FORMAT = '8';
 
 // the items of the memo that one write holds
 const LINES = 1000;
@@ -123,9 +125,9 @@ export async function key(argv: Required<Argv>, inputs: string[]): Promise<strin
 	return sum.digest('hex');
 }
 
-// An item is a row, not an object: no key names, a heading's `html` only where it differs from its text, outputs relative to `public/`, and placeholder lists by index in one shared table.
+// An item is a row, not an object: no key names, a heading's `html` only where it differs from its text, outputs relative to `public/`, and placeholder and class lists by index in one shared table.
 type Heading = [level: number, id: string, text: string, html?: string];
-type PageRow = [reads: Read[], loads: [file: string, hash: string][], placeholders: number, inline: string[], renders: [name: string, key: string][], found: Alternate[], stat: [size: number, mtime: number]];
+type PageRow = [reads: Read[], loads: [file: string, hash: string][], placeholders: number, inline: string[], renders: [name: string, key: string][], found: Alternate[], stat: [size: number, mtime: number], classes: number];
 type Row = [rel: string, hash: string, kind: Item['kind'], ext: string, params: Template.Params, path: string, url: string, output: string, section: string, tags: string[], headings: Heading[], record: string, draft: boolean, page?: PageRow];
 
 function encode(rel: string, item: Item, dest: string, lists: Map<string, number>): Row {
@@ -133,7 +135,7 @@ function encode(rel: string, item: Item, dest: string, lists: Map<string, number
 	let headings = item.headings.map(({ level, id, text, html }): Heading => html === text ? [level, id, text] : [level, id, text, html]);
 	let row: Row = [rel, item.hash, item.kind, item.ext, item.params, item.path, item.url, output, item.section, item.tags, headings, item.record, item.draft];
 	let page = item.page;
-	if (page) row.push([page.reads, page.loads, lists.get(page.placeholders.join('\n')) ?? -1, page.inline, page.renders, page.found, page.stat]);
+	if (page) row.push([page.reads, page.loads, lists.get(page.placeholders.join('\n')) ?? -1, page.inline, page.renders, page.found, page.stat, lists.get(page.classes.join('\n')) ?? -1]);
 	return row;
 }
 
@@ -141,8 +143,8 @@ function decode(row: Row, dest: string, lists: string[][]): [string, Item] {
 	let [rel, hash, kind, ext, params, path, url, output, section, tags, headings, record, draft, page] = row;
 	let item: Item = { hash, kind, ext, params, path, url, output: isAbsolute(output) ? output : dest + sep + output, section, tags, headings: headings.map(([level, id, text, html]) => ({ level, id, text, html: html ?? text })), record, draft };
 	if (page) {
-		let [reads, loads, index, inline, renders, found, stat] = page;
-		item.page = { reads, loads, placeholders: lists[index] ?? [], inline, renders, found, stat };
+		let [reads, loads, index, inline, renders, found, stat, names] = page;
+		item.page = { reads, loads, placeholders: lists[index] ?? [], classes: lists[names] ?? [], inline, renders, found, stat };
 	}
 	return [rel, item];
 }
@@ -209,10 +211,12 @@ export async function save(argv: Required<Argv>, memo: Memo): Promise<void> {
 	let lists: Map<string, number> = new Map();
 	let table: string[][] = [];
 	for (let [, item] of entries) {
-		let key = item.page?.placeholders.join('\n');
-		if (key === undefined || lists.has(key)) continue;
-		lists.set(key, table.length);
-		table.push(item.page?.placeholders ?? []);
+		for (let list of item.page ? [item.page.placeholders, item.page.classes] : []) {
+			let key = list.join('\n');
+			if (lists.has(key)) continue;
+			lists.set(key, table.length);
+			table.push(list);
+		}
 	}
 	let handle = await open(temp, 'w');
 	try {

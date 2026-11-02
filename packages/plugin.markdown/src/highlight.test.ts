@@ -66,6 +66,7 @@ describe('sugarhigh', () => {
 			decode: input => new TextDecoder().decode(input),
 			frontmatter: () => ({ offset: 0, value: {} }),
 			attrs: attrs.parse,
+			classes: () => [],
 			render: () => '',
 		};
 		let loader = markdown({ highlighter: sugarhigh() }).$loaders!.md!;

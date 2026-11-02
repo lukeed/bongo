@@ -92,7 +92,7 @@ export default {
 | `$utils` | Helper functions that templates can call. See [`$utils`](#utils). |
 | `$partials` | Programmatic partial functions. See [Config partials](/partials/#config-partials). |
 | `$images` | Image defaults. See [Image config](/images/#image-config). |
-| `$build` | Build options. See [Build targets](#build-targets), [Script values](#script-values), [Output folder](#output-folder), and [Without trailing slashes](/content/#without-trailing-slashes). |
+| `$build` | Build options. See [Build targets](#build-targets), [Script values](#script-values), [Output folder](#output-folder), [Class names](#class-names), and [Without trailing slashes](/content/#without-trailing-slashes). |
 | `$hooks` | Functions that change the build output. See [Hooks](/hooks/). |
 | `plugins` | An array of partial config objects, merged in order. See [Plugins](#plugins). |
 
@@ -268,6 +268,19 @@ export default {
 ```
 
 The `--outdir` flag wins over it. bongo deletes each file in this folder that the build does not write, so keep the files of other tools in another folder. See [Output folder](/cli/#output-folder) for the rules.
+
+## Class names
+
+Set `$build.classes` to `true` to collect the class names of each page, as bongo renders it. A loader of `assets/` reads them with [`utils.classes()`](/loaders/#loader-utilities). [@bongo/tailwind](/tailwind/) sets it for you.
+
+```ts [bongo.config.ts]
+export default {
+	$site: { url: 'https://example.com/', title: 'My site', lang: 'en' },
+	$build: { classes: true },
+};
+```
+
+bongo keeps the names of each page in the [record of the last build](/cli/#incremental-builds), so a page that a build does not render still adds its names.
 
 ## Plugins
 
