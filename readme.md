@@ -81,6 +81,7 @@ Everything else is at **[bongo.build](https://bongo.build)**:
 | [`@bongo/bongo`](./packages/bongo) | The core static site generator and the optional browser runtime. Install it as `bongo@npm:@bongo/bongo`. |
 | [`@bongo/markdown`](./packages/plugin.markdown) | Markdown loader plugin. |
 | [`@bongo/feed`](./packages/plugin.feed) | RSS and Atom feed plugin. |
+| [`@bongo/tailwind`](./packages/plugin.tailwind) | Tailwind CSS plugin. |
 | [`create-bongo`](./packages/create-bongo) | Project scaffolding CLI. |
 
 ## Contributing

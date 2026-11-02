@@ -1,0 +1,43 @@
+{
+  "version": "1.2.0",
+  "name": "@bongo/tailwind",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lukeed/bongo.git",
+    "directory": "packages/plugin.tailwind"
+  },
+  "description": "Tailwind CSS for bongo, built from the classes that your pages use",
+  "types": "index.d.ts",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
+  "dependencies": {
+    "@tailwindcss/node": "^4.3.4",
+    "@tailwindcss/oxide": "^4.3.4"
+  },
+  "peerDependencies": {
+    "tailwindcss": "^4.0.0"
+  },
+  "devDependencies": {
+    "tailwindcss": "^4.3.4"
+  },
+  "author": {
+    "name": "Luke Edwards",
+    "email": "luke.edwards05@gmail.com",
+    "url": "https://lukeed.com"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

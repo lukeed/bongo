@@ -5,7 +5,8 @@
     "packages/bongo",
     "packages/create-bongo",
     "packages/plugin.markdown",
-    "packages/plugin.feed"
+    "packages/plugin.feed",
+    "packages/plugin.tailwind"
   ],
   "message": "v{VERSION}"
 }
