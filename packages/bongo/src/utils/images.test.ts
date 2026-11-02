@@ -148,6 +148,17 @@ describe('prepare', () => {
 		}
 	});
 
+	test('rounds the height of each width to the nearest pixel', async () => {
+		let { outDir, ctx, done } = await setup();
+		try {
+			let info = await images.prepare(PHOTO, images.settings({ formats: 'webp', widths: '501' }, {}), ctx);
+			let { width, height } = await meta(join(outDir, info.filename));
+			expect(`${width}x${height}`).toBe('501x376');
+		} finally {
+			await done();
+		}
+	});
+
 	test('reuses cached files across builds', async () => {
 		let first = await setup();
 		try {

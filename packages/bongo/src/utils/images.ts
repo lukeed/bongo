@@ -40,6 +40,7 @@ type Job = {
 	key: string;
 	format: Format;
 	width: number;
+	height: number;
 	options: { quality?: number; progressive?: boolean };
 	cache: string;
 	filename: string;
@@ -231,7 +232,7 @@ async function write(job: Job, out: string): Promise<string> {
 	let Image = codec();
 	if (!Image) throw new Error(`Resizing "${job.file}" needs Bun`);
 	try {
-		var data = await encode(new Image(bytes).resize(job.width, undefined, { withoutEnlargement: true }), job.format, job.options);
+		var data = await encode(new Image(bytes).resize(job.width, job.height, { withoutEnlargement: true }), job.format, job.options);
 	} catch (err) {
 		throw unsupported(err) ? noAvif(job.file) : unreadable(job.file, err);
 	}
@@ -347,9 +348,11 @@ export async function prepare(file: string, settings: Settings, ctx: Context): P
 		let options = format === 'jpeg' ? { quality, progressive: true } : { quality };
 		let backend = format === 'avif' ? 'system' : 'bun';
 		for (let w of widths) {
-			let key = sha256(JSON.stringify([hash, encoder, backend, format, w, options])).slice(0, 16);
+			// Bun.Image truncates the height that it calculates, so a 1254×837 source at 960 would be 640, not 641
+			let h = Math.round(w * height / width);
+			let key = sha256(JSON.stringify([hash, encoder, backend, format, w, h, options])).slice(0, 16);
 			let filename = `${name}-${w}.${key.slice(0, 8)}.${EXTENSION[format]}`;
-			jobs.push({ file, hash, key, format, width: w, options, cache: ctx.cache, filename });
+			jobs.push({ file, hash, key, format, width: w, height: h, options, cache: ctx.cache, filename });
 		}
 	}
 
