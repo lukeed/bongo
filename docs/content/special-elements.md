@@ -162,7 +162,7 @@ It writes only that script, so you can put it anywhere in `<head>` or `<body>`. 
 
 ## `<bongo:image>`
 
-Resizes and converts an image with `Bun.Image`, and writes a `<picture>` with a `srcset` for each format. Under Deno and Node, bongo copies the image as it is. See [Images](/images/).
+Resizes and converts an image with `Bun.Image`, and writes a `<picture>` with a `srcset` for each format. With one format, or for an image that bongo copies as it is, such as an SVG, it writes the `<img>` alone. Under Deno and Node, bongo copies the image as it is. See [Images](/images/).
 
 ```hbs
 <bongo:image src="img/hero.jpg" alt="A hero" sizes="(min-width: 800px) 720px, 100vw" />

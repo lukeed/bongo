@@ -449,12 +449,17 @@ describe('render', () => {
 		],
 	};
 
-	test('puts every format but the last in a <source>, and the last in the <img>', () => {
+	test('puts every format but the last in a <source>, and the last in the <img>, in a <picture>', () => {
 		let html = images.render(info, { sizes: '50vw', alt: 'A "b"', hidden: true, loading: 'lazy' }, url);
 		expect(html).toBe(
-			'<source type="image/avif" srcset="/docs/a-640.1.avif 640w, /docs/a-800.1.avif 800w" sizes="50vw"/>'
-			+ '<img src="/docs/a-800.2.webp" srcset="/docs/a-640.2.webp 640w, /docs/a-800.2.webp 800w" sizes="50vw" alt="A &quot;b&quot;" hidden loading="lazy" width="800" height="600"/>',
+			'<picture><source type="image/avif" srcset="/docs/a-640.1.avif 640w, /docs/a-800.1.avif 800w" sizes="50vw"/>'
+			+ '<img src="/docs/a-800.2.webp" srcset="/docs/a-640.2.webp 640w, /docs/a-800.2.webp 800w" sizes="50vw" alt="A &quot;b&quot;" hidden loading="lazy" width="800" height="600"/></picture>',
 		);
+	});
+
+	test('writes one format as the <img> alone', () => {
+		let one = { ...info, variants: info.variants.slice(2) };
+		expect(images.render(one, { alt: '' }, url)).toBe('<img src="/docs/a-800.2.webp" srcset="/docs/a-640.2.webp 640w, /docs/a-800.2.webp 800w" alt="" width="800" height="600"/>');
 	});
 
 	test('fills the missing dimension from the aspect ratio', () => {

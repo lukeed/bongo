@@ -45,6 +45,8 @@ With the default settings and a 2400×1600 JPEG, this becomes the following HTML
 </picture>
 ```
 
+With one format, such as `formats="webp"`, there is nothing for a `<source>` to offer, so the element becomes the `<img>` alone, with no `<picture>`. So does an image that bongo copies as it is, such as an SVG.
+
 ### Source paths
 
 The path in `src` tells bongo where the file is:

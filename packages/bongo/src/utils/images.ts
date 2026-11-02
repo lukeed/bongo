@@ -424,8 +424,8 @@ export function tag(placeholder: string, attrs: Attrs, options: Images.Options):
 }
 
 /**
- * Final markup for a stand-in `<img>`: one `<source>` per format but the last, then the `<img>` with the last format.
- * A missing `width` or `height` comes from the image, keeping its aspect ratio.
+ * Final markup for a stand-in `<img>`: a `<picture>` with one `<source>` per format but the last, then the `<img>` with the last format.
+ * An image with one format is the `<img>` alone. A missing `width` or `height` comes from the image, keeping its aspect ratio.
  * @example images.render(info, { alt: '', sizes: '100vw' }, name => '/' + name)
  */
 export function render(info: Info, attrs: Attrs, url: (filename: string) => string): string {
@@ -449,11 +449,12 @@ export function render(info: Info, attrs: Attrs, url: (filename: string) => stri
 	let srcset = (format: Format) => info.variants.filter(v => v.format === format).map(v => `${url(v.filename)} ${v.width}w`).join(', ');
 	let sources = formats.slice(0, -1).map(format => '<source' + serialize([['type', `image/${format}`], ['srcset', srcset(format)], ['sizes', sizes]]) + '/>');
 
-	return sources.join('') + '<img' + serialize([
+	let img = '<img' + serialize([
 		['src', url(info.filename)],
 		['srcset', srcset(formats[formats.length - 1])],
 		['sizes', sizes],
 		...rest,
 		...size,
 	]) + '/>';
+	return sources.length ? `<picture>${sources.join('')}${img}</picture>` : img;
 }

@@ -314,7 +314,7 @@ export function scanBongoTags(
 				throw new Error(`${reason(err)} for ${match.trim()}${where}`);
 			}
 			let placeholder = bundler.register(entry, { kind: 'image', image });
-			return `<picture>${images.tag(placeholder, forwarded, config.$images)}</picture>`;
+			return images.tag(placeholder, forwarded, config.$images);
 		}
 
 		if (kind === 'asset') {

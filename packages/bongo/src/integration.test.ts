@@ -905,7 +905,7 @@ describe('integration: site-image', () => {
 		return { files, html, find, set };
 	}
 
-	test('<bongo:image> writes resized copies and a <picture> with intrinsic dimensions', async () => {
+	test('<bongo:image> writes resized copies, with a <picture> for more than one format, and intrinsic dimensions', async () => {
 		let root = await copyFixture('site-image');
 		try {
 			await build({ cwd: root });
@@ -920,8 +920,9 @@ describe('integration: site-image', () => {
 			let logo = files.find(f => /^logo\.[a-f0-9]{8}\.svg$/.test(f));
 			let spin = files.find(f => /^spin\.[a-f0-9]{8}\.gif$/.test(f));
 			expect(html).toContain(`<picture><source type="image/webp" srcset="${set('hero', widths, 'webp')}" sizes="100vw"/><img src="/docs/${find('hero', 2400, 'jpg')}" srcset="${set('hero', widths, 'jpg')}" sizes="100vw" alt="Hero" fetchpriority="high" loading="eager" decoding="async" width="2400" height="1200"/></picture>`);
-			expect(html).toContain(`<picture><img src="/docs/${logo}" alt="Logo" class="logo" loading="lazy" decoding="async" width="120" height="40"/></picture>`);
-			expect(html).toContain(`<picture><img src="/docs/${spin}" alt="" loading="lazy" decoding="async" width="20" height="30"/></picture>`);
+			expect(html).toContain(`<img src="/docs/${logo}" alt="Logo" class="logo" loading="lazy" decoding="async" width="120" height="40"/>`);
+			expect(html).not.toContain(`<picture><img src="/docs/${logo}"`);
+			expect(html).toContain(`<img src="/docs/${spin}" alt="" loading="lazy" decoding="async" width="20" height="30"/>`);
 			expect(html).not.toContain('bongo');
 		} finally {
 			await rm(root, { recursive: true, force: true });
@@ -934,7 +935,7 @@ describe('integration: site-image', () => {
 			await build({ cwd: root });
 			let { html, find } = await read(root, 'blog/post/index.html');
 			let photo = find('photo', 320, 'webp');
-			expect(html).toContain(`<picture><img src="/docs/${photo}" srcset="/docs/${photo} 320w" sizes="auto, 100vw" alt="Element" loading="lazy" decoding="async" width="800" height="600"/></picture>`);
+			expect(html).toContain(`\n<img src="/docs/${photo}" srcset="/docs/${photo} 320w" sizes="auto, 100vw" alt="Element" loading="lazy" decoding="async" width="800" height="600"/>`);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -1085,8 +1086,8 @@ describe('integration: site-image', () => {
 			let { files, html } = await read(root);
 			let hero = files.find(f => /^hero\.[a-f0-9]{8}\.jpg$/.test(f));
 			expect(files.filter(f => /-\d+\.[a-f0-9]{8}\./.test(f))).toEqual([]);
-			expect(html).toContain(`<picture><img src="/docs/${hero}" alt="Hero" fetchpriority="high" loading="eager" decoding="async"/></picture>`);
-			expect(html).toMatch(/<picture><img src="\/docs\/logo\.[a-f0-9]{8}\.svg" alt="Logo" class="logo" loading="lazy" decoding="async" width="120" height="40"\/><\/picture>/);
+			expect(html).toContain(`<img src="/docs/${hero}" alt="Hero" fetchpriority="high" loading="eager" decoding="async"/>`);
+			expect(html).toMatch(/<img src="\/docs\/logo\.[a-f0-9]{8}\.svg" alt="Logo" class="logo" loading="lazy" decoding="async" width="120" height="40"\/>/);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

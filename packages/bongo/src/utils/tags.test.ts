@@ -501,14 +501,14 @@ describe('scanBongoTags — <bongo:image>', () => {
 		}
 	}
 
-	test('becomes a <picture> around a stand-in <img>, lazy and async with auto sizes', async () => {
+	test('becomes a stand-in <img>, lazy and async with auto sizes', async () => {
 		let out = await scan('<bongo:image src="img/a.jpg" alt="A" class="hero" />', ['assets/img/a.jpg']);
-		expect(out).toBe('<picture><img data-bongo-image="TOKEN" sizes="auto, 100vw" alt="A" class="hero" loading="lazy" decoding="async"/></picture>');
+		expect(out).toBe('<img data-bongo-image="TOKEN" sizes="auto, 100vw" alt="A" class="hero" loading="lazy" decoding="async"/>');
 	});
 
 	test('typed attributes become html text: lists join, true is bare, and false or null drops it', async () => {
 		let out = await scan('<bongo:image src="img/a.jpg" alt="" width=640 class=[hero, wide] data-zoom=true hidden=false title=null widths=[320, 640] quality=60 />', ['assets/img/a.jpg']);
-		expect(out).toBe('<picture><img data-bongo-image="TOKEN" sizes="auto, 100vw" alt="" width="640" class="hero wide" data-zoom loading="lazy" decoding="async"/></picture>');
+		expect(out).toBe('<img data-bongo-image="TOKEN" sizes="auto, 100vw" alt="" width="640" class="hero wide" data-zoom loading="lazy" decoding="async"/>');
 	});
 
 	test('explicit attributes win, and fetchpriority=high loads eagerly without auto sizes', async () => {
@@ -518,9 +518,9 @@ describe('scanBongoTags — <bongo:image>', () => {
 			`<bongo:image src='a.jpg' alt='say "hi"' hidden></bongo:image>`,
 		].join('\n'), ['assets/a.jpg'], { images: { sizes: 'auto, (min-width: 800px) 720px, 100vw' } });
 		expect(out.split('\n')).toEqual([
-			'<picture><img data-bongo-image="TOKEN" sizes="50vw" loading="eager" decoding="sync"/></picture>',
-			'<picture><img data-bongo-image="TOKEN" sizes="(min-width: 800px) 720px, 100vw" fetchpriority="high" loading="eager" decoding="async"/></picture>',
-			'<picture><img data-bongo-image="TOKEN" sizes="auto, (min-width: 800px) 720px, 100vw" alt="say &quot;hi&quot;" hidden loading="lazy" decoding="async"/></picture>',
+			'<img data-bongo-image="TOKEN" sizes="50vw" loading="eager" decoding="sync"/>',
+			'<img data-bongo-image="TOKEN" sizes="(min-width: 800px) 720px, 100vw" fetchpriority="high" loading="eager" decoding="async"/>',
+			'<img data-bongo-image="TOKEN" sizes="auto, (min-width: 800px) 720px, 100vw" alt="say &quot;hi&quot;" hidden loading="lazy" decoding="async"/>',
 		]);
 	});
 
