@@ -78,6 +78,23 @@ describe('tailwind()', () => {
 		}
 	});
 
+	test('builds a CSS module that only applies utilities while a page renders, as $assets.classes() needs it', async () => {
+		let root = await site({
+			'layouts/html.hbs': `{{#var css = await $assets.classes('button.module.css')}}<html><bongo:style src="button.module.css" /><button class="{{ css.btn }}">{{{ $page.content }}}</button></html>`,
+			'assets/button.module.css': '@reference "tailwindcss";\n.btn { @apply flex; }',
+			'content/index.html': '<p>x</p>',
+		});
+		try {
+			await build({ cwd: root });
+			let page = await readFile(join(root, 'public/index.html'), 'utf8');
+			let name = /<button class="([^"]+)"/.exec(page)?.[1];
+			expect(name).toBeTruthy();
+			expect(await css(root, 'button.')).toMatch(new RegExp(`\\.${name}\\s*\\{\\s*display: flex`));
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('leaves a stylesheet without Tailwind as it is', async () => {
 		let root = await site({
 			'layouts/html.hbs': '<html><bongo:style src="plain.css" />{{{ $page.content }}}</html>',
