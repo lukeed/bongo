@@ -48,6 +48,8 @@ Tailwind usually scans your source files for class names. bongo has the HTML of 
 
 The plugin builds a stylesheet that imports `tailwindcss` or uses a Tailwind at-rule, such as `@theme`, `@utility`, or `@apply`. It leaves other stylesheets as they are.
 
+A stylesheet that only applies or references utilities, such as a [CSS module](/css/#css-modules) with `@reference "tailwindcss"` and `@apply`, writes no utilities of its own, so it needs no classes of the pages. Thus `$assets.classes()` can read its class names while a page renders.
+
 ## Builds and dev
 
 A page that renders a new class name changes the stylesheet in the same build. In `bongo build`, the stylesheet then gets a new name, so every page that links it renders again, as after a stylesheet edit. `bongo dev` names a stylesheet by its entry, so no other page renders again.
