@@ -1436,7 +1436,7 @@ describe('incremental builds', () => {
 		let root = await site({
 			...sources(),
 			'bongo.config.ts': config('Site').replace(`title: "Site"`, `title: process.env.SITE ?? 'Site'`),
-			'data/env.ts': `export default { motto: process.env.MOTTO ?? 'hello', at: { b: 2, a: 1 } };`,
+			'data/env.ts': `export default { motto: process.env.MOTTO ?? 'hello', at: { b: 2, a: 1 }, seen: new Map([['k', process.env.SEEN ?? '']]), tags: new Set([process.env.SEEN ?? '']) };`,
 		});
 		let script = [
 			`import { build } from ${JSON.stringify(join(import.meta.dirname, 'build.ts'))};`,
@@ -1457,6 +1457,8 @@ describe('incremental builds', () => {
 			expect(await read(root, 'about/index.html')).toContain('About · Staging');
 			expect(await run({ SITE: 'Staging' })).toEqual([]);
 			expect(await run({ SITE: 'Staging', MOTTO: 'hi' })).toEqual(all);
+			expect(await run({ SITE: 'Staging', MOTTO: 'hi', SEEN: 'x' })).toEqual(all);
+			expect(await run({ SITE: 'Staging', MOTTO: 'hi', SEEN: 'x' })).toEqual([]);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

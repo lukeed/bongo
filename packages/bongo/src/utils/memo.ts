@@ -105,11 +105,14 @@ async function folder(dir: string): Promise<string[]> {
 	return files.sort();
 }
 
-// JSON with the keys of each plain object sorted, so a value that a module builds in another order hashes the same; a value that cannot be written, such as a cycle, never matches.
+// JSON with the keys of each plain object sorted, so a value that a module builds in another order hashes the same, and with the entries of each Map and Set; a value that cannot be written, such as a cycle, never matches.
 function stable(value: unknown): string {
 	try {
 		return JSON.stringify(value, (_, item: unknown) => {
 			if (typeof item === 'function' || typeof item === 'bigint') return String(item);
+			// JSON writes a Map or a Set as `{}`, which would hide each change in it
+			if (item instanceof Map) return { Map: [...item] };
+			if (item instanceof Set) return { Set: [...item] };
 			if (!item || typeof item !== 'object' || Array.isArray(item) || Object.getPrototypeOf(item) !== Object.prototype) return item;
 			return Object.fromEntries(Object.entries(item).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
 		}) ?? '';
