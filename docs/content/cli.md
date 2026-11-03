@@ -114,7 +114,7 @@ Each build compares the size and the mtime of each source file with the record. 
 
 Every page renders again when the config changes, or a local file that it imports, or a value of `$site`, `$build`, `$images`, or `$data`, such as one that the config or a data module reads from an environment variable, a file in `data/`, `layouts/`, or `partials/`, the lockfile, the version of bongo, the runtime, `NODE_ENV`, `--minify`, or `--drafts`. [Output files](/output-files/) and [data modules](/data-modules/) render on every build, since they can read every page.
 
-bongo cannot see a change that keeps the size and the mtime of a source file, as `cp -p` or `rsync -t` can make. It also cannot see what a template, a hook, or a loader reads by itself, such as the time, an environment variable, or a file that it opens. The config and data modules can read the environment instead: bongo sees the values that they give. A page that uses one keeps its last file until something else makes it render. Use `--fresh` for such a build, as at the turn of a year for a footer that prints the year:
+bongo cannot see a change that keeps the size and the mtime of a source file, as `cp -p` or `rsync -t` can make. It also cannot see what a template, a hook, or a loader reads by itself, such as the time, an environment variable, or a file that it opens. The config and data modules can read the environment instead: bongo sees the values that they give when they load. It does not see what a function in them, such as a `$utils` helper, reads when a page calls it. A page that uses one keeps its last file until something else makes it render. Use `--fresh` for such a build, as at the turn of a year for a footer that prints the year:
 
 ```sh
 bongo build --fresh
