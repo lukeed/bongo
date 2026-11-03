@@ -100,7 +100,7 @@ on('bongo:navigated', ({ to }) => {
 | Event | Detail shape | Fires when |
 | --- | --- | --- |
 | `bongo:ready` | `{ url: URL }` | Once, immediately after `client()` is called. |
-| `bongo:navigate` | `{ to: URL; from: URL }` | A navigation is intercepted, before the fetch. |
+| `bongo:navigate` | `{ to: URL; from: URL }` | A navigation is intercepted, before the URL changes and before the fetch. |
 | `bongo:replace` | `{ to: URL; from: URL; doc: Document }` | The HTML is fetched and parsed. The swap has not happened yet. |
 | `bongo:replaced` | `{ to: URL; from: URL }` | The DOM is swapped. |
 | `bongo:navigated` | `{ to: URL; from: URL }` | The navigation is settled. |
@@ -135,7 +135,7 @@ A script that only changes the URL, with `history.pushState()` or `history.repla
 
 ## Redirects
 
-When the server redirects a link, such as `/about` to `/about/`, the client puts the page there with the URL of the last response, and the hash of the link. Thus the address bar, the history entry, and the relative URLs of the page match, as after a full-page load. The browser must support `precommitHandler` of the Navigation API to change the URL before it commits. Without it, a redirect loads the page as the browser would without the client.
+When the server redirects a link, such as `/about` to `/about/`, the client puts the page there with the URL of the last response, and the hash of the link. Thus the address bar, the history entry, and the relative URLs of the page match, as after a full-page load. `bongo:navigate` gets the URL of the link, and the later events get the URL of the last response. The browser must support `precommitHandler` of the Navigation API to change the URL before it commits. Without it, a redirect loads the page as the browser would without the client.
 
 ## Stylesheets
 

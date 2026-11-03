@@ -233,6 +233,23 @@ describe('client() navigation', () => {
 		expect(seen).toEqual(['https://example.com/b/#end https://example.com/b/#end']);
 	});
 
+	test('fires bongo:navigate before the URL changes, with or without precommitHandler, and on back and forward', async () => {
+		await boot();
+		let seen: string[] = [];
+		let { on } = await import('./index');
+		on('bongo:navigate', ({ to, from }) => seen.push(`${from.pathname} ${to.pathname} ${location.pathname}`));
+		load('/b.css');
+		Reflect.set(globalThis, 'NavigationPrecommitController', class {});
+		try {
+			await go('/b/').done;
+		} finally {
+			Reflect.deleteProperty(globalThis, 'NavigationPrecommitController');
+		}
+		await go('/').done;
+		await go('/b/', 'traverse').done;
+		expect(seen).toEqual(['/ /b/ /', '/b/ / /b/', '/ /b/ /']);
+	});
+
 	test('loads the page of a redirect when the URL can no longer change', async () => {
 		await boot();
 		let internal = await import('./internal');

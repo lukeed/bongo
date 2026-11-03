@@ -75,11 +75,6 @@ export function client(opts: ClientOptions = {}): void {
 		let { signal } = event;
 		let page: Promise<Page | undefined> | undefined;
 
-		function load(): Promise<Page | undefined> {
-			internal.emit('bongo:navigate', { to, from });
-			return internal.fetchPage(to, signal);
-		}
-
 		function fail(err: unknown): never {
 			if (!signal.aborted) internal.emit('bongo:error', { to, error: err instanceof Error ? err : new Error(String(err)) });
 			throw err;
@@ -88,11 +83,14 @@ export function client(opts: ClientOptions = {}): void {
 		// Before the URL commits, a redirect can still change it, so the address bar and relative URLs match the page.
 		let precommit = event.navigationType !== 'traverse' && typeof globalThis.NavigationPrecommitController === 'function';
 
+		// Here, so that it fires before the URL changes and before the fetch, whichever handler fetches.
+		internal.emit('bongo:navigate', { to, from });
+
 		event.intercept({
 			...(precommit && {
 				async precommitHandler(controller: NavigationPrecommitController) {
 					try {
-						let found = await (page = load());
+						let found = await (page = internal.fetchPage(to, signal));
 						if (found && found.url.href !== to.href && !signal.aborted) controller.redirect(found.url.href);
 					} catch (err) {
 						fail(err);
@@ -101,7 +99,7 @@ export function client(opts: ClientOptions = {}): void {
 			}),
 			async handler() {
 				try {
-					let found = await (page ??= load());
+					let found = await (page ??= internal.fetchPage(to, signal));
 					if (signal.aborted) return;
 					// a file of another type, such as a feed: the browser shows it, as it would without bongo
 					if (found === undefined) {
