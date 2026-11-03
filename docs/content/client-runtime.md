@@ -150,7 +150,7 @@ With `prefetch`, the runtime also fetches the new stylesheets of a page before t
 
 ## Scroll restoration
 
-`client()` sets `history.scrollRestoration = 'manual'`.
+`client()` sets `history.scrollRestoration = 'manual'`, and intercepts each navigation with `scroll: 'manual'`, so the browser does not scroll again once the page is on screen.
 
 - Back and forward restore the saved `{x, y}` position for that URL.
 - Push and replace scroll to the hash element if there is one, or else to `(0, 0)`.

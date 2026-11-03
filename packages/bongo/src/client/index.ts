@@ -87,6 +87,8 @@ export function client(opts: ClientOptions = {}): void {
 		internal.emit('bongo:navigate', { to, from });
 
 		event.intercept({
+			// bongo restores the scroll in the swap; the default, "after-transition", lets the browser scroll again after it
+			scroll: 'manual',
 			...(precommit && {
 				async precommitHandler(controller: NavigationPrecommitController) {
 					try {

@@ -78,7 +78,7 @@ describe('navigate() with the Navigation API', () => {
 
 describe('client() navigation', () => {
 	type Page = { head: string; body: string };
-	type Visit = { abort(): void; done: Promise<void> };
+	type Visit = { abort(): void; scroll?: string; done: Promise<void> };
 
 	let CORE = '<link rel="stylesheet" href="/core.css">';
 	let PAGES: Record<string, Page> = {
@@ -124,12 +124,13 @@ describe('client() navigation', () => {
 		return document.querySelector('h1')?.textContent;
 	}
 
-	type Handlers = { handler: () => Promise<void>; precommitHandler?: (controller: { redirect(url: string): void }) => Promise<void> };
+	type Handlers = { handler: () => Promise<void>; precommitHandler?: (controller: { redirect(url: string): void }) => Promise<void>; scroll?: string };
 
 	function go(path: string, type: NavigationType = 'push'): Visit {
 		let ctrl = new AbortController();
 		let url = 'https://example.com' + path;
 		let run: (() => Promise<void>) | undefined;
+		let scroll: string | undefined;
 		nav.dispatchEvent(Object.assign(new Event('navigate'), {
 			canIntercept: true,
 			hashChange: false,
@@ -139,6 +140,7 @@ describe('client() navigation', () => {
 			destination: { url },
 			signal: ctrl.signal,
 			intercept(opts: Handlers) {
+				scroll = opts.scroll;
 				run = async () => {
 					await opts.precommitHandler?.({ redirect: (to) => (url = to) });
 					win?.happyDOM.setURL(url);
@@ -146,7 +148,7 @@ describe('client() navigation', () => {
 				};
 			},
 		}));
-		return { abort: () => ctrl.abort(), done: run ? run() : Promise.reject(new Error('not intercepted')) };
+		return { abort: () => ctrl.abort(), scroll, done: run ? run() : Promise.reject(new Error('not intercepted')) };
 	}
 
 	async function boot(): Promise<void> {
@@ -258,6 +260,16 @@ describe('client() navigation', () => {
 		expect(replace).toHaveBeenCalledWith('https://example.com/b/');
 		expect(internal.getBypassNext()).toBe(true);
 		expect(heading()).toBe('A');
+	});
+
+	test('keeps the browser from scrolling after the swap, which restores the scroll itself', async () => {
+		await boot();
+		load('/b.css');
+		let push = go('/b/');
+		await push.done;
+		let back = go('/', 'traverse');
+		await back.done;
+		expect([push.scroll, back.scroll]).toEqual(['manual', 'manual']);
 	});
 
 	test('loads new stylesheets before the view transition starts', async () => {
