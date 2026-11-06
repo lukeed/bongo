@@ -8,7 +8,7 @@ Before every commit:
 
 1. `bun run build` passes. It goes first: the CLI tests run the built `bin.js`, so a build from another branch makes them test old code.
 2. `bun test` passes.
-3. `bunx tsc -p .` and `bunx tsc -p build` report no errors.
+3. `bun check -p .` and `bun check -p build` report no errors.
 
 Done when all four commands exit 0.
 
