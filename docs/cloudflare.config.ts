@@ -8,6 +8,7 @@ export default defineConfig({
 		assets: {
 			htmlHandling: "auto-trailing-slash",
 			notFoundHandling: "404-page",
+			// crowne.io analytics, proxied on paths of this site; every other path is a static asset
 			runWorkerFirst: [
 				"/x/script.js",
 				"/x",
@@ -18,6 +19,7 @@ export default defineConfig({
 		],
 		env: {
 			CROWNE_SITE: bindings.text("01M5X84FC4ZH0GC4AJ6DDKVN7J"),
+			CROWNE_KEY: bindings.secret(),
 			ASSETS: bindings.assets(),
 		},
 	},
