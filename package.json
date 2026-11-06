@@ -13,7 +13,7 @@
   },
   "scripts": {
     "bench": "bun bench/index.ts",
-    "docs": "bun -F 'docs'",
+    "docs": "bun -bF 'docs'",
     "example": "bun -bF 'example'",
     "build": "bun build/index.ts",
     "test": "bun test"

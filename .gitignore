@@ -21,5 +21,4 @@ node_modules
 
 /docs/public
 /docs/.wrangler
-/docs/.cloudflare
 /docs/.dev.vars
