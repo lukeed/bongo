@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach, afterEach, spyOn } from 'bun:test';
+import { describe, expect, test, afterAll, beforeEach, afterEach, spyOn } from 'bun:test';
 import { Window } from 'happy-dom';
 import * as prefetch from './prefetch';
 
@@ -41,6 +41,10 @@ describe('prefetch.get() / warm()', () => {
 		Reflect.set(globalThis, 'document', win.document);
 		Reflect.set(globalThis, 'DOMParser', win.DOMParser);
 	});
+
+	// mockReset() leaves the mock in place, returning undefined. The original
+	// has to go back, or every later fetch in the run gets that undefined.
+	afterAll(() => spy.mockRestore());
 
 	afterEach(async () => {
 		spy.mockReset();

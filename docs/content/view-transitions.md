@@ -24,6 +24,15 @@ Give the `transitions` option to the client runtime:
 | any other string | Wraps the swap only. Your CSS gives the rules. |
 | any falsy value | Turns transitions off. This is the default. |
 
+A preset goes in the `bongo` [cascade layer](/css/#cascade-layers), so a rule of your own overrides it without `!important`:
+
+```css [assets/app.css]
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation: none;
+}
+```
+
 See [ClientOptions](/client-runtime/#clientoptions).
 
 ## Name elements

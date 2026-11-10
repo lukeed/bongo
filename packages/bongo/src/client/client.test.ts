@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, spyOn, test } from 'bun:test';
+import { afterAll, afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { Window } from 'happy-dom';
 
 describe('navigate()', () => {
@@ -192,6 +192,10 @@ describe('client() navigation', () => {
 		await w.happyDOM.waitUntilComplete();
 		client({ transitions: true });
 	}
+
+	// mockReset() leaves the mock in place, returning undefined. The original
+	// has to go back, or every later fetch in the run gets that undefined.
+	afterAll(() => spy.mockRestore());
 
 	afterEach(async () => {
 		let [ internal, prefetch ] = await Promise.all([ import('./internal'), import('./prefetch') ]);
