@@ -1,18 +1,37 @@
 /// <reference lib="dom" />
 import { afterEach, describe, expect, test } from 'bun:test';
-import { Window } from 'happy-dom';
 import * as preset from './preset';
 
-let win: Window | undefined;
+type Tag = {
+	attrs: Map<string, string>;
+	textContent: string;
+	setAttribute(name: string, value: string): void;
+};
 
-function mount(): void {
-	let w: Window = win = new Window({ url: 'https://example.com/' });
-	w.document.write('<!doctype html><html><head></head><body></body></html>');
-	Reflect.set(globalThis, 'document', w.document);
-}
+let added: Tag[] = [];
 
-function tags(): string[] {
-	return [ ...document.head.querySelectorAll('style[data-bongo-preset]') ].map(el => el.outerHTML);
+/**
+ * `inject()` reads four things off `document`, so the test gives it those and
+ * no more: a whole DOM in the process would outlive the file and reach the
+ * tests that serve over HTTP.
+ */
+function stub(): void {
+	added = [];
+	Reflect.set(globalThis, 'document', {
+		createElement(): Tag {
+			let attrs = new Map<string, string>();
+			return { attrs, textContent: '', setAttribute: (k, v) => void attrs.set(k, v) };
+		},
+		head: {
+			appendChild(el: Tag): void {
+				added.push(el);
+			},
+		},
+		querySelector(sel: string): Tag | null {
+			let name = /data-bongo-preset="([^"]+)"/.exec(sel)?.[1];
+			return added.find(el => el.attrs.get('data-bongo-preset') === name) ?? null;
+		},
+	});
 }
 
 describe('preset.resolve()', () => {
@@ -47,41 +66,42 @@ describe('preset.resolve()', () => {
 
 describe('preset.inject()', () => {
 	afterEach(() => {
-		win?.close();
-		win = undefined;
+		added = [];
+		Reflect.deleteProperty(globalThis, 'document');
 	});
 
 	test('wraps the preset in the "bongo" layer, so a page rule beats it', () => {
-		mount();
+		stub();
 		preset.inject('fade');
-		let [ tag ] = tags();
-		expect(tag).toStartWith('<style data-bongo-preset="fade">@layer bongo{');
-		expect(tag).toEndWith('}</style>');
-		expect(tag).toInclude('::view-transition-old(root){animation-name:bongo-fade-out');
+		expect(added).toHaveLength(1);
+		expect(added[0].attrs.get('data-bongo-preset')).toBe('fade');
+		expect(added[0].textContent).toStartWith('@layer bongo{');
+		expect(added[0].textContent).toEndWith('}');
+		expect(added[0].textContent).toInclude('::view-transition-old(root){animation-name:bongo-fade-out');
 	});
 
 	test('"slide" is layered too', () => {
-		mount();
+		stub();
 		preset.inject('slide');
-		expect(tags()[0]).toInclude('@layer bongo{@keyframes bongo-slide-in');
+		expect(added[0].textContent).toStartWith('@layer bongo{@keyframes bongo-slide-in');
 	});
 
 	test('"initial" adds no CSS', () => {
-		mount();
+		stub();
 		preset.inject('initial');
-		expect(tags()).toEqual([]);
+		expect(added).toEqual([]);
 	});
 
 	test('an unknown preset adds no CSS', () => {
-		mount();
+		stub();
 		preset.inject('my-custom-preset');
-		expect(tags()).toEqual([]);
+		expect(added).toEqual([]);
 	});
 
 	test('a second call adds no second tag', () => {
-		mount();
+		stub();
 		preset.inject('fade');
 		preset.inject('fade');
-		expect(tags()).toHaveLength(1);
+		expect(added).toHaveLength(1);
 	});
 });
