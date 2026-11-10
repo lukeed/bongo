@@ -25,12 +25,19 @@ export function resolve(opt: Options): Preset | (string & {}) | undefined {
 	else if (opt) return opt;
 }
 
+/**
+ * The preset goes in the `bongo` cascade layer. The tag is appended to
+ * `<head>`, so it is always after the stylesheets of the page, and source
+ * order would else make a preset that you opt into one you cannot override.
+ * An unlayered rule beats a layered one whatever the order, so your own CSS
+ * wins without `!important`.
+ */
 export function inject(name: Preset | (string & {})): void {
 	let css = CSS[name];
 	if (!css) return; // 'initial' or unknown custom preset — user handles CSS
 	if (document.querySelector(`style[data-bongo-preset="${name}"]`)) return;
 	let el = document.createElement('style');
 	el.setAttribute('data-bongo-preset', name);
-	el.textContent = css;
+	el.textContent = `@layer bongo{${css}}`;
 	document.head.appendChild(el);
 }

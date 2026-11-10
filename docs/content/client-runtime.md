@@ -74,6 +74,8 @@ The view-transition preset:
 - A custom string only wraps the swap. Your CSS gives the rules.
 - Any falsy value turns transitions off.
 
+A preset goes in the `bongo` [cascade layer](/css/#cascade-layers), so a rule of your own overrides it without `!important`. See [Turn on transitions](/view-transitions/#turn-on-transitions).
+
 Opt a link out with `transition:disable`.
 
 ### prefetch

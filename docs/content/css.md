@@ -35,6 +35,18 @@ A relative path resolves against the file that contains the `@import`, so an imp
 
 A change to an imported file rebuilds each stylesheet that imports it, in `bongo build` and in `bongo dev`. A missing file fails the build, with an error that names the `@import` and the CSS file that contains it.
 
+## Cascade layers
+
+bongo puts the CSS it adds itself in the `bongo` layer. Today that is the [view-transition preset](/view-transitions/#turn-on-transitions) of the client runtime, which the runtime appends to `<head>` after the stylesheets of the page. An unlayered rule beats a layered one whatever the order, so your own CSS overrides it without `!important`.
+
+Name the layer to order it against your own:
+
+```css [assets/app.css]
+@layer bongo, reset, theme;
+```
+
+Your own rules stay unlayered unless you put them in a layer, so most sites need no such line.
+
 ## CSS modules
 
 A `.module.css` file is a CSS module: LightningCSS gives each of its class names a hash, so that it cannot clash with a class of another stylesheet. Read the new names in a template with `$assets.classes()`:
